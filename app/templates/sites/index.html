@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Sites · Cloud Industry{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-bold">Sites</h1><p class="mt-2 text-zinc-400">Customer sites managed through Coolify.</p>
+<div class="mt-6 overflow-hidden rounded-xl border border-border"><table class="w-full text-sm"><thead class="bg-muted text-left text-zinc-400"><tr><th class="p-4">Domain</th><th class="p-4">Status</th><th class="p-4">Runtime</th></tr></thead><tbody>{% for site in sites %}<tr class="border-t border-border"><td class="p-4 font-medium">{{ site.name }}</td><td class="p-4">{{ site.status }}</td><td class="p-4 text-zinc-400">{{ site.runtime }}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

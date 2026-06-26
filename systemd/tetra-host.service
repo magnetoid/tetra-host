@@ -1,0 +1,16 @@
+[Unit]
+Description=Cloud Industry Tetra Host Panel
+After=network.target
+
+[Service]
+Type=simple
+User=tetrahost
+Group=tetrahost
+WorkingDirectory=/opt/tetra-host
+EnvironmentFile=/opt/tetra-host/.env
+ExecStart=/opt/tetra-host/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8088
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

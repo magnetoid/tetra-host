@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Cloud Industry{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-bold">Dashboard</h1>
+<p class="mt-2 text-zinc-400">Overview of customer hosting resources.</p>
+<div class="mt-8 grid gap-4 md:grid-cols-4">
+  {% for s in stats %}
+  <div class="rounded-xl border border-border bg-muted p-5"><div class="text-sm text-zinc-400">{{ s.label }}</div><div class="mt-2 text-3xl font-bold">{{ s.value }}</div><div class="mt-2 text-xs text-zinc-500">{{ s.hint }}</div></div>
+  {% endfor %}
+</div>
+<div class="mt-8 rounded-xl border border-border bg-muted p-6"><h2 class="font-semibold">Migration roadmap</h2><ol class="mt-4 list-decimal space-y-2 pl-5 text-sm text-zinc-300"><li>Connect Coolify API.</li><li>Map Plesk domains to tenants.</li><li>Add Mailcow management.</li><li>Add Cloudflare DNS.</li></ol></div>
+{% endblock %}

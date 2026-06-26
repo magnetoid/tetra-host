@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Cloud Industry Hosting{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-5xl py-16">
+  <div class="inline-flex rounded-full border border-border px-3 py-1 text-sm text-zinc-300">White-label hosting control panel</div>
+  <h1 class="mt-6 text-5xl font-bold tracking-tight">Hosting panel for your customers, powered by your infrastructure.</h1>
+  <p class="mt-6 max-w-2xl text-lg text-zinc-400">Cloud Industry Hosting gives customers a clean portal for sites, domains, mailboxes and DNS while your team keeps Coolify, Mailcow and Cloudflare behind the scenes.</p>
+  <div class="mt-8 flex gap-3">
+    <a href="/auth/login" class="rounded-lg bg-primary px-5 py-3 text-sm font-semibold">Open dashboard</a>
+    <a href="/dashboard" class="rounded-lg border border-border px-5 py-3 text-sm font-semibold">Preview UI</a>
+  </div>
+  <div class="mt-12 grid gap-4 md:grid-cols-3">
+    {% for card in [('Sites','Deploy, restart and inspect hosted apps.'),('Mail','Mailcow domains, mailboxes and aliases.'),('DNS','Cloudflare zones and records in one place.')] %}
+    <div class="rounded-xl border border-border bg-muted p-6"><h3 class="font-semibold">{{ card[0] }}</h3><p class="mt-2 text-sm text-zinc-400">{{ card[1] }}</p></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

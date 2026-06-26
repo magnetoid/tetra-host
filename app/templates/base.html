@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Cloud Industry Hosting{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { border: '#27272a', background: '#09090b', foreground: '#fafafa', muted: '#18181b', primary: '#7c3aed' }}}}
+  </script>
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body class="min-h-screen bg-background text-foreground antialiased">
+  <div class="flex min-h-screen">
+    <aside class="hidden w-72 border-r border-border bg-muted/40 p-6 lg:block">
+      <a href="/dashboard" class="flex items-center gap-3">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-primary font-bold">CI</div>
+        <div><div class="font-semibold">Cloud Industry</div><div class="text-xs text-zinc-400">Hosting Panel</div></div>
+      </a>
+      <nav class="mt-8 space-y-1 text-sm">
+        {% for item in request.state.nav_items %}
+        <a class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white" href="{{ item.nav_href }}">{{ item.nav_label }}</a>
+        {% endfor %}
+      </nav>
+    </aside>
+    <main class="flex-1">
+      <header class="flex h-16 items-center justify-between border-b border-border px-6">
+        <div class="text-sm text-zinc-400">Native Python panel · Coolify API · Mailcow · Cloudflare</div>
+        <a href="/auth/login" class="rounded-md border border-border px-3 py-2 text-sm hover:bg-zinc-800">Login</a>
+      </header>
+      <section class="p-6 lg:p-10">{% block content %}{% endblock %}</section>
+    </main>
+  </div>
+</body>
+</html>
