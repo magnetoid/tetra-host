@@ -1,6 +1,51 @@
 {% extends "base.html" %}
-{% block title %}Sites · Cloud Industry{% endblock %}
+{% block title %}Projects · Cloud Industry{% endblock %}
 {% block content %}
-<h1 class="text-3xl font-bold">Sites</h1><p class="mt-2 text-zinc-400">Customer sites managed through Coolify.</p>
-<div class="mt-6 overflow-hidden rounded-xl border border-border"><table class="w-full text-sm"><thead class="bg-muted text-left text-zinc-400"><tr><th class="p-4">Domain</th><th class="p-4">Status</th><th class="p-4">Runtime</th></tr></thead><tbody>{% for site in sites %}<tr class="border-t border-border"><td class="p-4 font-medium">{{ site.name }}</td><td class="p-4">{{ site.status }}</td><td class="p-4 text-zinc-400">{{ site.runtime }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="space-y-6">
+  <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <div class="text-sm text-zinc-500">Coolify backend</div>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight">Projects</h1>
+      <p class="mt-3 max-w-2xl text-zinc-400">Vercel-like project view for customer sites. Data is normalized through the Coolify adapter so the UI can stay stable even if the backend changes.</p>
+    </div>
+    <button class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Import from Plesk</button>
+  </section>
+
+  <section class="flex flex-col gap-3 rounded-2xl border border-border bg-muted p-4 md:flex-row md:items-center md:justify-between">
+    <input placeholder="Search projects" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-zinc-500 md:max-w-sm" />
+    <div class="flex gap-2 text-sm">
+      <button class="rounded-lg border border-border px-3 py-2 text-zinc-300 hover:bg-zinc-900">Production</button>
+      <button class="rounded-lg border border-border px-3 py-2 text-zinc-300 hover:bg-zinc-900">Preview</button>
+      <button class="rounded-lg border border-border px-3 py-2 text-zinc-300 hover:bg-zinc-900">Archived</button>
+    </div>
+  </section>
+
+  <section class="grid gap-4">
+    {% for site in sites %}
+    <article class="rounded-2xl border border-border bg-zinc-950/70 p-5 transition hover:border-zinc-700 hover:bg-zinc-950">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div class="flex items-center gap-3">
+            <div class="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background text-sm font-semibold">{{ site.name[:2] | upper }}</div>
+            <div>
+              <h2 class="font-semibold">{{ site.name }}</h2>
+              <a class="text-sm text-zinc-500 hover:text-zinc-300" href="https://{{ site.primary_domain }}" target="_blank">{{ site.primary_domain }}</a>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">{{ site.environment or 'Production' }}</span>
+          <span class="rounded-full border border-border px-3 py-1 text-xs text-zinc-400">{{ site.status }}</span>
+        </div>
+      </div>
+      <div class="mt-5 grid gap-3 text-sm md:grid-cols-4">
+        <div><div class="text-zinc-500">Repository</div><div class="mt-1 truncate">{{ site.repository }}</div></div>
+        <div><div class="text-zinc-500">Runtime</div><div class="mt-1">{{ site.kind }}</div></div>
+        <div><div class="text-zinc-500">Last update</div><div class="mt-1">{{ site.updated_at or 'Pending sync' }}</div></div>
+        <div><div class="text-zinc-500">Deployments</div><div class="mt-1">Ready for Coolify action plugin</div></div>
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+</div>
 {% endblock %}

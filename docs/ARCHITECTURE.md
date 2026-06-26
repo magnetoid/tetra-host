@@ -57,7 +57,7 @@ This allows customer/brand skins without changing route code.
 ## Planned plugins
 
 - `sites`: Coolify API, apps, deployments, logs, domains, SSL
-- `mail`: Mailcow API, mailboxes, aliases, domain DKIM/SPF/DMARC hints
+- `mail`: Mailcow API, mailboxes, aliases, domain DKIM/SPF/DMARC hints. Mailcow runs outside Coolify as a native Docker Compose stack because it owns SMTP/IMAP ports and has its own ACME/proxy assumptions.
 - `dns`: Cloudflare DNS zones and records
 - `admin`: tenants, users, plans, audit logs
 - `billing`: optional Stripe/manual invoices

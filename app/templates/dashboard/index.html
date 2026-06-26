@@ -1,12 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · Cloud Industry{% endblock %}
+{% block title %}PaaS Overview · Cloud Industry{% endblock %}
 {% block content %}
-<h1 class="text-3xl font-bold">Dashboard</h1>
-<p class="mt-2 text-zinc-400">Overview of customer hosting resources.</p>
-<div class="mt-8 grid gap-4 md:grid-cols-4">
-  {% for s in stats %}
-  <div class="rounded-xl border border-border bg-muted p-5"><div class="text-sm text-zinc-400">{{ s.label }}</div><div class="mt-2 text-3xl font-bold">{{ s.value }}</div><div class="mt-2 text-xs text-zinc-500">{{ s.hint }}</div></div>
-  {% endfor %}
+<div class="space-y-8">
+  <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <div class="text-sm text-zinc-500">Cloud Industry PaaS</div>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight">PaaS Overview</h1>
+      <p class="mt-3 max-w-2xl text-zinc-400">A professional customer hosting dashboard with a clean Vercel-like UX, powered by a Coolify backend, Mailcow mail stack and Cloudflare DNS.</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/sites" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">New project</a>
+      <a href="/admin" class="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-zinc-900">Customer tenants</a>
+    </div>
+  </section>
+
+  <section class="grid gap-4 md:grid-cols-4">
+    {% for s in stats %}
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5 shadow-sm">
+      <div class="text-sm text-zinc-500">{{ s.label }}</div>
+      <div class="mt-2 text-3xl font-semibold">{{ s.value }}</div>
+      <div class="mt-2 text-xs text-zinc-500">{{ s.hint }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="grid gap-4 lg:grid-cols-3">
+    <div class="rounded-2xl border border-border bg-muted p-6 lg:col-span-2">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Platform architecture</h2>
+        <span class="rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">Plugin based</span>
+      </div>
+      <div class="mt-5 grid gap-3 md:grid-cols-3">
+        <div class="rounded-xl border border-border bg-background p-4"><div class="font-medium">Coolify backend</div><p class="mt-2 text-sm text-zinc-500">Apps, deploys, logs, domains and SSL state.</p></div>
+        <div class="rounded-xl border border-border bg-background p-4"><div class="font-medium">Mailcow outside Coolify</div><p class="mt-2 text-sm text-zinc-500">Native compose stack for SMTP/IMAP reliability.</p></div>
+        <div class="rounded-xl border border-border bg-background p-4"><div class="font-medium">Cloudflare DNS</div><p class="mt-2 text-sm text-zinc-500">DNS automation, records and tenant domains.</p></div>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <h2 class="text-lg font-semibold">Next milestones</h2>
+      <ol class="mt-4 space-y-3 text-sm text-zinc-300">
+        <li>1. Real auth + tenant isolation</li>
+        <li>2. Coolify API sync</li>
+        <li>3. Deployment actions</li>
+        <li>4. Mailcow + DNS plugins</li>
+      </ol>
+    </div>
+  </section>
 </div>
-<div class="mt-8 rounded-xl border border-border bg-muted p-6"><h2 class="font-semibold">Migration roadmap</h2><ol class="mt-4 list-decimal space-y-2 pl-5 text-sm text-zinc-300"><li>Connect Coolify API.</li><li>Map Plesk domains to tenants.</li><li>Add Mailcow management.</li><li>Add Cloudflare DNS.</li></ol></div>
 {% endblock %}
