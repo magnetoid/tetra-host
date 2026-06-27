@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,8 +16,15 @@ class Settings(BaseSettings):
     cloudflare_api_token: str = ""
     theme: str = "cloud-industry"
     template_search_path: str = ""
+    allowed_hosts_raw: str = "127.0.0.1,localhost,testserver"
+    session_https_only: bool = False
+    force_https_redirect: bool = False
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 @lru_cache
