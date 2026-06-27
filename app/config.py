@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,6 +26,19 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() in {"production", "prod"}
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        hosts = [h.strip() for h in self.allowed_hosts_raw.split(",") if h.strip()]
+        if self.base_url:
+            parsed = urlparse(self.base_url)
+            if parsed.hostname and parsed.hostname not in hosts:
+                hosts.append(parsed.hostname)
+        return hosts
 
 
 @lru_cache
