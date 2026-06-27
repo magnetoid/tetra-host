@@ -1,7 +1,10 @@
+import asyncio
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.coolify import CoolifyApplication, normalize_coolify_resource
+from app.services.coolify import CoolifyApplication, CoolifyClient, normalize_coolify_resource
 
 
 def test_health_exposes_plugin_registry_and_theme():
@@ -46,3 +49,89 @@ def test_dashboard_has_professional_paas_copy():
     assert 'PaaS Overview' in html
     assert 'Coolify backend' in html
     assert 'Customer tenants' in html
+
+
+def test_list_applications_supports_multiple_coolify_payload_shapes():
+    client = CoolifyClient(base_url='https://coolify.example.com', token='x')
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    payloads = [
+        [{
+            'uuid': 'a1',
+            'name': 'API',
+            'fqdn': 'api.example.com',
+            'status': 'running',
+        }],
+        {'data': [{
+            'uuid': 'b2',
+            'name': 'Web',
+            'domain': 'https://web.example.com',
+            'state': 'exited',
+        }]},
+        {'applications': [{
+            'id': 'c3',
+            'project_name': 'Docs',
+            'fqdn': 'docs.example.com',
+            'status': 'healthy',
+        }]},
+    ]
+
+    results = []
+    for payload in payloads:
+        async def fake_get(self, url, headers):
+            return FakeResponse(payload)
+
+        class FakeAsyncClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            get = fake_get
+
+        import app.services.coolify as coolify_module
+        original = coolify_module.httpx.AsyncClient
+        coolify_module.httpx.AsyncClient = lambda timeout=20: FakeAsyncClient()
+        try:
+            items = asyncio.run(client.list_applications())
+            results.append(items[0])
+        finally:
+            coolify_module.httpx.AsyncClient = original
+
+    assert [r.id for r in results] == ['a1', 'b2', 'c3']
+    assert [r.primary_domain for r in results] == ['api.example.com', 'web.example.com', 'docs.example.com']
+
+
+def test_list_applications_falls_back_gracefully_when_coolify_unreachable():
+    client = CoolifyClient(base_url='https://coolify.example.com', token='x')
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers):
+            raise httpx.ConnectError('boom')
+
+    import app.services.coolify as coolify_module
+    original = coolify_module.httpx.AsyncClient
+    coolify_module.httpx.AsyncClient = lambda timeout=20: FakeAsyncClient()
+    try:
+        items = asyncio.run(client.list_applications())
+    finally:
+        coolify_module.httpx.AsyncClient = original
+
+    assert len(items) >= 1
+    assert all(isinstance(item, CoolifyApplication) for item in items)

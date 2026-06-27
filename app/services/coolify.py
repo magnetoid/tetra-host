@@ -39,10 +39,26 @@ def normalize_coolify_resource(raw: dict) -> CoolifyApplication:
     )
 
 
+def _extract_resource_items(payload: object) -> list[dict]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        for key in ("data", "applications", "resources", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+        if any(k in payload for k in ("uuid", "id", "name", "project_name")):
+            return [payload]
+    return []
+
+
 @dataclass
 class CoolifyClient:
     base_url: str
     token: str
+
+    def is_configured(self) -> bool:
+        return bool(self.base_url and self.token)
 
     @classmethod
     def from_settings(cls) -> "CoolifyClient":
@@ -53,7 +69,7 @@ class CoolifyClient:
         return {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
 
     async def list_projects(self) -> list[dict]:
-        if not self.base_url or not self.token:
+        if not self.is_configured():
             return []
         async with httpx.AsyncClient(timeout=20) as client:
             r = await client.get(f"{self.base_url}/api/v1/projects", headers=self.headers())
@@ -61,14 +77,21 @@ class CoolifyClient:
             return r.json()
 
     async def list_applications(self) -> list[CoolifyApplication]:
-        if not self.base_url or not self.token:
+        if not self.is_configured():
             return self.placeholder_applications()
-        async with httpx.AsyncClient(timeout=20) as client:
-            r = await client.get(f"{self.base_url}/api/v1/applications", headers=self.headers())
-            r.raise_for_status()
-            payload = r.json()
-            items = payload.get("data", payload) if isinstance(payload, dict) else payload
-            return [normalize_coolify_resource(item) for item in items]
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                r = await client.get(f"{self.base_url}/api/v1/applications", headers=self.headers())
+                r.raise_for_status()
+                payload = r.json()
+        except (httpx.HTTPError, ValueError):
+            return self.placeholder_applications()
+
+        items = _extract_resource_items(payload)
+        if not items:
+            return self.placeholder_applications()
+
+        return [normalize_coolify_resource(item) for item in items]
 
     def placeholder_applications(self) -> list[CoolifyApplication]:
         return [
