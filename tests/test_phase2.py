@@ -1,15 +1,28 @@
 import asyncio
 import httpx
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.coolify import CoolifyApplication, CoolifyClient, normalize_coolify_resource
+from app.services.coolify import (
+    CoolifyActionResult,
+    CoolifyApplication,
+    CoolifyClient,
+    normalize_coolify_resource,
+)
+
+
+def login(client: TestClient):
+    response = client.post(
+        "/auth/login",
+        data={"email": "admin@cloud-industry.com", "password": "change-me-now"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
 
 
 def test_health_exposes_plugin_registry_and_theme():
-    client = TestClient(app)
-    data = client.get('/health').json()
+    with TestClient(app) as client:
+        data = client.get('/health').json()
     assert data['theme'] == 'cloud-industry'
     assert 'sites' in data['plugins']
     assert 'mail' in data['plugins']
@@ -34,21 +47,23 @@ def test_coolify_resource_normalization_supports_common_shapes():
     assert app_item.environment == 'production'
 
 
-def test_sites_page_has_vercel_like_sections():
-    client = TestClient(app)
-    html = client.get('/sites').text
+def test_sites_page_has_vercel_like_sections_when_logged_in():
+    with TestClient(app) as client:
+        login(client)
+        html = client.get('/sites').text
     assert 'Projects' in html
     assert 'Search projects' in html
     assert 'Production' in html
-    assert 'Deployments' in html
+    assert 'Deploy' in html
 
 
-def test_dashboard_has_professional_paas_copy():
-    client = TestClient(app)
-    html = client.get('/dashboard').text
+def test_dashboard_has_professional_paas_copy_when_logged_in():
+    with TestClient(app) as client:
+        login(client)
+        html = client.get('/dashboard').text
     assert 'PaaS Overview' in html
     assert 'Coolify backend' in html
-    assert 'Customer tenants' in html
+    assert 'Signed in as' in html
 
 
 def test_list_applications_supports_multiple_coolify_payload_shapes():
@@ -57,6 +72,7 @@ def test_list_applications_supports_multiple_coolify_payload_shapes():
     class FakeResponse:
         def __init__(self, payload):
             self._payload = payload
+            self.content = b'{}'
 
         def raise_for_status(self):
             return None
@@ -135,3 +151,14 @@ def test_list_applications_falls_back_gracefully_when_coolify_unreachable():
 
     assert len(items) >= 1
     assert all(isinstance(item, CoolifyApplication) for item in items)
+
+
+def test_coolify_trigger_action_uses_go_helper_when_configured(tmp_path):
+    helper = tmp_path / 'helper.sh'
+    helper.write_text('#!/usr/bin/env bash\nprintf \'{"ok": true, "action": "deploy", "application_id": "app-1", "detail": "accepted"}\\n\'\n')
+    helper.chmod(0o755)
+    client = CoolifyClient(base_url='https://coolify.example.com', token='x', action_helper=str(helper))
+    result = asyncio.run(client.trigger_action('app-1', 'deploy'))
+    assert isinstance(result, CoolifyActionResult)
+    assert result.ok is True
+    assert result.source == 'go-helper'

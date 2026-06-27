@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from urllib.parse import urlparse
+import json
+import subprocess
 
 import httpx
 
@@ -16,6 +18,15 @@ class CoolifyApplication:
     environment: str
     updated_at: str
     kind: str = "application"
+
+
+@dataclass(frozen=True)
+class CoolifyActionResult:
+    ok: bool
+    action: str
+    application_id: str
+    detail: str
+    source: str
 
 
 def _domain_from_fqdn(value: str | None) -> str:
@@ -56,6 +67,7 @@ def _extract_resource_items(payload: object) -> list[dict]:
 class CoolifyClient:
     base_url: str
     token: str
+    action_helper: str = ""
 
     def is_configured(self) -> bool:
         return bool(self.base_url and self.token)
@@ -63,7 +75,11 @@ class CoolifyClient:
     @classmethod
     def from_settings(cls) -> "CoolifyClient":
         s = get_settings()
-        return cls(base_url=s.coolify_url.rstrip("/"), token=s.coolify_token)
+        return cls(
+            base_url=s.coolify_url.rstrip("/"),
+            token=s.coolify_token,
+            action_helper=s.coolify_action_helper,
+        )
 
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
@@ -92,6 +108,60 @@ class CoolifyClient:
             return self.placeholder_applications()
 
         return [normalize_coolify_resource(item) for item in items]
+
+    async def trigger_action(self, application_id: str, action: str) -> CoolifyActionResult:
+        if action not in {"deploy", "restart"}:
+            return CoolifyActionResult(False, action, application_id, "Unsupported action", "app")
+        if self.action_helper:
+            helper_result = self._trigger_action_with_helper(application_id, action)
+            if helper_result is not None:
+                return helper_result
+        if not self.is_configured():
+            return CoolifyActionResult(False, action, application_id, "Coolify is not configured", "app")
+        endpoint = f"{self.base_url}/api/v1/applications/{application_id}/{action}"
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(endpoint, headers=self.headers())
+                response.raise_for_status()
+                payload = response.json() if response.content else {}
+        except (httpx.HTTPError, ValueError) as exc:
+            return CoolifyActionResult(False, action, application_id, str(exc), "app")
+
+        detail = "Action accepted"
+        if isinstance(payload, dict):
+            detail = str(payload.get("message") or payload.get("status") or detail)
+        return CoolifyActionResult(True, action, application_id, detail, "app")
+
+    def _trigger_action_with_helper(self, application_id: str, action: str) -> CoolifyActionResult | None:
+        try:
+            completed = subprocess.run(
+                [self.action_helper, self.base_url, self.token, application_id, action],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except OSError:
+            return None
+        except subprocess.TimeoutExpired:
+            return CoolifyActionResult(False, action, application_id, "Go helper timed out", "go-helper")
+
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip() or "Go helper failed"
+            return CoolifyActionResult(False, action, application_id, detail, "go-helper")
+
+        try:
+            payload = json.loads(completed.stdout or "{}")
+        except json.JSONDecodeError:
+            return CoolifyActionResult(False, action, application_id, "Invalid Go helper output", "go-helper")
+
+        return CoolifyActionResult(
+            ok=bool(payload.get("ok")),
+            action=str(payload.get("action") or action),
+            application_id=str(payload.get("application_id") or application_id),
+            detail=str(payload.get("detail") or "Action executed"),
+            source="go-helper",
+        )
 
     def placeholder_applications(self) -> list[CoolifyApplication]:
         return [

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 
+from app.dependencies import require_login
 from app.services.mailcow import MailcowClient
 from app.templating import build_templates
 
@@ -9,6 +10,9 @@ router = APIRouter(prefix="/mail", tags=["mail"])
 
 @router.get("")
 async def mail_index(request: Request):
+    redirect = await require_login(request)
+    if redirect:
+        return redirect
     client = MailcowClient.from_settings()
     domains = await client.list_domains()
     return templates.TemplateResponse(

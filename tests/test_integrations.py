@@ -4,22 +4,42 @@ import httpx
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.cloudflare import CloudflareClient, CloudflareZone
+from app.services.cloudflare import CloudflareClient, CloudflareRecord, CloudflareZone
 from app.services.mailcow import MailcowClient, MailcowDomain
 
 
+def login(client: TestClient):
+    response = client.post(
+        "/auth/login",
+        data={"email": "admin@cloud-industry.com", "password": "change-me-now"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+
 def test_mail_page_renders_domains_section():
-    client = TestClient(app)
-    html = client.get('/mail').text
+    with TestClient(app) as client:
+        login(client)
+        html = client.get('/mail').text
     assert 'Mailcow domains' in html
     assert 'imbaproduction.com' in html
 
 
 def test_dns_page_renders_zones_section():
-    client = TestClient(app)
-    html = client.get('/dns').text
+    with TestClient(app) as client:
+        login(client)
+        html = client.get('/dns').text
     assert 'Cloudflare zones' in html
     assert 'montenegro-experience.me' in html
+
+
+def test_dns_zone_detail_renders_cloudflare_records():
+    with TestClient(app) as client:
+        login(client)
+        html = client.get('/dns/montenegro-experience.me').text
+    assert 'DNS records' in html
+    assert '65.21.238.89' in html
+    assert 'mail' in html
 
 
 def test_mailcow_list_domains_supports_common_payload_shapes():
@@ -111,6 +131,52 @@ def test_cloudflare_list_zones_supports_result_payload():
     assert isinstance(items[0], CloudflareZone)
     assert items[0].name == 'example.com'
     assert items[0].plan == 'Pro'
+
+
+def test_cloudflare_list_records_supports_result_payload():
+    client = CloudflareClient(api_token='x')
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                'success': True,
+                'result': [
+                    {
+                        'id': 'rec1',
+                        'name': 'app.example.com',
+                        'type': 'A',
+                        'content': '1.2.3.4',
+                        'proxied': True,
+                        'ttl': 1,
+                    }
+                ],
+            }
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers):
+            return FakeResponse()
+
+    import app.services.cloudflare as module
+    original = module.httpx.AsyncClient
+    module.httpx.AsyncClient = lambda timeout=20: FakeAsyncClient()
+    try:
+        items = asyncio.run(client.list_records('zone1'))
+    finally:
+        module.httpx.AsyncClient = original
+
+    assert len(items) == 1
+    assert isinstance(items[0], CloudflareRecord)
+    assert items[0].content == '1.2.3.4'
+    assert items[0].proxied == 'Yes'
 
 
 def test_provider_integrations_fall_back_gracefully_on_http_errors():

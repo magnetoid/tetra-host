@@ -1,6 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Customers · Cloud Industry{% endblock %}
 {% block content %}
-<h1 class="text-3xl font-bold">Customers</h1><p class="mt-2 text-zinc-400">Tenants and account isolation.</p>
-<div class="mt-6 grid gap-4">{% for t in tenants %}<div class="rounded-xl border border-border bg-muted p-5"><div class="font-semibold">{{ t.name }}</div><div class="mt-1 text-sm text-zinc-400">Plan: {{ t.plan }} · Sites: {{ t.sites }}</div></div>{% endfor %}</div>
+<div class="space-y-6">
+  <section class="flex items-end justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold">Customers</h1>
+      <p class="mt-2 text-zinc-400">Tenants, plans and account isolation.</p>
+    </div>
+    <div class="rounded-lg border border-border px-3 py-2 text-sm text-zinc-400">
+      Signed in as {{ current_user.email }}
+    </div>
+  </section>
+
+  <section class="grid gap-4">
+    {% for t in tenants %}
+    <div class="rounded-xl border border-border bg-muted p-5">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div class="font-semibold">{{ t.name }}</div>
+          <div class="mt-1 text-sm text-zinc-400">Slug: {{ t.slug }}</div>
+        </div>
+        <div class="flex gap-2 text-xs text-zinc-300">
+          <span class="rounded-full border border-border px-3 py-1">Plan: {{ t.plan }}</span>
+          <span class="rounded-full border border-border px-3 py-1">Users: {{ t.users }}</span>
+          <span class="rounded-full border border-border px-3 py-1">Sites: {{ t.sites }}</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+</div>
 {% endblock %}

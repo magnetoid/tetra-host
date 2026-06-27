@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/tetra_host.db"
     coolify_url: str = ""
     coolify_token: str = ""
+    coolify_action_helper: str = ""
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
@@ -20,6 +21,11 @@ class Settings(BaseSettings):
     allowed_hosts_raw: str = "127.0.0.1,localhost,testserver"
     session_https_only: bool = False
     force_https_redirect: bool = False
+    session_cookie_name: str = "tetra_session"
+    bootstrap_admin_email: str = "admin@cloud-industry.com"
+    bootstrap_admin_password: str = "change-me-now"
+    bootstrap_tenant_name: str = "Cloud Industry"
+    bootstrap_tenant_slug: str = "cloud-industry"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,35 +1,60 @@
 {% extends "base.html" %}
 {% block title %}DNS · Cloud Industry{% endblock %}
 {% block content %}
-<div class="flex items-end justify-between gap-4">
-  <div>
-    <h1 class="text-3xl font-bold">DNS</h1>
-    <p class="mt-2 text-zinc-400">Cloudflare zones, status and nameserver visibility.</p>
+<div class="space-y-6">
+  <div class="flex items-end justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold">DNS</h1>
+      <p class="mt-2 text-zinc-400">Cloudflare zones and DNS records power the DNS feature layer.</p>
+    </div>
+    <div class="rounded-lg border border-border px-3 py-2 text-sm {{ 'text-emerald-300' if cloudflare_configured else 'text-amber-300' }}">
+      {{ 'Cloudflare connected' if cloudflare_configured else 'Using fallback data' }}
+    </div>
   </div>
-  <div class="rounded-lg border border-border px-3 py-2 text-sm {{ 'text-emerald-300' if cloudflare_configured else 'text-amber-300' }}">
-    {{ 'Cloudflare connected' if cloudflare_configured else 'Using fallback data' }}
+
+  <div class="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
+    <section class="overflow-hidden rounded-xl border border-border bg-muted">
+      <table class="w-full text-sm">
+        <thead class="border-b border-border text-left text-zinc-400">
+          <tr>
+            <th class="p-4">Zone</th>
+            <th class="p-4">Status</th>
+            <th class="p-4">Plan</th>
+            <th class="p-4">Nameservers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for zone in zones %}
+          <tr class="border-b border-border/60 last:border-b-0">
+            <td class="p-4 font-medium"><a class="hover:text-white" href="/dns/{{ zone.id }}">{{ zone.name }}</a></td>
+            <td class="p-4 text-zinc-300">{{ zone.status }}</td>
+            <td class="p-4 text-zinc-300">{{ zone.plan }}</td>
+            <td class="p-4 text-zinc-400">{{ zone.nameservers }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="rounded-xl border border-border bg-muted p-5">
+      {% if selected_zone %}
+        <h2 class="text-lg font-semibold">DNS records · {{ selected_zone.name }}</h2>
+        <div class="mt-4 space-y-3 text-sm">
+          {% for record in records %}
+          <div class="rounded-lg border border-border bg-background p-3">
+            <div class="flex items-center justify-between gap-3">
+              <div><span class="font-medium">{{ record.name }}</span> <span class="text-zinc-500">{{ record.type }}</span></div>
+              <div class="text-xs text-zinc-500">TTL {{ record.ttl }} · Proxied {{ record.proxied }}</div>
+            </div>
+            <div class="mt-2 text-zinc-300 break-all">{{ record.content }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <h2 class="text-lg font-semibold">Cloudflare zones</h2>
+        <p class="mt-3 text-sm text-zinc-400">Open a zone to inspect the DNS records coming from Cloudflare.</p>
+      {% endif %}
+    </section>
   </div>
-</div>
-<div class="mt-6 overflow-hidden rounded-xl border border-border bg-muted">
-  <table class="w-full text-sm">
-    <thead class="border-b border-border text-left text-zinc-400">
-      <tr>
-        <th class="p-4">Zone</th>
-        <th class="p-4">Status</th>
-        <th class="p-4">Plan</th>
-        <th class="p-4">Nameservers</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for zone in zones %}
-      <tr class="border-b border-border/60 last:border-b-0">
-        <td class="p-4 font-medium">{{ zone.name }}</td>
-        <td class="p-4 text-zinc-300">{{ zone.status }}</td>
-        <td class="p-4 text-zinc-300">{{ zone.plan }}</td>
-        <td class="p-4 text-zinc-400">{{ zone.nameservers }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
 </div>
 {% endblock %}

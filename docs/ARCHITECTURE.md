@@ -6,6 +6,9 @@ Tetra Host is a native Python hosting panel with a small stable core and plugin-
 
 - App boot (`app/main.py`)
 - Settings (`app/config.py`)
+- Database boot (`app/db.py`)
+- Tenant/user/project models (`app/models.py`)
+- Session/auth utilities (`app/security.py`)
 - Plugin registry (`app/plugins.py`)
 - Template/theme loader (`app/templating.py`)
 - Static files and shared layout

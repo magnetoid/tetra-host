@@ -14,6 +14,10 @@
     </div>
   </section>
 
+  <section class="rounded-2xl border border-border bg-muted p-4 text-sm text-zinc-300">
+    Signed in as <strong>{{ current_user.email }}</strong>.
+  </section>
+
   <section class="grid gap-4 md:grid-cols-4">
     {% for s in stats %}
     <div class="rounded-2xl border border-border bg-zinc-950/70 p-5 shadow-sm">
@@ -40,9 +44,9 @@
       <h2 class="text-lg font-semibold">Next milestones</h2>
       <ol class="mt-4 space-y-3 text-sm text-zinc-300">
         <li>1. Real auth + tenant isolation</li>
-        <li>2. Coolify API sync</li>
-        <li>3. Deployment actions</li>
-        <li>4. Mailcow + DNS plugins</li>
+        <li>2. Coolify project actions</li>
+        <li>3. Per-tenant provisioning flows</li>
+        <li>4. Usage/billing layer</li>
       </ol>
     </div>
   </section>
