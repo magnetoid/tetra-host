@@ -1,6 +1,37 @@
 {% extends "base.html" %}
 {% block title %}Mail · Cloud Industry{% endblock %}
 {% block content %}
-<h1 class="text-3xl font-bold">Mail</h1><p class="mt-2 text-zinc-400">Mailcow integration placeholder: domains, mailboxes, aliases, spam policy.</p>
-<div class="mt-6 rounded-xl border border-border bg-muted p-6 text-sm text-zinc-400">Connect MAILCOW_URL and MAILCOW_API_KEY to sync mail domains.</div>
+<div class="flex items-end justify-between gap-4">
+  <div>
+    <h1 class="text-3xl font-bold">Mail</h1>
+    <p class="mt-2 text-zinc-400">Mailcow domains, mailbox capacity and activation state.</p>
+  </div>
+  <div class="rounded-lg border border-border px-3 py-2 text-sm {{ 'text-emerald-300' if mailcow_configured else 'text-amber-300' }}">
+    {{ 'Mailcow connected' if mailcow_configured else 'Using fallback data' }}
+  </div>
+</div>
+<div class="mt-6 overflow-hidden rounded-xl border border-border bg-muted">
+  <table class="w-full text-sm">
+    <thead class="border-b border-border text-left text-zinc-400">
+      <tr>
+        <th class="p-4">Domain</th>
+        <th class="p-4">Status</th>
+        <th class="p-4">Mailboxes</th>
+        <th class="p-4">Aliases</th>
+        <th class="p-4">Quota</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for domain in domains %}
+      <tr class="border-b border-border/60 last:border-b-0">
+        <td class="p-4 font-medium">{{ domain.domain }}</td>
+        <td class="p-4 text-zinc-300">{{ domain.active }}</td>
+        <td class="p-4 text-zinc-300">{{ domain.mailboxes }}</td>
+        <td class="p-4 text-zinc-300">{{ domain.aliases }}</td>
+        <td class="p-4 text-zinc-400">{{ domain.quota }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

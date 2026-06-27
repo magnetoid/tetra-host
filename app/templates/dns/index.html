@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 {% block title %}DNS · Cloud Industry{% endblock %}
 {% block content %}
-<h1 class="text-3xl font-bold">DNS</h1><p class="mt-2 text-zinc-400">Cloudflare DNS zones and records.</p>
-<div class="mt-6 rounded-xl border border-border bg-muted p-6 text-sm text-zinc-400">Connect CLOUDFLARE_API_TOKEN to manage zones.</div>
+<div class="flex items-end justify-between gap-4">
+  <div>
+    <h1 class="text-3xl font-bold">DNS</h1>
+    <p class="mt-2 text-zinc-400">Cloudflare zones, status and nameserver visibility.</p>
+  </div>
+  <div class="rounded-lg border border-border px-3 py-2 text-sm {{ 'text-emerald-300' if cloudflare_configured else 'text-amber-300' }}">
+    {{ 'Cloudflare connected' if cloudflare_configured else 'Using fallback data' }}
+  </div>
+</div>
+<div class="mt-6 overflow-hidden rounded-xl border border-border bg-muted">
+  <table class="w-full text-sm">
+    <thead class="border-b border-border text-left text-zinc-400">
+      <tr>
+        <th class="p-4">Zone</th>
+        <th class="p-4">Status</th>
+        <th class="p-4">Plan</th>
+        <th class="p-4">Nameservers</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for zone in zones %}
+      <tr class="border-b border-border/60 last:border-b-0">
+        <td class="p-4 font-medium">{{ zone.name }}</td>
+        <td class="p-4 text-zinc-300">{{ zone.status }}</td>
+        <td class="p-4 text-zinc-300">{{ zone.plan }}</td>
+        <td class="p-4 text-zinc-400">{{ zone.nameservers }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}
