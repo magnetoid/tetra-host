@@ -14,6 +14,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Prefer explicit contracts, typed boundaries, and testable service layers over implicit coupling.
 - UI and backend work should feel premium: clean, modern, reliable, and production-minded.
 - Markdown under `.torsor/` is project memory and architectural intent; keep it accurate as the codebase evolves.
+- Build provider integrations against the latest official API docs, not memory: before adding or changing Coolify/Cloudflare/Mailcow code, consult and combine the current upstream API reference (use the `provider-api-docs` skill) and verify a capability exists upstream before building on it.
 <!-- /torsor:rules -->
 
 <!-- torsor:primer -->
