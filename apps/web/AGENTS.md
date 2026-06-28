@@ -18,6 +18,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Tetra Host is a cutting-edge, Vercel-like, open-source hosting platform; hold every part to that bar — premium UX, modern architecture, and production-grade reliability — and keep it suitable for public open-source release.
 - Compose the platform from best-in-class open source: prefer integrating high-quality, well-known open-source apps/services to build the hosting infrastructure over reinventing them, and use the right language for the job (Python + TypeScript today; Go or other languages where they fit).
 - Keep `tetra-cli` in step with the dashboard: when adding a dashboard feature, also implement the best, most-automatable parts in the CLI, so the whole platform is operable from the command line (Vercel-style dashboard + CLI parity).
+- Near-term platform strategy: operate in symbiosis with Coolify (application hosting) and Cloudflare (DNS), and consolidate by migrating all websites onto Coolify — partly to relieve the production server's disk/space pressure, which is a real constraint to design around.
+- Email runs on a Tetra-Host-compatible solution OFF the shared host: Mailcow can't coexist there (the existing Plesk/Postfix mail server already owns the mail ports), so use a dedicated mail host or a managed/API email service and build the panel integration to match — don't force self-hosted mail onto the constrained box.
 <!-- /torsor:rules -->
 
 <!-- torsor:primer -->
