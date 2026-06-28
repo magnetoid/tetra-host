@@ -19,6 +19,10 @@ from app.api.contracts import (
     DNSResponse,
     DNSZoneSummary,
     EnvVarCreateRequest,
+    CachePurgeRequest,
+    DnssecUpdateRequest,
+    ZoneSettings,
+    ZoneSettingUpdateRequest,
     MailboxSummary,
     MailDomainSummary,
     MailResponse,
@@ -665,6 +669,83 @@ async def api_delete_dns_record(
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return SiteActionResponse(message="DNS record deleted.")
+
+
+@router.get("/dns/zones/{zone_id}/settings", response_model=ZoneSettings)
+async def api_zone_settings(
+    zone_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ZoneSettings:
+    service = DnsService(request)
+    try:
+        settings = await service.get_zone_settings_for_tenant(session, current_admin.tenant_id, zone_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return ZoneSettings(
+        ssl=str(settings.get("ssl", "")),
+        always_use_https=str(settings.get("always_use_https", "")),
+        development_mode=str(settings.get("development_mode", "")),
+        security_level=str(settings.get("security_level", "")),
+        dnssec=str(settings.get("dnssec", "")),
+    )
+
+
+@router.patch("/dns/zones/{zone_id}/settings", response_model=SiteActionResponse)
+async def api_update_zone_setting(
+    zone_id: str,
+    payload: ZoneSettingUpdateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    try:
+        await service.update_zone_setting_for_tenant(
+            session, current_admin.tenant_id, zone_id, payload.setting, payload.value
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message=f"{payload.setting} updated.")
+
+
+@router.patch("/dns/zones/{zone_id}/dnssec", response_model=SiteActionResponse)
+async def api_update_dnssec(
+    zone_id: str,
+    payload: DnssecUpdateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    try:
+        await service.update_dnssec_for_tenant(session, current_admin.tenant_id, zone_id, payload.status)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="DNSSEC updated.")
+
+
+@router.post("/dns/zones/{zone_id}/purge", response_model=SiteActionResponse)
+async def api_purge_cache(
+    zone_id: str,
+    payload: CachePurgeRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    try:
+        await service.purge_cache_for_tenant(
+            session, current_admin.tenant_id, zone_id, everything=payload.everything, files=payload.files
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="Cache purge requested.")
 
 
 @router.get("/admin", response_model=AdminResponse)

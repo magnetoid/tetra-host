@@ -143,6 +143,28 @@ class EnvVarCreateRequest(BaseModel):
     is_build_time: bool = False
 
 
+class ZoneSettings(BaseModel):
+    ssl: str = ""
+    always_use_https: str = ""
+    development_mode: str = ""
+    security_level: str = ""
+    dnssec: str = ""
+
+
+class ZoneSettingUpdateRequest(BaseModel):
+    setting: str
+    value: str
+
+
+class DnssecUpdateRequest(BaseModel):
+    status: str
+
+
+class CachePurgeRequest(BaseModel):
+    everything: bool = True
+    files: list[str] = []
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]

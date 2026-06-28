@@ -2,12 +2,13 @@ import Link from "next/link"
 
 import { CreateRecordForm } from "@/components/dns/dns-record-controls"
 import { DnsRecordsTable } from "@/components/dns/dns-records-table"
+import { ZoneTools } from "@/components/dns/zone-tools"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
-import type { DNSResponse } from "@/lib/types"
+import type { DNSResponse, ZoneSettings } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type DnsPageProps = {
@@ -24,6 +25,12 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
       zone: params.zone,
     },
   })
+
+  const settings = dns.selected_zone
+    ? await fetchBackend<ZoneSettings>(`/dns/zones/${dns.selected_zone}/settings`, {
+        token: session.token,
+      }).catch(() => null)
+    : null
 
   const refreshHref = params.zone
     ? `/dns?refresh=1&zone=${params.zone}`
@@ -80,6 +87,9 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
         <div className="space-y-4">
           {dns.selected_zone ? <CreateRecordForm zoneId={dns.selected_zone} /> : null}
           <DnsRecordsTable zoneId={dns.selected_zone} records={dns.records} />
+          {dns.selected_zone && settings ? (
+            <ZoneTools zoneId={dns.selected_zone} settings={settings} />
+          ) : null}
         </div>
       </section>
     </div>

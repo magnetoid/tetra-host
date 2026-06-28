@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import httpx
@@ -5,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.cache import TTLCache
 from app.config import get_settings
-from app.services.http import request_json
+from app.services.http import ProviderAPIError, request_json
 
 
 class CloudflareZone(BaseModel):
@@ -176,4 +177,73 @@ class CloudflareClient:
             headers=self.headers(),
         )
         await self.cache.delete(f"cloudflare:records:{zone_id}")
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    # ── Zone settings / tools ─────────────────────────────────────
+
+    ZONE_SETTING_KEYS = ("ssl", "always_use_https", "development_mode", "security_level")
+
+    async def get_zone_setting(self, zone_id: str, setting: str) -> Any:
+        if not self.is_configured():
+            return None
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="GET",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/settings/{setting}",
+            headers=self.headers(),
+        )
+        return (payload.get("result") or {}).get("value") if isinstance(payload, dict) else None
+
+    async def get_zone_settings(self, zone_id: str) -> dict[str, str]:
+        """Fetch the panel-managed zone settings + DNSSEC status in one shot."""
+        if not self.is_configured():
+            return {}
+
+        async def one(key: str) -> tuple[str, str]:
+            try:
+                value = await self.get_zone_setting(zone_id, key)
+            except ProviderAPIError:
+                value = None
+            return key, "" if value is None else str(value)
+
+        settings = dict(await asyncio.gather(*(one(key) for key in self.ZONE_SETTING_KEYS)))
+        try:
+            dnssec = await request_json(
+                self.http_client, service="Cloudflare", method="GET",
+                url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dnssec",
+                headers=self.headers(),
+            )
+            settings["dnssec"] = str((dnssec.get("result") or {}).get("status") or "") if isinstance(dnssec, dict) else ""
+        except ProviderAPIError:
+            settings["dnssec"] = ""
+        return settings
+
+    async def update_zone_setting(self, zone_id: str, setting: str, value: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="PATCH",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/settings/{setting}",
+            headers=self.headers(), json_body={"value": value},
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def update_dnssec(self, zone_id: str, status: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="PATCH",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dnssec",
+            headers=self.headers(), json_body={"status": status},
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def purge_cache(self, zone_id: str, *, everything: bool = True, files: list[str] | None = None) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        body: dict[str, Any] = {"purge_everything": True} if everything or not files else {"files": files}
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="POST",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/purge_cache",
+            headers=self.headers(), json_body=body,
+        )
         return payload if isinstance(payload, dict) else {"ok": True}

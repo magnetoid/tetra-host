@@ -98,6 +98,14 @@ export interface DNSResponse {
   records: DNSRecord[]
 }
 
+export interface ZoneSettings {
+  ssl: string
+  always_use_https: string
+  development_mode: string
+  security_level: string
+  dnssec: string
+}
+
 export interface AdminRecord {
   id: string
   email: string

@@ -201,6 +201,30 @@ def cmd_dns_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cf_settings(args: argparse.Namespace) -> int:
+    data = client_from_config().zone_settings(args.zone)
+    print_table(["SETTING", "VALUE"], [[key, status_color(str(value))] for key, value in data.items()])
+    return 0
+
+
+def cmd_cf_set(args: argparse.Namespace) -> int:
+    client_from_config().zone_set(args.zone, args.setting, args.value)
+    print(c("✓", "32") + f" {args.setting} = {args.value}")
+    return 0
+
+
+def cmd_cf_dnssec(args: argparse.Namespace) -> int:
+    client_from_config().zone_dnssec(args.zone, args.status)
+    print(c("✓", "32") + f" DNSSEC {args.status}")
+    return 0
+
+
+def cmd_cf_purge(args: argparse.Namespace) -> int:
+    client_from_config().zone_purge(args.zone, everything=True)
+    print(c("✓", "32") + " cache purge requested")
+    return 0
+
+
 def cmd_env_list(args: argparse.Namespace) -> int:
     envs = client_from_config().envs(args.site)
     rows = [[str(e.get("key", "")), "•••" if not args.reveal else str(e.get("value", "")),
@@ -295,6 +319,23 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("site")
     sp.add_argument("uuid")
     sp.set_defaults(func=cmd_env_rm)
+
+    cf = sub.add_parser("cf", help="Cloudflare zone tools").add_subparsers(dest="cf_cmd", required=True)
+    sp = cf.add_parser("settings", help="show zone settings")
+    sp.add_argument("zone")
+    sp.set_defaults(func=cmd_cf_settings)
+    sp = cf.add_parser("set", help="update a zone setting (e.g. ssl full)")
+    sp.add_argument("zone")
+    sp.add_argument("setting")
+    sp.add_argument("value")
+    sp.set_defaults(func=cmd_cf_set)
+    sp = cf.add_parser("dnssec", help="set DNSSEC status (active|disabled)")
+    sp.add_argument("zone")
+    sp.add_argument("status")
+    sp.set_defaults(func=cmd_cf_dnssec)
+    sp = cf.add_parser("purge", help="purge the zone cache")
+    sp.add_argument("zone")
+    sp.set_defaults(func=cmd_cf_purge)
 
     return p
 

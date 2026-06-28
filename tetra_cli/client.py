@@ -141,6 +141,23 @@ class TetraClient:
     def dns_rm(self, zone_id: str, record_id: str) -> Any:
         return self._request("DELETE", f"/dns/zones/{zone_id}/records/{record_id}")
 
+    # ── Zone tools ────────────────────────────────────────────────────────
+    def zone_settings(self, zone_id: str) -> Any:
+        return self._request("GET", f"/dns/zones/{zone_id}/settings")
+
+    def zone_set(self, zone_id: str, setting: str, value: str) -> Any:
+        return self._request(
+            "PATCH", f"/dns/zones/{zone_id}/settings", json_body={"setting": setting, "value": value}
+        )
+
+    def zone_dnssec(self, zone_id: str, status: str) -> Any:
+        return self._request("PATCH", f"/dns/zones/{zone_id}/dnssec", json_body={"status": status})
+
+    def zone_purge(self, zone_id: str, everything: bool = True, files: list[str] | None = None) -> Any:
+        return self._request(
+            "POST", f"/dns/zones/{zone_id}/purge", json_body={"everything": everything, "files": files or []}
+        )
+
     # ── Env vars ──────────────────────────────────────────────────────────
     def envs(self, site_id: str) -> list[dict]:
         return self._request("GET", f"/sites/{site_id}/envs")

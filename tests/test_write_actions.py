@@ -128,6 +128,51 @@ def test_delete_dns_record_is_tenant_scoped(client, monkeypatch):
     assert deleted == [("zone-writer", "rec-1")]
 
 
+def test_zone_settings_and_purge_are_tenant_scoped(client, monkeypatch):
+    asyncio.run(_seed_writer_tenant())
+
+    async def fake_get_zone_settings(self, zone_id):
+        return {
+            "ssl": "full",
+            "always_use_https": "on",
+            "development_mode": "off",
+            "security_level": "medium",
+            "dnssec": "active",
+        }
+
+    async def fake_update_zone_setting(self, zone_id, setting, value):
+        return {"ok": True}
+
+    async def fake_purge_cache(self, zone_id, everything=True, files=None):
+        return {"ok": True}
+
+    monkeypatch.setattr("app.services.cloudflare.CloudflareClient.get_zone_settings", fake_get_zone_settings)
+    monkeypatch.setattr("app.services.cloudflare.CloudflareClient.update_zone_setting", fake_update_zone_setting)
+    monkeypatch.setattr("app.services.cloudflare.CloudflareClient.purge_cache", fake_purge_cache)
+
+    headers = _login(client)
+
+    settings = client.get("/api/v1/dns/zones/zone-writer/settings", headers=headers)
+    assert settings.status_code == 200
+    assert settings.json()["ssl"] == "full"
+    assert settings.json()["dnssec"] == "active"
+    assert client.get("/api/v1/dns/zones/zone-foreign/settings", headers=headers).status_code == 403
+
+    patched = client.patch(
+        "/api/v1/dns/zones/zone-writer/settings", headers=headers, json={"setting": "ssl", "value": "strict"}
+    )
+    assert patched.status_code == 200
+    assert client.patch(
+        "/api/v1/dns/zones/zone-foreign/settings", headers=headers, json={"setting": "ssl", "value": "strict"}
+    ).status_code == 403
+
+    purged = client.post("/api/v1/dns/zones/zone-writer/purge", headers=headers, json={"everything": True})
+    assert purged.status_code == 200
+    assert client.post(
+        "/api/v1/dns/zones/zone-foreign/purge", headers=headers, json={"everything": True}
+    ).status_code == 403
+
+
 def test_create_env_is_tenant_scoped(client, monkeypatch):
     asyncio.run(_seed_writer_tenant())
 

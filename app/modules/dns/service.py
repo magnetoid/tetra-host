@@ -166,3 +166,35 @@ class DnsService:
     ) -> dict:
         await self._ensure_zone_access(session, tenant_id, zone_id)
         return await self.delete_record(zone_id, record_id)
+
+    # ── Zone tools (tenant-guarded) ───────────────────────────────────────
+
+    async def get_zone_settings_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, zone_id: str
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.get_zone_settings(zone_id)
+
+    async def update_zone_setting_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, zone_id: str, setting: str, value: str
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.update_zone_setting(zone_id, setting, value)
+
+    async def update_dnssec_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, zone_id: str, status: str
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.update_dnssec(zone_id, status)
+
+    async def purge_cache_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        zone_id: str,
+        *,
+        everything: bool = True,
+        files: list[str] | None = None,
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.purge_cache(zone_id, everything=everything, files=files)

@@ -64,6 +64,16 @@ def test_client_dns_update_uses_put_with_priority():
     make_client(handler).dns_update("z1", "r1", "MX", "mail", "mx.example.com", priority=5)
 
 
+def test_client_zone_set_uses_patch():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH"
+        assert request.url.path == "/api/v1/dns/zones/z1/settings"
+        assert json.loads(request.content) == {"setting": "ssl", "value": "full"}
+        return httpx.Response(200, json={"message": "ssl updated."})
+
+    make_client(handler).zone_set("z1", "ssl", "full")
+
+
 def test_client_raises_on_error_with_detail():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"detail": "Zone is not assigned to this tenant."})
