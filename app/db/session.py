@@ -57,24 +57,25 @@ def _upgrade_existing_schema(connection) -> None:
         connection.execute(text("ALTER TABLE admin_users ADD COLUMN tenant_id VARCHAR(36)"))
 
     tenant_row = connection.execute(
-        text("SELECT id FROM tenants WHERE slug = :slug LIMIT 1"), {"slug": "default"}
+        text("SELECT id FROM tenants LIMIT 1")
     ).first()
     if tenant_row is None:
         connection.execute(
             text(
                 """
-                INSERT INTO tenants (id, name, slug, is_active, created_at, updated_at)
-                VALUES (:id, :name, :slug, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO tenants (name, slug, is_active, created_at, updated_at)
+                VALUES (:name, :slug, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """
             ),
             {
-                "id": "00000000-0000-0000-0000-000000000001",
-                "name": "Default Tenant",
-                "slug": "default",
+                "name": "Cloud Industry",
+                "slug": "cloud-industry",
                 "is_active": True,
             },
         )
-        tenant_id = "00000000-0000-0000-0000-000000000001"
+        tenant_id = connection.execute(
+            text("SELECT id FROM tenants WHERE slug = 'cloud-industry' LIMIT 1")
+        ).scalar()
     else:
         tenant_id = tenant_row[0]
 
