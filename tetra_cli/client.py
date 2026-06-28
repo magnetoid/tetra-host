@@ -116,6 +116,28 @@ class TetraClient:
             json_body={"type": record_type, "name": name, "content": content, "ttl": ttl, "proxied": proxied},
         )
 
+    def dns_update(
+        self,
+        zone_id: str,
+        record_id: str,
+        record_type: str,
+        name: str,
+        content: str,
+        ttl: int = 1,
+        proxied: bool = False,
+        priority: int | None = None,
+    ) -> Any:
+        body: dict[str, Any] = {
+            "type": record_type,
+            "name": name,
+            "content": content,
+            "ttl": ttl,
+            "proxied": proxied,
+        }
+        if priority is not None:
+            body["priority"] = priority
+        return self._request("PUT", f"/dns/zones/{zone_id}/records/{record_id}", json_body=body)
+
     def dns_rm(self, zone_id: str, record_id: str) -> Any:
         return self._request("DELETE", f"/dns/zones/{zone_id}/records/{record_id}")
 

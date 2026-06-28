@@ -1,6 +1,7 @@
 import Link from "next/link"
 
-import { CreateRecordForm, DeleteRecordButton } from "@/components/dns/dns-record-controls"
+import { CreateRecordForm } from "@/components/dns/dns-record-controls"
+import { DnsRecordsTable } from "@/components/dns/dns-records-table"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
@@ -78,48 +79,7 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
 
         <div className="space-y-4">
           {dns.selected_zone ? <CreateRecordForm zoneId={dns.selected_zone} /> : null}
-          <div className="rounded-2xl border border-border bg-muted p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">DNS records</h2>
-              <span className="text-sm text-zinc-500">{dns.records.length} shown</span>
-            </div>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-border">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Type</th>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Content</th>
-                    <th className="px-4 py-3 font-medium">TTL</th>
-                    <th className="px-4 py-3 font-medium sr-only">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border bg-background">
-                  {dns.records.length > 0 ? (
-                    dns.records.map((record) => (
-                      <tr key={record.id}>
-                        <td className="px-4 py-3">{record.type}</td>
-                        <td className="px-4 py-3 text-zinc-300">{record.name}</td>
-                        <td className="px-4 py-3 text-zinc-400">{record.content}</td>
-                        <td className="px-4 py-3 text-zinc-400">{record.ttl}</td>
-                        <td className="px-4 py-3 text-right">
-                          {dns.selected_zone ? (
-                            <DeleteRecordButton zoneId={dns.selected_zone} recordId={record.id} />
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-6 text-zinc-500">
-                        Select a zone to browse records.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DnsRecordsTable zoneId={dns.selected_zone} records={dns.records} />
         </div>
       </section>
     </div>

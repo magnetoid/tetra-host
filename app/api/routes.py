@@ -621,6 +621,35 @@ async def api_create_dns_record(
     return SiteActionResponse(message="DNS record created.")
 
 
+@router.put("/dns/zones/{zone_id}/records/{record_id}", response_model=SiteActionResponse)
+async def api_update_dns_record(
+    zone_id: str,
+    record_id: str,
+    payload: DNSRecordCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    try:
+        await service.update_record_for_tenant(
+            session,
+            current_admin.tenant_id,
+            zone_id,
+            record_id,
+            record_type=payload.type,
+            name=payload.name,
+            content=payload.content,
+            ttl=payload.ttl,
+            proxied=payload.proxied,
+            priority=payload.priority,
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="DNS record updated.")
+
+
 @router.delete("/dns/zones/{zone_id}/records/{record_id}", response_model=SiteActionResponse)
 async def api_delete_dns_record(
     zone_id: str,

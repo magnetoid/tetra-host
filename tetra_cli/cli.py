@@ -180,6 +180,21 @@ def cmd_dns_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dns_edit(args: argparse.Namespace) -> int:
+    client_from_config().dns_update(
+        args.zone,
+        args.record,
+        args.type,
+        args.name,
+        args.content,
+        ttl=args.ttl,
+        proxied=args.proxied,
+        priority=args.priority,
+    )
+    print(c("✓", "32") + f" updated {args.type} {args.name} -> {args.content}")
+    return 0
+
+
 def cmd_dns_rm(args: argparse.Namespace) -> int:
     client_from_config().dns_rm(args.zone, args.record)
     print(c("✓", "32") + f" deleted {args.record}")
@@ -251,6 +266,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--ttl", type=int, default=1)
     sp.add_argument("--proxied", action="store_true")
     sp.set_defaults(func=cmd_dns_add)
+    sp = dns.add_parser("edit", help="update a record")
+    sp.add_argument("zone")
+    sp.add_argument("record")
+    sp.add_argument("type")
+    sp.add_argument("name")
+    sp.add_argument("content")
+    sp.add_argument("--ttl", type=int, default=1)
+    sp.add_argument("--proxied", action="store_true")
+    sp.add_argument("--priority", type=int, default=None)
+    sp.set_defaults(func=cmd_dns_edit)
     sp = dns.add_parser("rm", help="delete a record")
     sp.add_argument("zone")
     sp.add_argument("record")

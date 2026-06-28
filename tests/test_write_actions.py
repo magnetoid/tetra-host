@@ -80,6 +80,32 @@ def test_create_dns_record_is_tenant_scoped(client, monkeypatch):
     assert created == ["zone-writer"]
 
 
+def test_update_dns_record_is_tenant_scoped(client, monkeypatch):
+    asyncio.run(_seed_writer_tenant())
+
+    updated: list[tuple[str, str, str]] = []
+
+    async def fake_update_dns_record(
+        self, zone_id, record_id, record_type, name, content, ttl=1, proxied=False, priority=None
+    ):
+        updated.append((zone_id, record_id, record_type))
+        return {"ok": True}
+
+    monkeypatch.setattr("app.services.cloudflare.CloudflareClient.update_dns_record", fake_update_dns_record)
+
+    headers = _login(client)
+    body = {"type": "A", "name": "app.writer.test", "content": "5.6.7.8", "ttl": 1, "proxied": False}
+
+    allowed = client.put("/api/v1/dns/zones/zone-writer/records/rec-1", headers=headers, json=body)
+    assert allowed.status_code == 200
+    assert allowed.json()["message"] == "DNS record updated."
+
+    denied = client.put("/api/v1/dns/zones/zone-foreign/records/rec-1", headers=headers, json=body)
+    assert denied.status_code == 403
+
+    assert updated == [("zone-writer", "rec-1", "A")]
+
+
 def test_delete_dns_record_is_tenant_scoped(client, monkeypatch):
     asyncio.run(_seed_writer_tenant())
 

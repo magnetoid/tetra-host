@@ -27,6 +27,7 @@ class CloudflareDNSRecord(BaseModel):
     content: str
     ttl: int
     proxied: bool | None = None
+    priority: int | None = None
 
 
 def normalize_zone(raw: dict[str, Any]) -> CloudflareZone:
@@ -40,6 +41,9 @@ def normalize_zone(raw: dict[str, Any]) -> CloudflareZone:
 
 
 def normalize_record(raw: dict[str, Any]) -> CloudflareDNSRecord:
+    priority = raw.get("priority")
+    if priority is None and isinstance(raw.get("data"), dict):
+        priority = raw["data"].get("priority")
     return CloudflareDNSRecord(
         id=str(raw.get("id") or ""),
         type=str(raw.get("type") or ""),
@@ -47,6 +51,7 @@ def normalize_record(raw: dict[str, Any]) -> CloudflareDNSRecord:
         content=str(raw.get("content") or ""),
         ttl=int(raw.get("ttl") or 0),
         proxied=raw.get("proxied"),
+        priority=int(priority) if priority is not None else None,
     )
 
 

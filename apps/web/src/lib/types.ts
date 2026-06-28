@@ -88,6 +88,7 @@ export interface DNSRecord {
   content: string
   ttl: number
   proxied: boolean | null
+  priority?: number | null
 }
 
 export interface DNSResponse {

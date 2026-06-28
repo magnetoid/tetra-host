@@ -53,6 +53,17 @@ def test_client_dns_add_builds_body():
     make_client(handler).dns_add("z1", "A", "app", "1.2.3.4")
 
 
+def test_client_dns_update_uses_put_with_priority():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PUT"
+        assert request.url.path == "/api/v1/dns/zones/z1/records/r1"
+        body = json.loads(request.content)
+        assert body["type"] == "MX" and body["priority"] == 5
+        return httpx.Response(200, json={"message": "DNS record updated."})
+
+    make_client(handler).dns_update("z1", "r1", "MX", "mail", "mx.example.com", priority=5)
+
+
 def test_client_raises_on_error_with_detail():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"detail": "Zone is not assigned to this tenant."})

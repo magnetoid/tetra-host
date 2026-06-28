@@ -131,6 +131,32 @@ class DnsService:
             priority=priority,
         )
 
+    async def update_record_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        zone_id: str,
+        record_id: str,
+        *,
+        record_type: str,
+        name: str,
+        content: str,
+        ttl: int = 1,
+        proxied: bool = False,
+        priority: int | None = None,
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.update_record(
+            zone_id,
+            record_id,
+            record_type=record_type,
+            name=name,
+            content=content,
+            ttl=ttl,
+            proxied=proxied,
+            priority=priority,
+        )
+
     async def delete_record_for_tenant(
         self,
         session: AsyncSession,

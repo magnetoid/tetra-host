@@ -117,6 +117,7 @@ class DNSRecordSummary(BaseModel):
     content: str
     ttl: int
     proxied: bool | None = None
+    priority: int | None = None
 
 
 class DNSResponse(BaseModel):

@@ -4,19 +4,32 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
+import type { DNSRecord } from "@/lib/types"
 
-const RECORD_TYPES = ["A", "AAAA", "CNAME", "TXT", "MX", "NS", "CAA"] as const
+const RECORD_TYPES = ["A", "AAAA", "CNAME", "TXT", "MX", "SRV", "NS", "CAA"] as const
+const NEEDS_PRIORITY = new Set(["MX", "SRV"])
 
 const inputClass =
   "rounded-lg border border-border bg-background px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
 
-export function CreateRecordForm({ zoneId }: { zoneId: string }) {
+/** Create (no `record`) or edit (with `record`) a DNS record. */
+export function RecordForm({
+  zoneId,
+  record,
+  onDone,
+}: {
+  zoneId: string
+  record?: DNSRecord
+  onDone?: () => void
+}) {
   const router = useRouter()
-  const [type, setType] = useState<string>("A")
-  const [name, setName] = useState("")
-  const [content, setContent] = useState("")
-  const [ttl, setTtl] = useState(1)
-  const [proxied, setProxied] = useState(false)
+  const editing = Boolean(record)
+  const [type, setType] = useState<string>(record?.type ?? "A")
+  const [name, setName] = useState(record?.name ?? "")
+  const [content, setContent] = useState(record?.content ?? "")
+  const [ttl, setTtl] = useState(record?.ttl ?? 1)
+  const [proxied, setProxied] = useState(Boolean(record?.proxied))
+  const [priority, setPriority] = useState(record?.priority ?? 10)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,20 +37,30 @@ export function CreateRecordForm({ zoneId }: { zoneId: string }) {
     event.preventDefault()
     setPending(true)
     setError(null)
+    const body: Record<string, unknown> = { type, name, content, ttl, proxied }
+    if (NEEDS_PRIORITY.has(type)) {
+      body.priority = priority
+    }
+    const url = editing
+      ? `/api/proxy/dns/zones/${zoneId}/records/${record!.id}`
+      : `/api/proxy/dns/zones/${zoneId}/records`
     try {
-      const response = await fetch(`/api/proxy/dns/zones/${zoneId}/records`, {
-        method: "POST",
+      const response = await fetch(url, {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, name, content, ttl, proxied }),
+        body: JSON.stringify(body),
       })
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-        setError(payload.detail ?? "Could not create record.")
+        setError(payload.detail ?? "Could not save record.")
         return
       }
-      setName("")
-      setContent("")
+      if (!editing) {
+        setName("")
+        setContent("")
+      }
       router.refresh()
+      onDone?.()
     } catch {
       setError("Unable to reach the control plane.")
     } finally {
@@ -47,7 +70,7 @@ export function CreateRecordForm({ zoneId }: { zoneId: string }) {
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-2xl border border-border bg-muted p-4">
-      <div className="text-sm font-medium text-zinc-300">Add DNS record</div>
+      <div className="text-sm font-medium text-zinc-300">{editing ? "Edit DNS record" : "Add DNS record"}</div>
       <div className="grid gap-2 sm:grid-cols-[5rem_1fr_1fr_4rem]">
         <select
           aria-label="Record type"
@@ -86,26 +109,48 @@ export function CreateRecordForm({ zoneId }: { zoneId: string }) {
           className={inputClass}
         />
       </div>
+      {NEEDS_PRIORITY.has(type) ? (
+        <input
+          aria-label="Priority"
+          type="number"
+          min={0}
+          placeholder="priority (e.g. 10)"
+          value={priority}
+          onChange={(event) => setPriority(Number(event.target.value) || 0)}
+          className={`${inputClass} sm:w-44`}
+        />
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm text-zinc-400">
-          <input
-            type="checkbox"
-            checked={proxied}
-            onChange={(event) => setProxied(event.target.checked)}
-          />
+          <input type="checkbox" checked={proxied} onChange={(event) => setProxied(event.target.checked)} />
           Proxied
         </label>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-60"
-        >
-          {pending ? "Adding…" : "Add record"}
-        </button>
+        <div className="flex gap-2">
+          {editing && onDone ? (
+            <button
+              type="button"
+              onClick={onDone}
+              className="rounded-lg border border-border px-3 py-2 text-sm text-zinc-300 transition hover:bg-zinc-900"
+            >
+              Cancel
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-60"
+          >
+            {pending ? "Saving…" : editing ? "Save changes" : "Add record"}
+          </button>
+        </div>
       </div>
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
     </form>
   )
+}
+
+export function CreateRecordForm({ zoneId }: { zoneId: string }) {
+  return <RecordForm zoneId={zoneId} />
 }
 
 export function DeleteRecordButton({ zoneId, recordId }: { zoneId: string; recordId: string }) {
