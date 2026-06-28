@@ -1,8 +1,11 @@
+import { AlertTriangle, Globe, Mail, Server, Users } from "lucide-react"
 import Link from "next/link"
 
-import { MetricCard } from "@/components/ui/metric-card"
+import { BarList } from "@/components/charts/bar-list"
+import { ChartLegend, DonutChart, type DonutSlice } from "@/components/charts/donut-chart"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
+import { StatCard } from "@/components/ui/stat-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import type { DashboardResponse, DNSResponse, MailResponse, SiteRecord } from "@/lib/types"
@@ -25,27 +28,21 @@ export default async function DashboardPage() {
     })),
   ])
 
-  const stats = [
-    {
-      label: "Sites",
-      value: dashboard.metrics.sites,
-      hint: `${dashboard.metrics.unhealthy_sites} need attention`,
-    },
-    {
-      label: "Mail domains",
-      value: dashboard.metrics.mail_domains,
-      hint: "Mailcow inventory",
-    },
-    {
-      label: "DNS zones",
-      value: dashboard.metrics.dns_zones,
-      hint: "Cloudflare inventory",
-    },
-    {
-      label: "Administrators",
-      value: dashboard.metrics.admins,
-      hint: session.admin.tenant_name ?? "Current tenant",
-    },
+  const m = dashboard.metrics
+  const providerCount = (status: string) =>
+    dashboard.providers.filter((p) => p.status === status).length
+
+  const health: DonutSlice[] = [
+    { name: "Connected", value: providerCount("connected"), color: "#34d399" },
+    { name: "Degraded", value: providerCount("degraded"), color: "#fbbf24" },
+    { name: "Not configured", value: providerCount("not_configured"), color: "#52525b" },
+  ]
+
+  const resources = [
+    { name: "Sites", value: m.sites, color: "bg-violet-500/40" },
+    { name: "Mail domains", value: m.mail_domains, color: "bg-emerald-500/40" },
+    { name: "DNS zones", value: m.dns_zones, color: "bg-amber-500/40" },
+    { name: "Admins", value: m.admins, color: "bg-sky-500/40" },
   ]
 
   return (
@@ -67,34 +64,43 @@ export default async function DashboardPage() {
         }
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <MetricCard key={stat.label} {...stat} />
-        ))}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <StatCard icon={Server} label="Sites" value={m.sites} hint={`${m.unhealthy_sites} need attention`} accent="text-violet-400" />
+        <StatCard icon={AlertTriangle} label="Unhealthy" value={m.unhealthy_sites} hint="Degraded apps" accent="text-red-400" />
+        <StatCard icon={Mail} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-emerald-400" />
+        <StatCard icon={Globe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-amber-400" />
+        <StatCard icon={Users} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-sky-400" />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-muted p-6 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Provider connectivity</h2>
-            <span className="rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">
-              Live state
-            </span>
+        <div className="rounded-2xl border border-border bg-muted p-6">
+          <h2 className="text-lg font-semibold">Provider health</h2>
+          <div className="mt-4">
+            <DonutChart
+              data={health}
+              centerLabel={`${providerCount("connected")}/${dashboard.providers.length}`}
+              centerSublabel="healthy"
+            />
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="mt-4">
+            <ChartLegend data={health} />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-muted p-6">
+          <h2 className="text-lg font-semibold">Resource mix</h2>
+          <div className="mt-5">
+            <BarList data={resources} />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-muted p-6">
+          <h2 className="text-lg font-semibold">Connectivity</h2>
+          <div className="mt-4 space-y-3">
             {dashboard.providers.map((provider) => (
               <ProviderCard key={provider.name} provider={provider} />
             ))}
           </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-muted p-6">
-          <h2 className="text-lg font-semibold">Control plane posture</h2>
-          <ol className="mt-4 space-y-3 text-sm text-zinc-300">
-            <li>1. Signed admin session and protected routes</li>
-            <li>2. Provider-backed operational inventory</li>
-            <li>3. Tenant-scoped resource visibility</li>
-            <li>4. Typed API contracts for the web console</li>
-          </ol>
         </div>
       </section>
 
