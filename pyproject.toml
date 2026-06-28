@@ -22,5 +22,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0", "ruff>=0.6.0"]
 
+[project.scripts]
+tetra = "tetra_cli.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*", "tetra_cli*"]
+
 [tool.ruff]
 line-length = 100

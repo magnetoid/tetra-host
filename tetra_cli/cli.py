@@ -1,0 +1,290 @@
+"""tetra — command-line client for Tetra Host (dashboard parity for the terminal)."""
+
+import argparse
+import getpass
+import os
+import sys
+from typing import Any
+
+from tetra_cli import __version__
+from tetra_cli.client import TetraClient, TetraError
+from tetra_cli.config import load_config, save_config
+
+
+# ── output helpers ────────────────────────────────────────────────────────
+
+def _use_color() -> bool:
+    return sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+
+def c(text: str, code: str) -> str:
+    return f"\033[{code}m{text}\033[0m" if _use_color() else text
+
+
+def status_color(value: str) -> str:
+    v = (value or "").lower()
+    if any(k in v for k in ("fail", "error", "cancel", "exited", "unhealthy")):
+        return c(value, "31")  # red
+    if any(k in v for k in ("finish", "success", "succeed", "running", "deployed", "active", "connected")):
+        return c(value, "32")  # green
+    if any(k in v for k in ("build", "progress", "queue", "deploy", "start", "pending", "degraded")):
+        return c(value, "33")  # yellow
+    return value
+
+
+def print_table(headers: list[str], rows: list[list[str]]) -> None:
+    if not rows:
+        print(c("(none)", "90"))
+        return
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(_plain(cell)))
+    line = "  ".join(c(h.ljust(widths[i]), "1;90") for i, h in enumerate(headers))
+    print(line)
+    for row in rows:
+        print("  ".join(_pad(cell, widths[i]) for i, cell in enumerate(row)))
+
+
+def _plain(text: str) -> str:
+    out, i = [], 0
+    while i < len(text):
+        if text[i] == "\033":
+            while i < len(text) and text[i] != "m":
+                i += 1
+            i += 1
+            continue
+        out.append(text[i])
+        i += 1
+    return "".join(out)
+
+
+def _pad(cell: str, width: int) -> str:
+    return cell + " " * max(0, width - len(_plain(cell)))
+
+
+def die(message: str) -> int:
+    print(c("error: ", "1;31") + message, file=sys.stderr)
+    return 1
+
+
+def client_from_config(require_auth: bool = True) -> TetraClient:
+    cfg = load_config()
+    if require_auth and not cfg["token"]:
+        raise TetraError("not logged in — run `tetra login` first")
+    return TetraClient(cfg["url"], cfg["token"])
+
+
+# ── command handlers ──────────────────────────────────────────────────────
+
+def cmd_login(args: argparse.Namespace) -> int:
+    cfg = load_config()
+    url = (args.url or cfg["url"]).rstrip("/")
+    email = args.email or input("Email: ").strip()
+    password = args.password or getpass.getpass("Password: ")
+    client = TetraClient(url)
+    client.login(email, password)
+    path = save_config(url, client.token)
+    admin = client.me()
+    print(c("✓", "32") + f" logged in as {admin.get('email')} ({url})")
+    print(c(f"  token saved to {path}", "90"))
+    return 0
+
+
+def cmd_whoami(args: argparse.Namespace) -> int:
+    admin = client_from_config().me()
+    print(f"{admin.get('full_name')} <{admin.get('email')}>  tenant={admin.get('tenant_slug')}")
+    return 0
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    data = client_from_config().dashboard()
+    m = data.get("metrics", {})
+    print(c("Metrics", "1") + f"  sites={m.get('sites')} unhealthy={m.get('unhealthy_sites')} "
+          f"mail_domains={m.get('mail_domains')} dns_zones={m.get('dns_zones')} admins={m.get('admins')}")
+    rows = [[p["name"], status_color(p["status"]), p.get("detail", "")] for p in data.get("providers", [])]
+    print_table(["PROVIDER", "STATUS", "DETAIL"], rows)
+    return 0
+
+
+def cmd_sites(args: argparse.Namespace) -> int:
+    sites = client_from_config().sites()
+    rows = [[s["id"], s["name"], status_color(s["status"]), s.get("primary_domain", "")] for s in sites]
+    print_table(["ID", "NAME", "STATUS", "DOMAIN"], rows)
+    return 0
+
+
+def cmd_deployments(args: argparse.Namespace) -> int:
+    deps = client_from_config().deployments(args.site)
+    rows = [[d["id"][:16], status_color(d["status"]), (d.get("commit") or "")[:8],
+             d.get("branch", ""), d.get("created_at", "")] for d in deps]
+    print_table(["DEPLOYMENT", "STATUS", "COMMIT", "BRANCH", "CREATED"], rows)
+    return 0
+
+
+def _follow_logs(client: TetraClient, site: str, deployment_id: str) -> int:
+    final = ""
+    for event, data in client.stream_logs(site, deployment_id):
+        if event == "log":
+            stream = data.get("type", "stdout")
+            text = data.get("output", "")
+            print(c(text, "31") if stream == "stderr" else text)
+        elif event == "status":
+            print(c(f"-- status: {data.get('status')}", "1;33"))
+        elif event == "done":
+            final = data.get("status", "")
+            print(c(f"-- done: {final}", "1;32" if "fail" not in final.lower() and "error" not in final.lower() else "1;31"))
+        elif event == "error":
+            return die(data.get("message", "stream error"))
+    return 0 if "fail" not in final.lower() and "error" not in final.lower() else 1
+
+
+def cmd_logs(args: argparse.Namespace) -> int:
+    return _follow_logs(client_from_config(), args.site, args.deployment)
+
+
+def cmd_deploy(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    result = client.deploy(args.site, force=args.force)
+    print(c("✓", "32") + " " + str(result.get("message", "Deployment queued.")))
+    deployment_id = result.get("deployment_id")
+    if deployment_id:
+        print(c(f"  deployment {deployment_id}", "90"))
+    if args.follow:
+        if not deployment_id:
+            return die("no deployment id returned; cannot follow logs")
+        print(c("-- streaming build logs (ctrl-c to stop) --", "90"))
+        return _follow_logs(client, args.site, deployment_id)
+    return 0
+
+
+def cmd_dns_zones(args: argparse.Namespace) -> int:
+    data = client_from_config().dns()
+    rows = [[z["id"], z["name"], status_color(z.get("status", "")), z.get("account_name", "")]
+            for z in data.get("zones", [])]
+    print_table(["ZONE ID", "NAME", "STATUS", "ACCOUNT"], rows)
+    return 0
+
+
+def cmd_dns_records(args: argparse.Namespace) -> int:
+    data = client_from_config().dns(zone=args.zone)
+    rows = [[r["id"][:16], r["type"], r["name"], r.get("content", ""), str(r.get("ttl", ""))]
+            for r in data.get("records", [])]
+    print_table(["RECORD", "TYPE", "NAME", "CONTENT", "TTL"], rows)
+    return 0
+
+
+def cmd_dns_add(args: argparse.Namespace) -> int:
+    client_from_config().dns_add(args.zone, args.type, args.name, args.content, ttl=args.ttl, proxied=args.proxied)
+    print(c("✓", "32") + f" {args.type} {args.name} -> {args.content}")
+    return 0
+
+
+def cmd_dns_rm(args: argparse.Namespace) -> int:
+    client_from_config().dns_rm(args.zone, args.record)
+    print(c("✓", "32") + f" deleted {args.record}")
+    return 0
+
+
+def cmd_env_list(args: argparse.Namespace) -> int:
+    envs = client_from_config().envs(args.site)
+    rows = [[str(e.get("key", "")), "•••" if not args.reveal else str(e.get("value", "")),
+             str(e.get("uuid", e.get("id", "")))] for e in envs]
+    print_table(["KEY", "VALUE", "UUID"], rows)
+    return 0
+
+
+def cmd_env_set(args: argparse.Namespace) -> int:
+    client_from_config().env_set(args.site, args.key, args.value)
+    print(c("✓", "32") + f" {args.key} set")
+    return 0
+
+
+def cmd_env_rm(args: argparse.Namespace) -> int:
+    client_from_config().env_rm(args.site, args.uuid)
+    print(c("✓", "32") + f" deleted {args.uuid}")
+    return 0
+
+
+# ── parser ────────────────────────────────────────────────────────────────
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="tetra", description="Tetra Host CLI — dashboard parity for the terminal.")
+    p.add_argument("--version", action="version", version=f"tetra-cli {__version__}")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    sp = sub.add_parser("login", help="authenticate and store a token")
+    sp.add_argument("--url")
+    sp.add_argument("--email")
+    sp.add_argument("--password")
+    sp.set_defaults(func=cmd_login)
+
+    sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
+    sub.add_parser("dashboard", help="show platform metrics").set_defaults(func=cmd_dashboard)
+    sub.add_parser("sites", help="list sites").set_defaults(func=cmd_sites)
+
+    sp = sub.add_parser("deploy", help="trigger a deployment")
+    sp.add_argument("site")
+    sp.add_argument("--force", action="store_true")
+    sp.add_argument("-f", "--follow", action="store_true", help="stream build logs after deploying")
+    sp.set_defaults(func=cmd_deploy)
+
+    sp = sub.add_parser("deployments", help="list deployments for a site")
+    sp.add_argument("site")
+    sp.set_defaults(func=cmd_deployments)
+
+    sp = sub.add_parser("logs", help="stream build logs for a deployment")
+    sp.add_argument("site")
+    sp.add_argument("deployment")
+    sp.set_defaults(func=cmd_logs)
+
+    dns = sub.add_parser("dns", help="manage DNS").add_subparsers(dest="dns_cmd", required=True)
+    dns.add_parser("zones", help="list zones").set_defaults(func=cmd_dns_zones)
+    sp = dns.add_parser("records", help="list records in a zone")
+    sp.add_argument("zone")
+    sp.set_defaults(func=cmd_dns_records)
+    sp = dns.add_parser("add", help="create a record")
+    sp.add_argument("zone")
+    sp.add_argument("type")
+    sp.add_argument("name")
+    sp.add_argument("content")
+    sp.add_argument("--ttl", type=int, default=1)
+    sp.add_argument("--proxied", action="store_true")
+    sp.set_defaults(func=cmd_dns_add)
+    sp = dns.add_parser("rm", help="delete a record")
+    sp.add_argument("zone")
+    sp.add_argument("record")
+    sp.set_defaults(func=cmd_dns_rm)
+
+    env = sub.add_parser("env", help="manage site env vars").add_subparsers(dest="env_cmd", required=True)
+    sp = env.add_parser("list", help="list env vars")
+    sp.add_argument("site")
+    sp.add_argument("--reveal", action="store_true")
+    sp.set_defaults(func=cmd_env_list)
+    sp = env.add_parser("set", help="create/update an env var")
+    sp.add_argument("site")
+    sp.add_argument("key")
+    sp.add_argument("value")
+    sp.set_defaults(func=cmd_env_set)
+    sp = env.add_parser("rm", help="delete an env var")
+    sp.add_argument("site")
+    sp.add_argument("uuid")
+    sp.set_defaults(func=cmd_env_rm)
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        result: Any = args.func(args)
+        return int(result or 0)
+    except TetraError as exc:
+        suffix = f" (HTTP {exc.status})" if exc.status else ""
+        return die(f"{exc}{suffix}")
+    except KeyboardInterrupt:
+        return 130
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

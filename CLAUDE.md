@@ -36,6 +36,16 @@ pnpm web:test     # vitest run
 Ops scripts: `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh` (seed admin),
 `scripts/check-production.sh` (run before restarting prod — it gates `systemd/tetra-host.service`).
 
+## Tetra CLI (`tetra_cli/`)
+
+`tetra` is a Python CLI (argparse + httpx, no new deps) that mirrors the dashboard against the same
+`/api/v1` contract — per the charter's dashboard↔CLI parity rule. Run it without installing via
+`python -m tetra_cli ...` or `scripts/tetra ...`; `pip install -e .` exposes the `tetra` command.
+
+- `tetra login --url https://panel.cloud-industry.com` saves a token to `~/.config/tetra-host/config.json` (override with `TETRA_API_URL` / `TETRA_TOKEN` env).
+- `tetra sites`, `tetra deploy <id> --follow` (streams build logs live), `tetra logs <site> <dep>`, `tetra deployments <id>`, `tetra dns zones|records|add|rm`, `tetra env list|set|rm`, `tetra dashboard`.
+- It's a thin client over [tetra_cli/client.py](tetra_cli/client.py) (injectable httpx transport → tested in-process with `httpx.MockTransport`). **When you add a dashboard feature, add the matching CLI command.**
+
 ## Backend architecture (`app/`)
 
 **Plugin-based modules.** Each feature is a self-contained module under `app/modules/<name>/` exposing a
