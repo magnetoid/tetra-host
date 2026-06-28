@@ -48,6 +48,10 @@ def _upgrade_existing_schema(connection) -> None:
     if "tenants" not in table_names or "admin_users" not in table_names:
         return
 
+    tenant_columns = {column["name"] for column in inspector.get_columns("tenants")}
+    if "is_active" not in tenant_columns:
+        connection.execute(text("ALTER TABLE tenants ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+
     admin_columns = {column["name"] for column in inspector.get_columns("admin_users")}
     if "tenant_id" not in admin_columns:
         connection.execute(text("ALTER TABLE admin_users ADD COLUMN tenant_id VARCHAR(36)"))
