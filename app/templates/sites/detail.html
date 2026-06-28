@@ -18,6 +18,12 @@
     <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ request.query_params.get(key ~ '_error') }}</div>
     {% endif %}
   {% endfor %}
+  {% if request.query_params.get('msg') %}
+  <div class="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 text-sm text-emerald-200">{{ request.query_params.get('msg') }}</div>
+  {% endif %}
+  {% if request.query_params.get('error') %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ request.query_params.get('error') }}</div>
+  {% endif %}
   {% if error %}
   <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
   {% endif %}
@@ -65,7 +71,7 @@
 
   {# Tabs #}
   <nav class="flex gap-1 rounded-2xl border border-border bg-muted p-1">
-    {% for t in [('overview', '📊 Overview'), ('deployments', '🚀 Deployments'), ('logs', '📄 Logs'), ('envs', '🔑 Environment')] %}
+    {% for t in [('overview', '📊 Overview'), ('deployments', '🚀 Deployments'), ('logs', '📄 Logs'), ('envs', '🔑 Environment'), ('settings', '⚙️ Settings'), ('execute', '💻 Execute')] %}
     <a href="/sites/{{ site.id }}?tab={{ t[0] }}"
        class="rounded-xl px-4 py-2 text-sm transition {% if tab == t[0] %}bg-zinc-800 text-white font-medium{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50{% endif %}">
       {{ t[1] }}
@@ -165,21 +171,108 @@
       <h2 class="font-semibold">Environment Variables</h2>
       <span class="text-sm text-zinc-500">{{ envs | length }} variables</span>
     </div>
+
+    {# Add variable form #}
+    <form method="post" action="/sites/{{ site.id }}/envs/create" class="mt-4 rounded-xl border border-border bg-zinc-900/50 p-4">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <h3 class="text-sm font-medium text-zinc-300 mb-3">Add Variable</h3>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <input type="text" name="key" placeholder="KEY" required
+               class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
+        <input type="text" name="value" placeholder="value" required
+               class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
+      </div>
+      <div class="mt-3 flex items-center gap-6">
+        <label class="flex items-center gap-2 text-sm text-zinc-400">
+          <input type="checkbox" name="is_preview" value="true" class="rounded border-border bg-background" /> Preview
+        </label>
+        <label class="flex items-center gap-2 text-sm text-zinc-400">
+          <input type="checkbox" name="is_build_time" value="true" class="rounded border-border bg-background" /> Build time
+        </label>
+        <button type="submit" class="ml-auto rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">Add Variable</button>
+      </div>
+    </form>
+
+    {# Variable list #}
     <div class="mt-4 space-y-2">
       {% for env in envs %}
-      <div class="flex items-center justify-between rounded-xl border border-border p-3 text-sm">
+      <div class="flex items-center justify-between rounded-xl border border-border p-3 text-sm group">
         <div class="flex items-center gap-3">
           <span class="font-mono font-medium text-amber-300">{{ env.get('key', env.get('name', 'UNKNOWN')) }}</span>
           {% if env.get('is_preview') %}<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">preview</span>{% endif %}
           {% if env.get('is_build_time') %}<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">build</span>{% endif %}
         </div>
-        <span class="max-w-[300px] truncate font-mono text-xs text-zinc-500">{{ env.get('value', '••••••••')[:40] }}{% if (env.get('value', '') | length) > 40 %}…{% endif %}</span>
+        <div class="flex items-center gap-3">
+          <span class="env-value max-w-[300px] truncate font-mono text-xs text-zinc-500 cursor-pointer" onclick="this.textContent = this.dataset.revealed === 'true' ? '••••••••' : this.dataset.full; this.dataset.revealed = this.dataset.revealed === 'true' ? 'false' : 'true';"
+                data-full="{{ env.get('value', '') }}" data-revealed="false">••••••••</span>
+          {% if env.get('uuid') %}
+          <form method="post" action="/sites/{{ site.id }}/envs/{{ env.get('uuid') }}/delete" class="inline" onsubmit="return confirm('Delete {{ env.get('key', env.get('name', '')) }}?')">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+            <button class="rounded-lg border border-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-950 opacity-0 group-hover:opacity-100 transition">Delete</button>
+          </form>
+          {% endif %}
+        </div>
       </div>
       {% endfor %}
       {% if not envs %}
       <div class="text-sm text-zinc-400">No environment variables found, or the Coolify API does not expose them for this application.</div>
       {% endif %}
     </div>
+  </section>
+
+  {% elif tab == 'settings' %}
+  <section class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+    <h2 class="font-semibold">Application Settings</h2>
+    <form method="post" action="/sites/{{ site.id }}/settings" class="mt-4 space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+
+      {% set r = raw or {} %}
+      <div class="grid gap-4 sm:grid-cols-2">
+        {% for field in [
+          ('description', 'Description', 'text'),
+          ('fqdn', 'FQDN', 'text'),
+          ('install_command', 'Install Command', 'text'),
+          ('build_command', 'Build Command', 'text'),
+          ('start_command', 'Start Command', 'text'),
+          ('base_directory', 'Base Directory', 'text'),
+          ('publish_directory', 'Publish Directory', 'text'),
+          ('ports_exposes', 'Ports (exposed)', 'text'),
+          ('health_check_path', 'Health Check Path', 'text'),
+          ('limits_memory', 'Memory Limit', 'text'),
+          ('limits_cpu', 'CPU Limit', 'text'),
+          ('redirect', 'Redirect', 'text'),
+        ] %}
+        <div>
+          <label class="block text-sm font-medium text-zinc-400 mb-1">{{ field[1] }}</label>
+          <input type="{{ field[2] }}" name="{{ field[0] }}" value="{{ r.get(field[0], '') or '' }}"
+                 class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder-zinc-600 focus:border-primary focus:outline-none" />
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button type="submit" class="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white hover:bg-primary/80">Save Settings</button>
+      </div>
+    </form>
+  </section>
+
+  {% elif tab == 'execute' %}
+  <section class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+    <h2 class="font-semibold">Execute Command</h2>
+    <form method="post" action="/sites/{{ site.id }}/execute" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <div class="flex gap-3">
+        <input type="text" name="command" placeholder="e.g. ls -la /app" required
+               class="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
+        <button type="submit" class="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary/80">Run</button>
+      </div>
+    </form>
+    {% if request.query_params.get('output') %}
+    <div class="mt-4">
+      <h3 class="text-sm font-medium text-zinc-400 mb-2">Output</h3>
+      <pre class="max-h-[500px] overflow-auto rounded-xl border border-border bg-black p-4 font-mono text-xs text-zinc-300 leading-5">{{ request.query_params.get('output') }}</pre>
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 

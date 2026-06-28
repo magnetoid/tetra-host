@@ -39,3 +39,48 @@ class DnsService:
             records,
             selected_zone=selected_zone,
         )
+
+    async def create_record(
+        self,
+        zone_id: str,
+        record_type: str,
+        name: str,
+        content: str,
+        ttl: int = 1,
+        proxied: bool = False,
+        priority: int | None = None,
+    ) -> dict:
+        return await self.client.create_dns_record(
+            zone_id,
+            record_type=record_type,
+            name=name,
+            content=content,
+            ttl=ttl,
+            proxied=proxied,
+            priority=priority,
+        )
+
+    async def update_record(
+        self,
+        zone_id: str,
+        record_id: str,
+        record_type: str,
+        name: str,
+        content: str,
+        ttl: int = 1,
+        proxied: bool = False,
+        priority: int | None = None,
+    ) -> dict:
+        return await self.client.update_dns_record(
+            zone_id,
+            record_id,
+            record_type=record_type,
+            name=name,
+            content=content,
+            ttl=ttl,
+            proxied=proxied,
+            priority=priority,
+        )
+
+    async def delete_record(self, zone_id: str, record_id: str) -> dict:
+        return await self.client.delete_dns_record(zone_id, record_id)

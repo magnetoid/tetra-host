@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Maintenance · Cloud Industry{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <section>
+    <div class="text-sm text-zinc-500">Admin tools</div>
+    <h1 class="mt-2 text-4xl font-semibold tracking-tight">🔧 Maintenance</h1>
+    <p class="mt-3 max-w-2xl text-zinc-400">Run Coolify artisan commands on the production server. Commands are whitelisted for safety.</p>
+  </section>
+
+  {% if error %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
+  {% endif %}
+
+  {% if result is not none %}
+  <div class="rounded-2xl border border-border bg-zinc-950/70 p-5 space-y-3">
+    <div class="flex items-center gap-3">
+      <span class="rounded-lg bg-zinc-800 px-3 py-1 font-mono text-sm">{{ result_cmd }}</span>
+      {% if result_code == '0' %}
+      <span class="rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">Exit 0</span>
+      {% else %}
+      <span class="rounded-full border border-red-900 bg-red-950 px-3 py-1 text-xs text-red-300">Exit {{ result_code }}</span>
+      {% endif %}
+    </div>
+    <pre class="max-h-96 overflow-auto rounded-xl bg-black/50 p-4 text-sm text-zinc-300 font-mono">{{ result }}</pre>
+  </div>
+  {% endif %}
+
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {% for cmd in commands %}
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5 transition hover:border-zinc-700">
+      <h3 class="font-semibold">{{ cmd.label }}</h3>
+      <p class="mt-1 text-sm text-zinc-500">{{ cmd.desc }}</p>
+      <div class="mt-4 flex items-center justify-between">
+        <code class="text-xs text-zinc-600">{{ cmd.cmd }}</code>
+        <form method="post" action="/maintenance/run">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="command" value="{{ cmd.cmd }}">
+          {% if cmd.cmd == 'down' %}
+          <button type="submit" class="rounded-lg border border-red-800 bg-red-950 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-900" onclick="return confirm('This will put Coolify into maintenance mode. Are you sure?')">Run</button>
+          {% elif cmd.cmd == 'up' %}
+          <button type="submit" class="rounded-lg border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-900">Run</button>
+          {% else %}
+          <button type="submit" class="rounded-lg border border-border bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800">Run</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

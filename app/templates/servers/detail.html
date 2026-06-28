@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}{{ server.name if server else 'Server' }} · Cloud Industry{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <a href="/servers" class="text-sm text-zinc-500 hover:text-zinc-300">← Back to Servers</a>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight">{{ server.name if server else 'Unknown Server' }}</h1>
+      {% if server %}
+      <p class="mt-3 text-zinc-400">{{ server.ip }} · {{ server.description or 'No description' }}</p>
+      {% endif %}
+    </div>
+    <form method="post" action="/servers/{{ server_id }}/validate">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Validate Server</button>
+    </form>
+  </section>
+
+  {% if request.query_params.get('validate') %}
+  <div class="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 text-sm text-emerald-200">{{ request.query_params.get('validate') }}</div>
+  {% endif %}
+  {% if request.query_params.get('validate_error') %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ request.query_params.get('validate_error') }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
+  {% endif %}
+
+  {% if server %}
+  <div class="grid gap-4 md:grid-cols-4">
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="text-sm text-zinc-500">Status</div>
+      <div class="mt-2 text-lg font-semibold">
+        {% if server.is_reachable %}
+        <span class="text-emerald-400">Reachable</span>
+        {% else %}
+        <span class="text-red-400">Unreachable</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="text-sm text-zinc-500">Usable</div>
+      <div class="mt-2 text-lg font-semibold">{{ 'Yes' if server.is_usable else 'No' }}</div>
+    </div>
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="text-sm text-zinc-500">IP Address</div>
+      <div class="mt-2 text-lg font-semibold">{{ server.ip or '—' }}</div>
+    </div>
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="text-sm text-zinc-500">User</div>
+      <div class="mt-2 text-lg font-semibold">{{ server.user or '—' }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Resources -->
+  <section>
+    <h2 class="mb-4 text-xl font-semibold">Resources</h2>
+    <div class="overflow-x-auto rounded-2xl border border-border">
+      <table class="w-full text-sm">
+        <thead class="border-b border-border bg-zinc-950/70 text-left text-zinc-400">
+          <tr>
+            <th class="px-5 py-3 font-medium">Name</th>
+            <th class="px-5 py-3 font-medium">Type</th>
+            <th class="px-5 py-3 font-medium">Status</th>
+            <th class="px-5 py-3 font-medium">FQDN</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+          {% if resources %}
+          {% for res in resources %}
+          <tr class="transition hover:bg-zinc-900/50">
+            <td class="px-5 py-4 font-medium">{{ res.get('name', '—') }}</td>
+            <td class="px-5 py-4 text-zinc-400">{{ res.get('type', '—') }}</td>
+            <td class="px-5 py-4">
+              {% set rs = res.get('status', 'unknown') %}
+              {% if rs == 'running' %}
+              <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Running
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs text-zinc-400">{{ rs }}</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-4 text-zinc-400">{{ res.get('fqdn', '—') }}</td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="4" class="px-5 py-10 text-center text-zinc-500">No resources found.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Domains -->
+  <section>
+    <h2 class="mb-4 text-xl font-semibold">Domains</h2>
+    <div class="overflow-x-auto rounded-2xl border border-border">
+      <table class="w-full text-sm">
+        <thead class="border-b border-border bg-zinc-950/70 text-left text-zinc-400">
+          <tr>
+            <th class="px-5 py-3 font-medium">Domain</th>
+            <th class="px-5 py-3 font-medium">IP</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+          {% if domains %}
+          {% for d in domains %}
+          <tr class="transition hover:bg-zinc-900/50">
+            <td class="px-5 py-4 font-medium">{{ d.get('domain', '—') }}</td>
+            <td class="px-5 py-4 text-zinc-400">{{ d.get('ip', '—') }}</td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="2" class="px-5 py-10 text-center text-zinc-500">No domains found.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

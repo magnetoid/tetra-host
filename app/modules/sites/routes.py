@@ -135,6 +135,7 @@ async def site_detail(
     deployments = []
     envs = []
     logs = ""
+    raw = None
     error = None
     tab = request.query_params.get("tab", "overview")
     try:
@@ -144,6 +145,8 @@ async def site_detail(
             envs = await service.get_envs_for_tenant(session, current_admin.tenant_id, application_id)
         if tab == "logs":
             logs = await service.get_logs_for_tenant(session, current_admin.tenant_id, application_id)
+        if tab == "settings":
+            raw = await service.get_site_raw_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
         error = str(exc)
     return templates.TemplateResponse(
@@ -154,6 +157,7 @@ async def site_detail(
             "deployments": deployments,
             "envs": envs,
             "logs": logs,
+            "raw": raw,
             "error": error,
             "tab": tab,
             "application_id": application_id,
@@ -197,3 +201,149 @@ async def cancel_deployment(
         return RedirectResponse(f"/sites/{application_id}?cancel=Deployment+cancelled", status_code=status.HTTP_303_SEE_OTHER)
     except ProviderAPIError as exc:
         return RedirectResponse(f"/sites/{application_id}?cancel_error={str(exc)}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ── Settings ──────────────────────────────────────────────────────────
+@router.post("/{application_id}/settings")
+async def update_settings(
+    request: Request,
+    application_id: str,
+    csrf_token: str = Form(...),
+    description: str = Form(""),
+    fqdn: str = Form(""),
+    install_command: str = Form(""),
+    build_command: str = Form(""),
+    start_command: str = Form(""),
+    base_directory: str = Form(""),
+    publish_directory: str = Form(""),
+    ports_exposes: str = Form(""),
+    health_check_path: str = Form(""),
+    limits_memory: str = Form(""),
+    limits_cpu: str = Form(""),
+    redirect: str = Form(""),
+    current_admin: AdminUser = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+):
+    verify_csrf_token(request, csrf_token)
+    service = SitesService(request)
+    data: dict = {}
+    if description:
+        data["description"] = description
+    if fqdn:
+        data["fqdn"] = fqdn
+    if install_command:
+        data["install_command"] = install_command
+    if build_command:
+        data["build_command"] = build_command
+    if start_command:
+        data["start_command"] = start_command
+    if base_directory:
+        data["base_directory"] = base_directory
+    if publish_directory:
+        data["publish_directory"] = publish_directory
+    if ports_exposes:
+        data["ports_exposes"] = ports_exposes
+    if health_check_path:
+        data["health_check_path"] = health_check_path
+    if limits_memory:
+        data["limits_memory"] = limits_memory
+    if limits_cpu:
+        data["limits_cpu"] = limits_cpu
+    if redirect:
+        data["redirect"] = redirect
+    try:
+        await service.update_site_for_tenant(session, current_admin.tenant_id, application_id, data)
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=settings&msg=Settings+saved",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except ProviderAPIError as exc:
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=settings&error={str(exc)}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# ── Execute command ───────────────────────────────────────────────────
+@router.post("/{application_id}/execute")
+async def execute_command(
+    request: Request,
+    application_id: str,
+    csrf_token: str = Form(...),
+    command: str = Form(...),
+    current_admin: AdminUser = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+):
+    verify_csrf_token(request, csrf_token)
+    service = SitesService(request)
+    try:
+        output = await service.execute_command_for_tenant(
+            session, current_admin.tenant_id, application_id, command,
+        )
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=execute&msg=Command+executed&output={quote(str(output))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except ProviderAPIError as exc:
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=execute&error={str(exc)}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+# ── Env CRUD ──────────────────────────────────────────────────────────
+@router.post("/{application_id}/envs/create")
+async def create_env(
+    request: Request,
+    application_id: str,
+    csrf_token: str = Form(...),
+    key: str = Form(...),
+    value: str = Form(...),
+    is_preview: bool = Form(False),
+    is_build_time: bool = Form(False),
+    current_admin: AdminUser = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+):
+    verify_csrf_token(request, csrf_token)
+    service = SitesService(request)
+    try:
+        await service.create_env_for_tenant(
+            session, current_admin.tenant_id, application_id,
+            key, value, is_preview, is_build_time,
+        )
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=envs&msg=Variable+created",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except ProviderAPIError as exc:
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=envs&error={str(exc)}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+@router.post("/{application_id}/envs/{env_uuid}/delete")
+async def delete_env(
+    request: Request,
+    application_id: str,
+    env_uuid: str,
+    csrf_token: str = Form(...),
+    current_admin: AdminUser = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+):
+    verify_csrf_token(request, csrf_token)
+    service = SitesService(request)
+    try:
+        await service.delete_env_for_tenant(
+            session, current_admin.tenant_id, application_id, env_uuid,
+        )
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=envs&msg=Variable+deleted",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except ProviderAPIError as exc:
+        return RedirectResponse(
+            f"/sites/{application_id}?tab=envs&error={str(exc)}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )

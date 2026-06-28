@@ -11,6 +11,9 @@
     <a href="/dns?refresh=1{% if selected_zone %}&zone={{ selected_zone }}{% endif %}" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh DNS</a>
   </section>
 
+  {% if success %}
+  <div class="rounded-2xl border border-green-900 bg-green-950/70 p-4 text-sm text-green-100">{{ success }}</div>
+  {% endif %}
   {% if error %}
   <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
   {% endif %}
@@ -37,38 +40,165 @@
         {% endif %}
       </div>
     </div>
-    <div class="rounded-2xl border border-border bg-muted p-6">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">DNS records</h2>
-        <span class="text-sm text-zinc-500">{{ records|length }} shown</span>
-      </div>
-      <div class="mt-4 overflow-hidden rounded-2xl border border-border">
-        <table class="min-w-full divide-y divide-border text-sm">
-          <thead class="bg-background/60 text-left text-zinc-500">
-            <tr>
-              <th class="px-4 py-3 font-medium">Type</th>
-              <th class="px-4 py-3 font-medium">Name</th>
-              <th class="px-4 py-3 font-medium">Content</th>
-              <th class="px-4 py-3 font-medium">TTL</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border bg-background">
-            {% if records %}
-              {% for record in records %}
-              <tr>
-                <td class="px-4 py-3">{{ record.type }}</td>
-                <td class="px-4 py-3 text-zinc-300">{{ record.name }}</td>
-                <td class="px-4 py-3 text-zinc-400">{{ record.content }}</td>
-                <td class="px-4 py-3 text-zinc-400">{{ record.ttl }}</td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr><td colspan="4" class="px-4 py-6 text-center text-zinc-500">Select a zone to inspect its records.</td></tr>
+    <div class="space-y-4">
+      <div class="rounded-2xl border border-border bg-muted p-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">DNS records</h2>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-zinc-500">{{ records|length }} shown</span>
+            {% if actions_enabled and selected_zone %}
+            <button onclick="document.getElementById('add-record-form').classList.toggle('hidden')" class="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-zinc-200">+ Add Record</button>
             {% endif %}
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        {% if actions_enabled and selected_zone %}
+        <div id="add-record-form" class="mt-4 hidden rounded-xl border border-border bg-background p-4">
+          <form method="post" action="/dns/records/create" class="space-y-3">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+            <input type="hidden" name="zone_id" value="{{ selected_zone }}" />
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div>
+                <label class="mb-1 block text-xs text-zinc-500">Type</label>
+                <select name="record_type" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200">
+                  <option value="A">A</option>
+                  <option value="AAAA">AAAA</option>
+                  <option value="CNAME">CNAME</option>
+                  <option value="MX">MX</option>
+                  <option value="TXT">TXT</option>
+                  <option value="SRV">SRV</option>
+                  <option value="NS">NS</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs text-zinc-500">Name</label>
+                <input type="text" name="name" required placeholder="@" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs text-zinc-500">Content</label>
+                <input type="text" name="content" required placeholder="1.2.3.4" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs text-zinc-500">TTL</label>
+                <input type="number" name="ttl" value="1" min="1" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200" />
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2 text-sm text-zinc-400">
+                <input type="checkbox" name="proxied" value="true" class="rounded border-border" />
+                Proxied (orange cloud)
+              </label>
+              <div class="flex gap-2">
+                <button type="button" onclick="document.getElementById('add-record-form').classList.add('hidden')" class="rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-400 hover:text-white">Cancel</button>
+                <button type="submit" class="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-black hover:bg-zinc-200">Create</button>
+              </div>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+
+        <div class="mt-4 overflow-hidden rounded-2xl border border-border">
+          <table class="min-w-full divide-y divide-border text-sm">
+            <thead class="bg-background/60 text-left text-zinc-500">
+              <tr>
+                <th class="px-4 py-3 font-medium">Type</th>
+                <th class="px-4 py-3 font-medium">Name</th>
+                <th class="px-4 py-3 font-medium">Content</th>
+                <th class="px-4 py-3 font-medium">TTL</th>
+                <th class="px-4 py-3 font-medium">Proxy</th>
+                {% if actions_enabled %}
+                <th class="px-4 py-3 font-medium text-right">Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border bg-background">
+              {% if records %}
+                {% for record in records %}
+                <tr id="row-{{ record.id }}">
+                  <td class="px-4 py-3">
+                    <span class="inline-block rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium">{{ record.type }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-zinc-300">{{ record.name }}</td>
+                  <td class="max-w-[200px] truncate px-4 py-3 text-zinc-400" title="{{ record.content }}">{{ record.content }}</td>
+                  <td class="px-4 py-3 text-zinc-400">{% if record.ttl == 1 %}Auto{% else %}{{ record.ttl }}{% endif %}</td>
+                  <td class="px-4 py-3">
+                    {% if record.proxied %}
+                    <span class="text-orange-400" title="Proxied">☁</span>
+                    {% else %}
+                    <span class="text-zinc-600" title="DNS only">☁</span>
+                    {% endif %}
+                  </td>
+                  {% if actions_enabled %}
+                  <td class="px-4 py-3 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                      <button onclick="toggleEdit('{{ record.id }}')" class="rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-white">Edit</button>
+                      <form method="post" action="/dns/records/{{ record.id }}/delete" onsubmit="return confirm('Delete this {{ record.type }} record for {{ record.name }}?')">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+                        <input type="hidden" name="zone_id" value="{{ selected_zone }}" />
+                        <button type="submit" class="rounded px-2 py-1 text-xs text-red-400 hover:bg-red-950 hover:text-red-300">Delete</button>
+                      </form>
+                    </div>
+                  </td>
+                  {% endif %}
+                </tr>
+                {% if actions_enabled %}
+                <tr id="edit-{{ record.id }}" class="hidden">
+                  <td colspan="6" class="bg-zinc-900/50 px-4 py-3">
+                    <form method="post" action="/dns/records/{{ record.id }}/edit" class="space-y-3">
+                      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+                      <input type="hidden" name="zone_id" value="{{ selected_zone }}" />
+                      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        <div>
+                          <label class="mb-1 block text-xs text-zinc-500">Type</label>
+                          <select name="record_type" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200">
+                            {% for t in ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'NS'] %}
+                            <option value="{{ t }}" {% if record.type == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div>
+                          <label class="mb-1 block text-xs text-zinc-500">Name</label>
+                          <input type="text" name="name" required value="{{ record.name }}" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200" />
+                        </div>
+                        <div>
+                          <label class="mb-1 block text-xs text-zinc-500">Content</label>
+                          <input type="text" name="content" required value="{{ record.content }}" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200" />
+                        </div>
+                        <div>
+                          <label class="mb-1 block text-xs text-zinc-500">TTL</label>
+                          <input type="number" name="ttl" value="{{ record.ttl }}" min="1" class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-200" />
+                        </div>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-2 text-sm text-zinc-400">
+                          <input type="checkbox" name="proxied" value="true" {% if record.proxied %}checked{% endif %} class="rounded border-border" />
+                          Proxied
+                        </label>
+                        <div class="flex gap-2">
+                          <button type="button" onclick="toggleEdit('{{ record.id }}')" class="rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-400 hover:text-white">Cancel</button>
+                          <button type="submit" class="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-black hover:bg-zinc-200">Save</button>
+                        </div>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="{% if actions_enabled %}6{% else %}5{% endif %}" class="px-4 py-6 text-center text-zinc-500">Select a zone to inspect its records.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
 </div>
+
+<script>
+function toggleEdit(id) {
+  const row = document.getElementById('edit-' + id);
+  if (row) row.classList.toggle('hidden');
+}
+</script>
 {% endblock %}
