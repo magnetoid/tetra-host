@@ -273,4 +273,10 @@ class CoolifyClient:
             headers=self.headers(),
         )
         items = payload.get("data", payload) if isinstance(payload, dict) else payload
-        return [normalize_coolify_deployment(item) for item in items]
+        results: list[CoolifyDeployment] = []
+        for item in items:
+            if isinstance(item, str):
+                results.append(CoolifyDeployment(id=item, status="unknown"))
+            elif isinstance(item, dict):
+                results.append(normalize_coolify_deployment(item))
+        return results
