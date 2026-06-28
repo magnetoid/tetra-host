@@ -1,46 +1,155 @@
-{% extends "base.html" %}
-{% block title %}Login · Cloud Industry{% endblock %}
-{% block content %}
-<div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-  <section class="rounded-3xl border border-border bg-muted p-8 lg:p-10">
-    <div class="text-sm text-zinc-500">Cloud Industry Operations</div>
-    <h1 class="mt-3 text-4xl font-semibold tracking-tight">Secure access to your native PaaS control plane.</h1>
-    <p class="mt-4 max-w-2xl text-zinc-400">
-      Monitor provider health, review deployment state, and manage platform operations through a hardened admin session.
-    </p>
-    <div class="mt-8 grid gap-4 md:grid-cols-3">
-      <div class="rounded-2xl border border-border bg-background/70 p-4">
-        <div class="font-medium">Operational visibility</div>
-        <div class="mt-2 text-sm text-zinc-500">Coolify, Mailcow, and Cloudflare data flows into one admin view.</div>
-      </div>
-      <div class="rounded-2xl border border-border bg-background/70 p-4">
-        <div class="font-medium">Safer sessions</div>
-        <div class="mt-2 text-sm text-zinc-500">Signed cookies, CSRF validation, and rate-limited login attempts.</div>
-      </div>
-      <div class="rounded-2xl border border-border bg-background/70 p-4">
-        <div class="font-medium">Native-first deployment</div>
-        <div class="mt-2 text-sm text-zinc-500">Optimized for the current `systemd` + `nginx` production footprint.</div>
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Sign In · Cloud Industry</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { border: '#27272a', background: '#09090b', foreground: '#fafafa', muted: '#18181b', primary: '#7c3aed' }}}}
+  </script>
+  <style>
+    @keyframes gradient { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+    .animate-gradient { background-size: 200% 200%; animation: gradient 8s ease infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    .animate-float { animation: float 6s ease-in-out infinite; }
+    .animate-float-delayed { animation: float 6s ease-in-out 2s infinite; }
+    @keyframes pulse-ring { 0%{transform:scale(0.8);opacity:0.5} 50%{transform:scale(1);opacity:1} 100%{transform:scale(0.8);opacity:0.5} }
+    .animate-pulse-ring { animation: pulse-ring 3s ease-in-out infinite; }
+  </style>
+</head>
+<body class="min-h-screen bg-background text-foreground antialiased overflow-hidden">
+  {# Background #}
+  <div class="fixed inset-0 -z-10">
+    <div class="absolute inset-0 bg-gradient-to-br from-violet-950/40 via-background to-indigo-950/30 animate-gradient"></div>
+    <div class="absolute top-1/4 -left-20 h-72 w-72 rounded-full bg-violet-600/10 blur-3xl animate-float"></div>
+    <div class="absolute bottom-1/4 -right-20 h-96 w-96 rounded-full bg-indigo-600/8 blur-3xl animate-float-delayed"></div>
+    <div class="absolute top-10 right-1/4 h-48 w-48 rounded-full bg-purple-500/5 blur-2xl animate-float-delayed"></div>
+    <div class="absolute inset-0" style="background-image:radial-gradient(rgba(124,58,237,0.07) 1px,transparent 1px);background-size:32px 32px"></div>
+  </div>
+
+  <div class="flex min-h-screen items-center justify-center p-4">
+    <div class="w-full max-w-5xl">
+      <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12 items-center">
+
+        {# Left — branding & features #}
+        <div class="hidden lg:block">
+          <div class="flex items-center gap-3 mb-8">
+            <div class="relative">
+              <div class="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-lg font-bold shadow-lg shadow-violet-500/20">CI</div>
+              <div class="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-background animate-pulse-ring"></div>
+            </div>
+            <div>
+              <div class="text-lg font-semibold">Cloud Industry</div>
+              <div class="text-xs text-zinc-500">Hosting Platform</div>
+            </div>
+          </div>
+
+          <h1 class="text-4xl font-bold tracking-tight leading-tight">
+            Your infrastructure,<br>
+            <span class="bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">one control plane.</span>
+          </h1>
+          <p class="mt-4 text-lg text-zinc-400 leading-relaxed max-w-lg">
+            Deploy, monitor, and manage your entire stack — applications, databases, DNS, and email — from a single dashboard.
+          </p>
+
+          <div class="mt-10 space-y-4">
+            <div class="group flex items-start gap-4 rounded-2xl border border-border/50 bg-muted/50 p-4 backdrop-blur-sm transition hover:border-violet-900/50 hover:bg-violet-950/20">
+              <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-400 text-lg">🚀</div>
+              <div>
+                <div class="font-medium text-zinc-200">Application Lifecycle</div>
+                <div class="mt-1 text-sm text-zinc-500">Deploy, restart, rollback, and execute commands across all your Coolify applications.</div>
+              </div>
+            </div>
+            <div class="group flex items-start gap-4 rounded-2xl border border-border/50 bg-muted/50 p-4 backdrop-blur-sm transition hover:border-violet-900/50 hover:bg-violet-950/20">
+              <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-400 text-lg">🌐</div>
+              <div>
+                <div class="font-medium text-zinc-200">DNS & Domain Control</div>
+                <div class="mt-1 text-sm text-zinc-500">Full Cloudflare DNS management — create, edit, and proxy-toggle records in seconds.</div>
+              </div>
+            </div>
+            <div class="group flex items-start gap-4 rounded-2xl border border-border/50 bg-muted/50 p-4 backdrop-blur-sm transition hover:border-violet-900/50 hover:bg-violet-950/20">
+              <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-400 text-lg">🔧</div>
+              <div>
+                <div class="font-medium text-zinc-200">Server Maintenance</div>
+                <div class="mt-1 text-sm text-zinc-500">Database management, server health checks, and artisan maintenance commands — all guarded.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Right — login form #}
+        <div>
+          {# Mobile logo #}
+          <div class="flex items-center gap-3 mb-6 lg:hidden">
+            <div class="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 font-bold shadow-lg shadow-violet-500/20">CI</div>
+            <div class="font-semibold">Cloud Industry</div>
+          </div>
+
+          <div class="rounded-3xl border border-border/60 bg-muted/80 p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
+            <div class="text-center">
+              <h2 class="text-2xl font-bold tracking-tight">Welcome back</h2>
+              <p class="mt-2 text-sm text-zinc-500">Sign in to your admin account</p>
+            </div>
+
+            {% if error %}
+            <div class="mt-5 flex items-center gap-2 rounded-xl border border-red-900/60 bg-red-950/50 px-4 py-3 text-sm text-red-200">
+              <span>⚠️</span>
+              <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form method="post" class="mt-6 space-y-5">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token }}" />
+              <input type="hidden" name="next_url" value="{{ next_url or '/dashboard' }}" />
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-zinc-300">Email</label>
+                <div class="relative">
+                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">✉</span>
+                  <input name="email" type="email" placeholder="admin@company.com" autocomplete="username" required
+                    class="w-full rounded-xl border border-border bg-background/80 pl-10 pr-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 placeholder:text-zinc-600" />
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-zinc-300">Password</label>
+                <div class="relative">
+                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">🔒</span>
+                  <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required
+                    class="w-full rounded-xl border border-border bg-background/80 pl-10 pr-12 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 placeholder:text-zinc-600" />
+                  <button type="button" onclick="const p=document.getElementById('password');p.type=p.type==='password'?'text':'password';this.textContent=p.type==='password'?'👁':'🙈'"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500 hover:text-zinc-300 transition">👁</button>
+                </div>
+              </div>
+
+              <button type="submit"
+                class="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:shadow-violet-500/30 hover:brightness-110 active:scale-[0.98]">
+                Sign in
+              </button>
+            </form>
+
+            <div class="mt-6 flex items-center gap-3">
+              <div class="h-px flex-1 bg-border"></div>
+              <span class="text-xs text-zinc-600">SECURED</span>
+              <div class="h-px flex-1 bg-border"></div>
+            </div>
+
+            <div class="mt-4 flex justify-center gap-6 text-xs text-zinc-600">
+              <span class="flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>CSRF Protected</span>
+              <span class="flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Rate Limited</span>
+              <span class="flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Signed Sessions</span>
+            </div>
+          </div>
+
+          <p class="mt-4 text-center text-xs text-zinc-600">
+            Cloud Industry Hosting Panel · Multi-tenant PaaS
+          </p>
+        </div>
+
       </div>
     </div>
-  </section>
-  <section class="mx-auto w-full max-w-md rounded-3xl border border-border bg-muted p-8">
-    <h2 class="text-2xl font-bold">Sign in</h2>
-    <p class="mt-2 text-sm text-zinc-400">Use your platform admin account to continue.</p>
-    {% if error %}<div class="mt-4 rounded-xl border border-red-900 bg-red-950/80 p-3 text-sm text-red-100">{{ error }}</div>{% endif %}
-    <form method="post" class="mt-6 space-y-4">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token }}" />
-      <input type="hidden" name="next_url" value="{{ next_url or '/dashboard' }}" />
-      <label class="block text-sm">
-        <span class="mb-2 block text-zinc-300">Email</span>
-        <input name="email" type="email" placeholder="admin@company.com" autocomplete="username" class="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-zinc-500" />
-      </label>
-      <label class="block text-sm">
-        <span class="mb-2 block text-zinc-300">Password</span>
-        <input name="password" type="password" placeholder="Password" autocomplete="current-password" class="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-zinc-500" />
-      </label>
-      <button class="w-full rounded-xl bg-primary px-4 py-2.5 font-semibold text-white transition hover:opacity-90">Access dashboard</button>
-    </form>
-    <div class="mt-4 text-xs text-zinc-500">The session is protected and all administrative actions are tied to your account context.</div>
-  </section>
-</div>
-{% endblock %}
+  </div>
+</body>
+</html>
