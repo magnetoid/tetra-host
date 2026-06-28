@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from urllib.parse import urlparse
 
@@ -176,6 +177,73 @@ def normalize_coolify_deployment(raw: dict[str, Any]) -> CoolifyDeployment:
         branch=str(raw.get("branch") or raw.get("git_branch") or ""),
         deployment_log=str(raw.get("deployment_log") or ""),
     )
+
+
+def parse_deployment_log_lines(raw: str | None) -> list[dict[str, str]]:
+    """Normalize a Coolify ``deployment_log`` into structured lines.
+
+    Coolify stores the build log either as a JSON array of objects
+    (``{"output", "type", "timestamp"}``), a JSON object wrapping such an
+    array, or a plain newline-delimited string. This returns a uniform list of
+    ``{"output", "type", "timestamp"}`` dicts so the UI can render each line
+    consistently and a stream can diff by line count.
+    """
+    if not raw:
+        return []
+
+    text_value = raw if isinstance(raw, str) else str(raw)
+
+    parsed: Any
+    try:
+        parsed = json.loads(text_value)
+    except (ValueError, TypeError):
+        parsed = None
+
+    if isinstance(parsed, list):
+        items: list[Any] = parsed
+    elif isinstance(parsed, dict):
+        nested = parsed.get("logs") or parsed.get("data") or parsed.get("output")
+        items = nested if isinstance(nested, list) else [parsed]
+    else:
+        return [
+            {"output": line, "type": "stdout", "timestamp": ""}
+            for line in text_value.splitlines()
+            if line.strip()
+        ]
+
+    lines: list[dict[str, str]] = []
+    for item in items:
+        if isinstance(item, dict):
+            output = item.get("output", item.get("line", item.get("message", "")))
+            lines.append(
+                {
+                    "output": str(output),
+                    "type": str(item.get("type", "stdout")),
+                    "timestamp": str(item.get("timestamp", item.get("created_at", ""))),
+                }
+            )
+        else:
+            lines.append({"output": str(item), "type": "stdout", "timestamp": ""})
+    return lines
+
+
+def _extract_deployment_uuid(result: dict[str, Any]) -> str:
+    """Pull the queued deployment uuid out of a Coolify deploy response.
+
+    Coolify returns either ``{"deployments": [{"deployment_uuid": ...}]}`` or a
+    flat ``{"deployment_uuid": ...}`` depending on version; tolerate both.
+    """
+    deployments = result.get("deployments")
+    if isinstance(deployments, list) and deployments:
+        first = deployments[0]
+        if isinstance(first, dict):
+            uuid = first.get("deployment_uuid") or first.get("uuid") or first.get("id")
+            if not result.get("message") and first.get("message"):
+                result["message"] = first["message"]
+            if uuid:
+                return str(uuid)
+    flat = result.get("deployment_uuid") or result.get("uuid")
+    return str(flat) if flat else ""
 
 
 def _normalize_database(raw: dict[str, Any]) -> CoolifyDatabase:
@@ -385,7 +453,12 @@ class CoolifyClient:
             params=params,
         )
         await self.cache.delete("coolify:applications")
-        return payload if isinstance(payload, dict) else {"ok": True, "payload": payload}
+        result = payload if isinstance(payload, dict) else {"ok": True, "payload": payload}
+        result.setdefault("ok", True)
+        deployment_id = _extract_deployment_uuid(result)
+        if deployment_id:
+            result["deployment_id"] = deployment_id
+        return result
 
     async def start_application(self, application_uuid: str) -> dict[str, Any]:
         if not self.is_configured():

@@ -121,6 +121,22 @@ export interface SiteDeploymentRecord {
   branch: string
 }
 
+export interface DeploymentLogLine {
+  output: string
+  type: string
+  timestamp: string
+}
+
+export interface DeploymentDetail {
+  id: string
+  status: string
+  created_at: string
+  updated_at: string
+  commit: string
+  branch: string
+  log_lines: DeploymentLogLine[]
+}
+
 export interface TenantRecord {
   id: string
   name: string
@@ -131,6 +147,7 @@ export interface TenantRecord {
 export interface SiteActionResponse {
   ok: boolean
   message: string
+  deployment_id?: string
 }
 export interface LoginResponse {
   token: string

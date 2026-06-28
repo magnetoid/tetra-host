@@ -51,6 +51,7 @@ class SiteSummary(BaseModel):
 class SiteActionResponse(BaseModel):
     ok: bool = True
     message: str
+    deployment_id: str = ""
 
 
 class SiteDeploymentSummary(BaseModel):
@@ -60,6 +61,22 @@ class SiteDeploymentSummary(BaseModel):
     updated_at: str
     commit: str
     branch: str
+
+
+class DeploymentLogLine(BaseModel):
+    output: str
+    type: str = "stdout"
+    timestamp: str = ""
+
+
+class DeploymentDetail(BaseModel):
+    id: str
+    status: str
+    created_at: str
+    updated_at: str
+    commit: str
+    branch: str
+    log_lines: list[DeploymentLogLine] = []
 
 
 class MailDomainSummary(BaseModel):

@@ -37,6 +37,20 @@ class SitesService:
         if not allowed:
             raise ProviderAPIError(service="Coolify", message="Application is not assigned to this tenant.", status_code=403)
 
+    async def ensure_access_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+    ) -> None:
+        """Public tenant-access guard.
+
+        Used by streaming endpoints that must validate access once up front
+        (the request DB session is not safely usable inside a long-lived
+        StreamingResponse generator).
+        """
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+
     async def list_sites(self, refresh: bool = False) -> list[CoolifyApplication]:
         return await self.client.list_applications(refresh=refresh)
 

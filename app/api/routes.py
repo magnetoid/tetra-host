@@ -1,4 +1,8 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +12,8 @@ from app.api.contracts import (
     AuthResponse,
     DashboardMetrics,
     DashboardResponse,
+    DeploymentDetail,
+    DeploymentLogLine,
     DNSRecordSummary,
     DNSResponse,
     DNSZoneSummary,
@@ -31,8 +37,69 @@ from app.modules.auth.service import AuthService
 from app.modules.dns.service import DnsService
 from app.modules.mail.service import MailService
 from app.modules.sites.service import SitesService
+from app.services.coolify import parse_deployment_log_lines
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
+
+# Coolify deployment statuses that mean the build has stopped (terminal).
+_TERMINAL_DEPLOYMENT_STATES = {
+    "finished",
+    "success",
+    "succeeded",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+    "cancelled_by_user",
+    "closed",
+    "skipped",
+}
+
+
+def _sse_event(event: str, data: dict[str, object]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _stream_deployment_logs(
+    client,
+    deployment_id: str,
+    request: Request,
+    *,
+    poll_interval: float = 1.5,
+    max_seconds: float = 900.0,
+):
+    """Poll a Coolify deployment and emit incremental SSE log/status events.
+
+    Diffs the build log by parsed line count each poll (Coolify only exposes a
+    growing log string, not a stream), emits new lines + status transitions,
+    and terminates on a terminal status, client disconnect, or safety timeout.
+    """
+    sent_lines = 0
+    last_status: str | None = None
+    elapsed = 0.0
+    while True:
+        if await request.is_disconnected():
+            return
+        deployment = await client.get_deployment(deployment_id)
+        if deployment is None:
+            yield _sse_event("error", {"message": "Deployment not found."})
+            return
+        if deployment.status != last_status:
+            last_status = deployment.status
+            yield _sse_event("status", {"status": deployment.status})
+        lines = parse_deployment_log_lines(deployment.deployment_log)
+        if len(lines) > sent_lines:
+            for line in lines[sent_lines:]:
+                yield _sse_event("log", line)
+            sent_lines = len(lines)
+        if deployment.status.lower() in _TERMINAL_DEPLOYMENT_STATES:
+            yield _sse_event("done", {"status": deployment.status})
+            return
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+        if elapsed >= max_seconds:
+            yield _sse_event("done", {"status": deployment.status, "timeout": True})
+            return
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
@@ -234,12 +301,19 @@ async def api_deploy_site(
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> SiteActionResponse:
     service = SitesService(request)
+    force = request.query_params.get("force") in {"1", "true", "yes"}
     try:
-        result = await service.deploy_for_tenant(session, current_admin.tenant_id, application_id)
+        result = await service.deploy_for_tenant(
+            session, current_admin.tenant_id, application_id, force=force
+        )
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Deployment queued.")))
+    return SiteActionResponse(
+        ok=bool(result.get("ok", True)),
+        message=str(result.get("message", "Deployment queued.")),
+        deployment_id=str(result.get("deployment_id", "")),
+    )
 
 
 @router.post("/sites/{application_id}/start", response_model=SiteActionResponse)
@@ -336,6 +410,62 @@ async def api_site_envs(
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return envs
+
+
+@router.get("/sites/{application_id}/deployments/{deployment_id}", response_model=DeploymentDetail)
+async def api_deployment_detail(
+    application_id: str,
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DeploymentDetail:
+    service = SitesService(request)
+    try:
+        deployment = await service.get_deployment_for_tenant(
+            session, current_admin.tenant_id, application_id, deployment_id
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    if deployment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
+    return DeploymentDetail(
+        id=deployment.id,
+        status=deployment.status,
+        created_at=deployment.created_at,
+        updated_at=deployment.updated_at,
+        commit=deployment.commit,
+        branch=deployment.branch,
+        log_lines=[DeploymentLogLine(**line) for line in parse_deployment_log_lines(deployment.deployment_log)],
+    )
+
+
+@router.get("/sites/{application_id}/deployments/{deployment_id}/logs/stream")
+async def api_stream_deployment_logs(
+    application_id: str,
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> StreamingResponse:
+    service = SitesService(request)
+    # Validate tenant access once, up front: the request DB session is not
+    # safely usable inside the long-lived streaming generator below.
+    try:
+        await service.ensure_access_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return StreamingResponse(
+        _stream_deployment_logs(service.client, deployment_id, request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/sites/{application_id}/deployments/{deployment_id}/cancel", response_model=SiteActionResponse)

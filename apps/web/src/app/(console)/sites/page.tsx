@@ -93,10 +93,10 @@ export default async function SitesPage({ searchParams }: SitesPageProps) {
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <SiteActions applicationId={site.id} />
                 <Link
-                  href={`/sites?app=${site.id}`}
+                  href={`/sites/${site.id}`}
                   className="rounded-lg border border-border px-3 py-2 text-sm text-zinc-200 transition hover:bg-zinc-900"
                 >
-                  View deployments
+                  Open deploy console
                 </Link>
               </div>
             </article>
