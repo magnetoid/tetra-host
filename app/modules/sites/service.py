@@ -69,6 +69,53 @@ class SitesService:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.restart_application(application_id)
 
+    async def stop_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.stop_application(application_id)
+
+    async def get_site_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+    ) -> "CoolifyApplication | None":
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.get_application(application_id)
+
+    async def get_logs_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+        lines: int = 100,
+    ) -> str:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.get_application_logs(application_id, lines=lines)
+
+    async def get_envs_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+    ) -> list:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.get_application_envs(application_id)
+
+    async def cancel_deployment_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+        deployment_uuid: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.cancel_deployment(deployment_uuid)
+
     async def list_deployments_for_tenant(
         self,
         session: AsyncSession,

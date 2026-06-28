@@ -184,6 +184,84 @@ class CoolifyClient:
         await self.cache.delete("coolify:applications")
         return payload if isinstance(payload, dict) else {"ok": True, "payload": payload}
 
+    async def stop_application(self, application_uuid: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Coolify is not configured."}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/stop",
+            headers=self.headers(),
+        )
+        await self.cache.delete("coolify:applications")
+        return payload if isinstance(payload, dict) else {"ok": True, "payload": payload}
+
+    async def get_application(self, application_uuid: str) -> CoolifyApplication | None:
+        if not self.is_configured():
+            return None
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}",
+            headers=self.headers(),
+        )
+        if isinstance(payload, dict) and payload.get("uuid"):
+            return normalize_coolify_resource(payload)
+        return None
+
+    async def get_application_logs(self, application_uuid: str, lines: int = 100) -> str:
+        if not self.is_configured():
+            return ""
+        try:
+            payload = await request_json(
+                self.http_client,
+                service="Coolify",
+                method="GET",
+                url=f"{self.base_url}/api/v1/applications/{application_uuid}/logs",
+                headers=self.headers(),
+                params={"lines": str(lines)},
+            )
+            if isinstance(payload, list):
+                return "\n".join(str(line.get("output", line.get("line", str(line)))) for line in payload)
+            if isinstance(payload, dict):
+                return payload.get("logs", payload.get("output", str(payload)))
+            return str(payload)
+        except Exception:
+            return "Logs unavailable for this application."
+
+    async def get_application_envs(self, application_uuid: str) -> list[dict[str, Any]]:
+        if not self.is_configured():
+            return []
+        try:
+            payload = await request_json(
+                self.http_client,
+                service="Coolify",
+                method="GET",
+                url=f"{self.base_url}/api/v1/applications/{application_uuid}/envs",
+                headers=self.headers(),
+            )
+            if isinstance(payload, list):
+                return payload
+            if isinstance(payload, dict):
+                return payload.get("data", [])
+            return []
+        except Exception:
+            return []
+
+    async def cancel_deployment(self, deployment_uuid: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Coolify is not configured."}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/deployments/{deployment_uuid}/cancel",
+            headers=self.headers(),
+        )
+        return payload if isinstance(payload, dict) else {"ok": True, "payload": payload}
+
     async def list_deployments_for_application(self, application_uuid: str) -> list[CoolifyDeployment]:
         if not self.is_configured():
             return []

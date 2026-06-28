@@ -290,6 +290,71 @@ async def api_site_deployments(
     return [SiteDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
 
 
+@router.post("/sites/{application_id}/stop", response_model=SiteActionResponse)
+async def api_stop_site(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        result = await service.stop_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application stop requested.")))
+
+
+@router.get("/sites/{application_id}/logs")
+async def api_site_logs(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, str]:
+    service = SitesService(request)
+    try:
+        logs = await service.get_logs_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return {"logs": logs}
+
+
+@router.get("/sites/{application_id}/envs")
+async def api_site_envs(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[dict[str, object]]:
+    service = SitesService(request)
+    try:
+        envs = await service.get_envs_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return envs
+
+
+@router.post("/sites/{application_id}/deployments/{deployment_id}/cancel", response_model=SiteActionResponse)
+async def api_cancel_deployment(
+    application_id: str,
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        result = await service.cancel_deployment_for_tenant(session, current_admin.tenant_id, application_id, deployment_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Deployment cancelled.")))
+
+
 @router.get("/mail", response_model=MailResponse)
 async def api_mail(
     request: Request,

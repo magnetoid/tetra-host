@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name if site else 'Application' }} · Cloud Industry{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  {# Breadcrumb #}
+  <div class="flex items-center gap-2 text-sm text-zinc-500">
+    <a href="/sites" class="hover:text-zinc-300">Projects</a>
+    <span>›</span>
+    <span class="text-zinc-200">{{ site.name if site else application_id }}</span>
+  </div>
+
+  {# Flash messages #}
+  {% for key in ['deploy', 'start', 'stop', 'restart', 'cancel'] %}
+    {% if request.query_params.get(key) %}
+    <div class="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 text-sm text-emerald-200">{{ request.query_params.get(key) }}</div>
+    {% endif %}
+    {% if request.query_params.get(key ~ '_error') %}
+    <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ request.query_params.get(key ~ '_error') }}</div>
+    {% endif %}
+  {% endfor %}
+  {% if error %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
+  {% endif %}
+
+  {% if site %}
+  {# Header #}
+  <section class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div class="flex items-center gap-4">
+      <div class="grid h-14 w-14 place-items-center rounded-2xl border border-border bg-background text-lg font-bold">{{ site.name[:2] | upper }}</div>
+      <div>
+        <h1 class="text-3xl font-semibold tracking-tight">{{ site.name }}</h1>
+        <a class="text-sm text-zinc-400 hover:text-zinc-200" href="https://{{ site.primary_domain }}" target="_blank">{{ site.primary_domain }} ↗</a>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      {% set status_color = 'emerald' if 'running' in site.status else ('amber' if 'starting' in site.status or 'building' in site.status else 'red') %}
+      <span class="flex items-center gap-2 rounded-full border border-{{ status_color }}-900 bg-{{ status_color }}-950 px-4 py-1.5 text-sm text-{{ status_color }}-300">
+        <span class="h-2 w-2 rounded-full bg-{{ status_color }}-400"></span>
+        {{ site.status | capitalize }}
+      </span>
+    </div>
+  </section>
+
+  {# Actions bar #}
+  {% if actions_enabled %}
+  <section class="flex flex-wrap gap-2 rounded-2xl border border-border bg-muted p-4">
+    <form method="post" action="/sites/{{ site.id }}/deploy">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <button class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">🚀 Deploy</button>
+    </form>
+    <form method="post" action="/sites/{{ site.id }}/start">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <button class="rounded-lg border border-emerald-800 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-950">▶ Start</button>
+    </form>
+    <form method="post" action="/sites/{{ site.id }}/restart">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <button class="rounded-lg border border-amber-800 px-4 py-2 text-sm text-amber-300 hover:bg-amber-950">🔄 Restart</button>
+    </form>
+    <form method="post" action="/sites/{{ site.id }}/stop" onsubmit="return confirm('Stop this application?')">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <button class="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-300 hover:bg-red-950">⏹ Stop</button>
+    </form>
+  </section>
+  {% endif %}
+
+  {# Tabs #}
+  <nav class="flex gap-1 rounded-2xl border border-border bg-muted p-1">
+    {% for t in [('overview', '📊 Overview'), ('deployments', '🚀 Deployments'), ('logs', '📄 Logs'), ('envs', '🔑 Environment')] %}
+    <a href="/sites/{{ site.id }}?tab={{ t[0] }}"
+       class="rounded-xl px-4 py-2 text-sm transition {% if tab == t[0] %}bg-zinc-800 text-white font-medium{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50{% endif %}">
+      {{ t[1] }}
+    </a>
+    {% endfor %}
+  </nav>
+
+  {# Tab content #}
+  {% if tab == 'overview' %}
+  <section class="grid gap-4 md:grid-cols-2">
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <h3 class="text-sm font-medium text-zinc-400">Application Details</h3>
+      <dl class="mt-4 space-y-3 text-sm">
+        <div class="flex justify-between"><dt class="text-zinc-500">Name</dt><dd>{{ site.name }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Domain</dt><dd><a href="https://{{ site.primary_domain }}" target="_blank" class="text-primary hover:underline">{{ site.primary_domain }}</a></dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Status</dt><dd>{{ site.status }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Environment</dt><dd>{{ site.environment or 'Production' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Type</dt><dd>{{ site.kind }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Build Pack</dt><dd>{{ site.build_pack or 'Default' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Health Checks</dt><dd>{{ '✅ Enabled' if site.healthcheck_enabled else '⚠️ Disabled' }}</dd></div>
+      </dl>
+    </div>
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <h3 class="text-sm font-medium text-zinc-400">Repository</h3>
+      <dl class="mt-4 space-y-3 text-sm">
+        <div class="flex justify-between"><dt class="text-zinc-500">Repository</dt><dd class="truncate max-w-[250px]">{{ site.repository }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Branch</dt><dd>{{ site.branch or 'main' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-zinc-500">Last Updated</dt><dd>{{ site.updated_at or 'Unknown' }}</dd></div>
+      </dl>
+      <h3 class="mt-6 text-sm font-medium text-zinc-400">Recent Deployments</h3>
+      <div class="mt-3 space-y-2">
+        {% for dep in deployments[:3] %}
+        <div class="flex items-center justify-between rounded-xl border border-border p-2.5 text-xs">
+          <span class="font-mono">{{ dep.id[:12] }}…</span>
+          {% set dep_color = 'emerald' if dep.status == 'finished' else ('amber' if dep.status in ['queued', 'in_progress'] else 'red') %}
+          <span class="rounded-full border border-{{ dep_color }}-900 bg-{{ dep_color }}-950 px-2 py-0.5 text-{{ dep_color }}-300">{{ dep.status }}</span>
+        </div>
+        {% endfor %}
+        {% if deployments | length > 3 %}
+        <a href="/sites/{{ site.id }}?tab=deployments" class="block text-center text-xs text-zinc-500 hover:text-zinc-300">View all {{ deployments | length }} deployments →</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {% elif tab == 'deployments' %}
+  <section class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold">Deployment History</h2>
+      <span class="text-sm text-zinc-500">{{ deployments | length }} deployments</span>
+    </div>
+    <div class="mt-4 space-y-3">
+      {% for dep in deployments %}
+      <div class="rounded-xl border border-border p-4 transition hover:border-zinc-700">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="font-mono text-sm">{{ dep.id }}</span>
+            {% if dep.commit %}
+            <span class="ml-2 rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-400">{{ dep.commit[:8] }}</span>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-2">
+            {% set dep_color = 'emerald' if dep.status == 'finished' else ('amber' if dep.status in ['queued', 'in_progress'] else 'red') %}
+            <span class="rounded-full border border-{{ dep_color }}-900 bg-{{ dep_color }}-950 px-3 py-1 text-xs text-{{ dep_color }}-300">{{ dep.status }}</span>
+            {% if dep.status in ['queued', 'in_progress'] and actions_enabled %}
+            <form method="post" action="/sites/{{ site.id }}/deployments/{{ dep.id }}/cancel" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+              <button class="rounded-lg border border-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-950">Cancel</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        <div class="mt-2 flex gap-4 text-xs text-zinc-500">
+          <span>Branch: {{ dep.branch or 'n/a' }}</span>
+          <span>Created: {{ dep.created_at or 'n/a' }}</span>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not deployments %}
+      <div class="text-sm text-zinc-400">No deployments found.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% elif tab == 'logs' %}
+  <section class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold">Container Logs</h2>
+      <a href="/sites/{{ site.id }}?tab=logs" class="rounded-lg border border-border px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200">🔄 Refresh</a>
+    </div>
+    <pre class="mt-4 max-h-[600px] overflow-auto rounded-xl border border-border bg-black p-4 font-mono text-xs text-zinc-300 leading-5">{{ logs or 'No logs available.' }}</pre>
+  </section>
+
+  {% elif tab == 'envs' %}
+  <section class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold">Environment Variables</h2>
+      <span class="text-sm text-zinc-500">{{ envs | length }} variables</span>
+    </div>
+    <div class="mt-4 space-y-2">
+      {% for env in envs %}
+      <div class="flex items-center justify-between rounded-xl border border-border p-3 text-sm">
+        <div class="flex items-center gap-3">
+          <span class="font-mono font-medium text-amber-300">{{ env.get('key', env.get('name', 'UNKNOWN')) }}</span>
+          {% if env.get('is_preview') %}<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">preview</span>{% endif %}
+          {% if env.get('is_build_time') %}<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">build</span>{% endif %}
+        </div>
+        <span class="max-w-[300px] truncate font-mono text-xs text-zinc-500">{{ env.get('value', '••••••••')[:40] }}{% if (env.get('value', '') | length) > 40 %}…{% endif %}</span>
+      </div>
+      {% endfor %}
+      {% if not envs %}
+      <div class="text-sm text-zinc-400">No environment variables found, or the Coolify API does not expose them for this application.</div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-border bg-muted p-8 text-sm text-zinc-400">Application not found or not accessible.</div>
+  {% endif %}
+</div>
+{% endblock %}
