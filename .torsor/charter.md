@@ -20,3 +20,5 @@ The platform exists to provide a customer-facing hosting experience that is stro
 - UI and backend work should feel premium: clean, modern, reliable, and production-minded.
 - Markdown under `.torsor/` is project memory and architectural intent; keep it accurate as the codebase evolves.
 - Build provider integrations against the latest official API docs, not memory: before adding or changing Coolify/Cloudflare/Mailcow code, consult and combine the current upstream API reference (use the `provider-api-docs` skill) and verify a capability exists upstream before building on it.
+- Tetra Host is a cutting-edge, Vercel-like, open-source hosting platform; hold every part to that bar — premium UX, modern architecture, and production-grade reliability — and keep it suitable for public open-source release.
+- Compose the platform from best-in-class open source: prefer integrating high-quality, well-known open-source apps/services to build the hosting infrastructure over reinventing them, and use the right language for the job (Python + TypeScript today; Go or other languages where they fit).
