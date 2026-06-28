@@ -45,7 +45,11 @@ class Settings(BaseSettings):
     def normalize_database_url(cls, value: str) -> str:
         if value.startswith("sqlite:///"):
             return value.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
-        if value.startswith("postgresql://"):***@field_validator("mailcow_url", "coolify_url")
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
+
+    @field_validator("mailcow_url", "coolify_url")
     @classmethod
     def strip_provider_urls(cls, value: str) -> str:
         return value.rstrip("/")
