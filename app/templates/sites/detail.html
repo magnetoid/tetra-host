@@ -2,14 +2,12 @@
 {% block title %}{{ site.name if site else 'Application' }} · Cloud Industry{% endblock %}
 {% block content %}
 <div class="space-y-6">
-  {# Breadcrumb #}
   <div class="flex items-center gap-2 text-sm text-zinc-500">
     <a href="/sites" class="hover:text-zinc-300">Projects</a>
     <span>›</span>
     <span class="text-zinc-200">{{ site.name if site else application_id }}</span>
   </div>
 
-  {# Flash messages #}
   {% for key in ['deploy', 'start', 'stop', 'restart', 'cancel'] %}
     {% if request.query_params.get(key) %}
     <div class="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 text-sm text-emerald-200">{{ request.query_params.get(key) }}</div>
@@ -29,7 +27,6 @@
   {% endif %}
 
   {% if site %}
-  {# Header #}
   <section class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
     <div class="flex items-center gap-4">
       <div class="grid h-14 w-14 place-items-center rounded-2xl border border-border bg-background text-lg font-bold">{{ site.name[:2] | upper }}</div>
@@ -39,7 +36,8 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
-      {% set status_color = 'emerald' if 'running' in site.status else ('amber' if 'starting' in site.status or 'building' in site.status else 'red') %}
+      {% set status_value = (site.status or '') | lower %}
+      {% set status_color = 'emerald' if 'running' in status_value else ('amber' if 'starting' in status_value or 'building' in status_value or 'queued' in status_value else 'red') %}
       <span class="flex items-center gap-2 rounded-full border border-{{ status_color }}-900 bg-{{ status_color }}-950 px-4 py-1.5 text-sm text-{{ status_color }}-300">
         <span class="h-2 w-2 rounded-full bg-{{ status_color }}-400"></span>
         {{ site.status | capitalize }}
@@ -47,31 +45,68 @@
     </div>
   </section>
 
-  {# Actions bar #}
   {% if actions_enabled %}
-  <section class="flex flex-wrap gap-2 rounded-2xl border border-border bg-muted p-4">
-    <form method="post" action="/sites/{{ site.id }}/deploy">
+  <section class="rounded-2xl border border-border bg-muted p-4">
+    <div class="mb-4 flex items-center justify-between gap-4">
+      <div>
+        <h2 class="font-semibold">Deployment Package</h2>
+        <p class="text-sm text-zinc-500">Deploy with force/tag controls, optional notifications, and direct access to Coolify deployment surfaces.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <form method="post" action="/sites/{{ site.id }}/start">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+          <button class="rounded-lg border border-emerald-800 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-950">▶ Start</button>
+        </form>
+        <form method="post" action="/sites/{{ site.id }}/restart">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+          <button class="rounded-lg border border-amber-800 px-4 py-2 text-sm text-amber-300 hover:bg-amber-950">🔄 Restart</button>
+        </form>
+        <form method="post" action="/sites/{{ site.id }}/stop" onsubmit="return confirm('Stop this application?')">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+          <button class="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-300 hover:bg-red-950">⏹ Stop</button>
+        </form>
+      </div>
+    </div>
+
+    <form method="post" action="/sites/{{ site.id }}/deploy" class="grid gap-4 lg:grid-cols-4">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-      <button class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">🚀 Deploy</button>
+      <div>
+        <label class="mb-1 block text-xs uppercase tracking-wide text-zinc-500">Deploy tag</label>
+        <input type="text" name="tag" placeholder="Optional release tag"
+               class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder-zinc-600 focus:border-primary focus:outline-none" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs uppercase tracking-wide text-zinc-500">Notification channel</label>
+        <select name="notify_channel" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none">
+          <option value="none">None</option>
+          <option value="sms" {% if notify_default_channel == 'sms' %}selected{% endif %}>SMS</option>
+          <option value="webhook" {% if notify_default_channel == 'webhook' %}selected{% endif %}>Webhook</option>
+        </select>
+      </div>
+      <div>
+        <label class="mb-1 block text-xs uppercase tracking-wide text-zinc-500">SMS recipient</label>
+        <input type="text" name="sms_to" value="{{ notify_default_sms_to or '' }}" placeholder="e.g. +382..."
+               class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder-zinc-600 focus:border-primary focus:outline-none" />
+      </div>
+      <div class="flex items-end justify-between gap-4 rounded-xl border border-border bg-zinc-900/40 px-4 py-3">
+        <label class="flex items-center gap-2 text-sm text-zinc-300">
+          <input type="checkbox" name="force" value="true" class="rounded border-border bg-background" />
+          Force deploy
+        </label>
+        <button class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">🚀 Deploy</button>
+      </div>
     </form>
-    <form method="post" action="/sites/{{ site.id }}/start">
-      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-      <button class="rounded-lg border border-emerald-800 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-950">▶ Start</button>
-    </form>
-    <form method="post" action="/sites/{{ site.id }}/restart">
-      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-      <button class="rounded-lg border border-amber-800 px-4 py-2 text-sm text-amber-300 hover:bg-amber-950">🔄 Restart</button>
-    </form>
-    <form method="post" action="/sites/{{ site.id }}/stop" onsubmit="return confirm('Stop this application?')">
-      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-      <button class="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-300 hover:bg-red-950">⏹ Stop</button>
-    </form>
+
+    {% if not notify_configured %}
+    <div class="mt-3 rounded-xl border border-amber-900 bg-amber-950/40 p-3 text-xs text-amber-200">
+      Notifications are not configured server-side yet. The form is ready, but SMS/webhook delivery needs `DEPLOY_NOTIFY_WEBHOOK_URL` (and optional bearer token/default channel) in the app environment.
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 
-  {# Tabs #}
-  <nav class="flex gap-1 rounded-2xl border border-border bg-muted p-1">
-    {% for t in [('overview', '📊 Overview'), ('deployments', '🚀 Deployments'), ('logs', '📄 Logs'), ('envs', '🔑 Environment'), ('settings', '⚙️ Settings'), ('execute', '💻 Execute')] %}
+  <nav class="flex flex-wrap gap-1 rounded-2xl border border-border bg-muted p-1">
+    {% for t in [('overview', '📊 Overview'), ('deployments', '🚀 Deployments'), ('storages', '💾 Storages'), ('tasks', '⏱ Tasks'), ('logs', '📄 Logs'), ('envs', '🔑 Environment'), ('settings', '⚙️ Settings'), ('execute', '💻 Execute')] %}
     <a href="/sites/{{ site.id }}?tab={{ t[0] }}"
        class="rounded-xl px-4 py-2 text-sm transition {% if tab == t[0] %}bg-zinc-800 text-white font-medium{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50{% endif %}">
       {{ t[1] }}
@@ -79,7 +114,6 @@
     {% endfor %}
   </nav>
 
-  {# Tab content #}
   {% if tab == 'overview' %}
   <section class="grid gap-4 md:grid-cols-2">
     <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
@@ -101,18 +135,10 @@
         <div class="flex justify-between"><dt class="text-zinc-500">Branch</dt><dd>{{ site.branch or 'main' }}</dd></div>
         <div class="flex justify-between"><dt class="text-zinc-500">Last Updated</dt><dd>{{ site.updated_at or 'Unknown' }}</dd></div>
       </dl>
-      <h3 class="mt-6 text-sm font-medium text-zinc-400">Recent Deployments</h3>
-      <div class="mt-3 space-y-2">
-        {% for dep in deployments[:3] %}
-        <div class="flex items-center justify-between rounded-xl border border-border p-2.5 text-xs">
-          <span class="font-mono">{{ dep.id[:12] }}…</span>
-          {% set dep_color = 'emerald' if dep.status == 'finished' else ('amber' if dep.status in ['queued', 'in_progress'] else 'red') %}
-          <span class="rounded-full border border-{{ dep_color }}-900 bg-{{ dep_color }}-950 px-2 py-0.5 text-{{ dep_color }}-300">{{ dep.status }}</span>
-        </div>
-        {% endfor %}
-        {% if deployments | length > 3 %}
-        <a href="/sites/{{ site.id }}?tab=deployments" class="block text-center text-xs text-zinc-500 hover:text-zinc-300">View all {{ deployments | length }} deployments →</a>
-        {% endif %}
+      <div class="mt-6 grid gap-3 sm:grid-cols-3 text-xs">
+        <div class="rounded-xl border border-border p-3"><div class="text-zinc-500">Deployments</div><div class="mt-1 text-lg font-semibold">{{ deployments | length }}</div></div>
+        <div class="rounded-xl border border-border p-3"><div class="text-zinc-500">Storages</div><div class="mt-1 text-lg font-semibold">{{ storages | length if storages is defined else 0 }}</div></div>
+        <div class="rounded-xl border border-border p-3"><div class="text-zinc-500">Scheduled tasks</div><div class="mt-1 text-lg font-semibold">{{ tasks | length if tasks is defined else 0 }}</div></div>
       </div>
     </div>
   </section>
@@ -126,16 +152,15 @@
     <div class="mt-4 space-y-3">
       {% for dep in deployments %}
       <div class="rounded-xl border border-border p-4 transition hover:border-zinc-700">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-4">
           <div>
             <span class="font-mono text-sm">{{ dep.id }}</span>
-            {% if dep.commit %}
-            <span class="ml-2 rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-400">{{ dep.commit[:8] }}</span>
-            {% endif %}
+            {% if dep.commit %}<span class="ml-2 rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-400">{{ dep.commit[:8] }}</span>{% endif %}
           </div>
           <div class="flex items-center gap-2">
-            {% set dep_color = 'emerald' if dep.status == 'finished' else ('amber' if dep.status in ['queued', 'in_progress'] else 'red') %}
-            <span class="rounded-full border border-{{ dep_color }}-900 bg-{{ dep_color }}-950 px-3 py-1 text-xs text-{{ dep_color }}-300">{{ dep.status }}</span>
+            {% set dep_status = dep.status or 'unknown' %}
+            {% set dep_color = 'emerald' if dep_status == 'finished' else ('amber' if dep_status in ['queued', 'in_progress', 'building'] else 'red') %}
+            <span class="rounded-full border border-{{ dep_color }}-900 bg-{{ dep_color }}-950 px-3 py-1 text-xs text-{{ dep_color }}-300">{{ dep_status }}</span>
             {% if dep.status in ['queued', 'in_progress'] and actions_enabled %}
             <form method="post" action="/sites/{{ site.id }}/deployments/{{ dep.id }}/cancel" class="inline">
               <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
@@ -144,15 +169,157 @@
             {% endif %}
           </div>
         </div>
-        <div class="mt-2 flex gap-4 text-xs text-zinc-500">
+        <div class="mt-2 flex flex-wrap gap-4 text-xs text-zinc-500">
           <span>Branch: {{ dep.branch or 'n/a' }}</span>
           <span>Created: {{ dep.created_at or 'n/a' }}</span>
+          <span>Updated: {{ dep.updated_at or 'n/a' }}</span>
         </div>
       </div>
       {% endfor %}
       {% if not deployments %}
       <div class="text-sm text-zinc-400">No deployments found.</div>
       {% endif %}
+    </div>
+  </section>
+
+  {% elif tab == 'storages' %}
+  <section class="space-y-4">
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Persistent Storages</h2>
+        <span class="text-sm text-zinc-500">{{ storages | length }} storages</span>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% for storage in storages %}
+        <div class="rounded-xl border border-border p-4">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="font-medium">{{ storage.name or storage.id }}</div>
+              <div class="mt-1 font-mono text-xs text-zinc-500">{{ storage.id }}</div>
+            </div>
+            <form method="post" action="/sites/{{ site.id }}/storages/{{ storage.id }}/delete" onsubmit="return confirm('Delete this storage?')">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+              <button class="rounded-lg border border-red-800 px-3 py-1.5 text-xs text-red-300 hover:bg-red-950">Delete</button>
+            </form>
+          </div>
+          <div class="mt-3 grid gap-3 md:grid-cols-2 text-sm text-zinc-400">
+            <div>Mount path: <span class="font-mono text-zinc-200">{{ storage.mount_path or 'n/a' }}</span></div>
+            <div>Host path: <span class="font-mono text-zinc-200">{{ storage.host_path or 'n/a' }}</span></div>
+          </div>
+          <details class="mt-3 rounded-xl border border-border bg-black/40 p-3">
+            <summary class="cursor-pointer text-sm text-zinc-300">Raw storage payload</summary>
+            <pre class="mt-3 overflow-auto text-xs text-zinc-400">{{ storage.raw | tojson(indent=2) }}</pre>
+          </details>
+        </div>
+        {% endfor %}
+        {% if not storages %}
+        <div class="text-sm text-zinc-400">No storages found for this application.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <form method="post" action="/sites/{{ site.id }}/storages/create" class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+        <h3 class="font-semibold">Create storage</h3>
+        <p class="mt-1 text-sm text-zinc-500">Paste the exact Coolify JSON payload.</p>
+        <textarea name="payload_json" rows="12" class="mt-4 w-full rounded-xl border border-border bg-black px-3 py-3 font-mono text-xs text-zinc-200 focus:border-primary focus:outline-none">{
+  "name": "persistent-data",
+  "mount_path": "/app/data",
+  "host_path": "/data/app"
+}</textarea>
+        <button class="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">Create storage</button>
+      </form>
+
+      <form method="post" action="/sites/{{ site.id }}/storages/update" class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+        <h3 class="font-semibold">Update storage</h3>
+        <p class="mt-1 text-sm text-zinc-500">Paste the full update payload expected by Coolify.</p>
+        <textarea name="payload_json" rows="12" class="mt-4 w-full rounded-xl border border-border bg-black px-3 py-3 font-mono text-xs text-zinc-200 focus:border-primary focus:outline-none">{
+  "storage_uuid": "replace-me",
+  "mount_path": "/app/data",
+  "host_path": "/data/app"
+}</textarea>
+        <button class="mt-4 rounded-lg border border-border px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-900">Update storage</button>
+      </form>
+    </div>
+  </section>
+
+  {% elif tab == 'tasks' %}
+  <section class="space-y-4">
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Scheduled Tasks</h2>
+        <span class="text-sm text-zinc-500">{{ tasks | length }} tasks</span>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% for task in tasks %}
+        <div class="rounded-xl border border-border p-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="font-medium">{{ task.name or task.id }}</div>
+              <div class="mt-1 font-mono text-xs text-zinc-500">{{ task.id }}</div>
+              <div class="mt-2 text-sm text-zinc-400">{{ task.command or 'No command exposed' }}</div>
+            </div>
+            <div class="flex gap-2">
+              <a href="/sites/{{ site.id }}?tab=tasks&task_uuid={{ task.id }}" class="rounded-lg border border-border px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-900">Executions</a>
+              <form method="post" action="/sites/{{ site.id }}/tasks/{{ task.id }}/delete" onsubmit="return confirm('Delete this scheduled task?')">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+                <button class="rounded-lg border border-red-800 px-3 py-1.5 text-xs text-red-300 hover:bg-red-950">Delete</button>
+              </form>
+            </div>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
+            <span>Frequency: {{ task.frequency or 'n/a' }}</span>
+            <span>Status: {{ task.status or 'n/a' }}</span>
+          </div>
+          <details class="mt-3 rounded-xl border border-border bg-black/40 p-3">
+            <summary class="cursor-pointer text-sm text-zinc-300">Raw task payload</summary>
+            <pre class="mt-3 overflow-auto text-xs text-zinc-400">{{ task.raw | tojson(indent=2) }}</pre>
+          </details>
+        </div>
+        {% endfor %}
+        {% if not tasks %}
+        <div class="text-sm text-zinc-400">No scheduled tasks found for this application.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if task_uuid %}
+    <div class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold">Task executions</h3>
+        <a href="/sites/{{ site.id }}?tab=tasks" class="text-sm text-zinc-500 hover:text-zinc-300">Clear</a>
+      </div>
+      <pre class="mt-4 max-h-[420px] overflow-auto rounded-xl border border-border bg-black p-4 font-mono text-xs text-zinc-300 leading-5">{{ task_executions | tojson(indent=2) }}</pre>
+    </div>
+    {% endif %}
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <form method="post" action="/sites/{{ site.id }}/tasks/create" class="rounded-2xl border border-border bg-zinc-950/70 p-5">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+        <h3 class="font-semibold">Create scheduled task</h3>
+        <p class="mt-1 text-sm text-zinc-500">Paste the exact Coolify JSON payload.</p>
+        <textarea name="payload_json" rows="12" class="mt-4 w-full rounded-xl border border-border bg-black px-3 py-3 font-mono text-xs text-zinc-200 focus:border-primary focus:outline-none">{
+  "name": "nightly-job",
+  "command": "php artisan schedule:run",
+  "frequency": "0 2 * * *"
+}</textarea>
+        <button class="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">Create task</button>
+      </form>
+
+      <form method="post" action="/sites/{{ site.id }}/tasks/replace-me/update" class="rounded-2xl border border-border bg-zinc-950/70 p-5" onsubmit="this.action=this.action.replace('replace-me', this.querySelector('[name=task_uuid]').value)">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+        <h3 class="font-semibold">Update scheduled task</h3>
+        <p class="mt-1 text-sm text-zinc-500">Enter the task UUID and the full update payload.</p>
+        <input type="text" name="task_uuid" placeholder="Task UUID" class="mt-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none" />
+        <textarea name="payload_json" rows="10" class="mt-4 w-full rounded-xl border border-border bg-black px-3 py-3 font-mono text-xs text-zinc-200 focus:border-primary focus:outline-none">{
+  "name": "nightly-job",
+  "command": "php artisan schedule:run",
+  "frequency": "0 2 * * *"
+}</textarea>
+        <button class="mt-4 rounded-lg border border-border px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-900">Update task</button>
+      </form>
     </div>
   </section>
 
@@ -171,29 +338,19 @@
       <h2 class="font-semibold">Environment Variables</h2>
       <span class="text-sm text-zinc-500">{{ envs | length }} variables</span>
     </div>
-
-    {# Add variable form #}
     <form method="post" action="/sites/{{ site.id }}/envs/create" class="mt-4 rounded-xl border border-border bg-zinc-900/50 p-4">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-      <h3 class="text-sm font-medium text-zinc-300 mb-3">Add Variable</h3>
+      <h3 class="mb-3 text-sm font-medium text-zinc-300">Add Variable</h3>
       <div class="grid gap-3 sm:grid-cols-2">
-        <input type="text" name="key" placeholder="KEY" required
-               class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
-        <input type="text" name="value" placeholder="value" required
-               class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
+        <input type="text" name="key" placeholder="KEY" required class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
+        <input type="text" name="value" placeholder="value" required class="rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
       </div>
       <div class="mt-3 flex items-center gap-6">
-        <label class="flex items-center gap-2 text-sm text-zinc-400">
-          <input type="checkbox" name="is_preview" value="true" class="rounded border-border bg-background" /> Preview
-        </label>
-        <label class="flex items-center gap-2 text-sm text-zinc-400">
-          <input type="checkbox" name="is_build_time" value="true" class="rounded border-border bg-background" /> Build time
-        </label>
+        <label class="flex items-center gap-2 text-sm text-zinc-400"><input type="checkbox" name="is_preview" value="true" class="rounded border-border bg-background" /> Preview</label>
+        <label class="flex items-center gap-2 text-sm text-zinc-400"><input type="checkbox" name="is_build_time" value="true" class="rounded border-border bg-background" /> Build time</label>
         <button type="submit" class="ml-auto rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/80">Add Variable</button>
       </div>
     </form>
-
-    {# Variable list #}
     <div class="mt-4 space-y-2">
       {% for env in envs %}
       <div class="flex items-center justify-between rounded-xl border border-border p-3 text-sm group">
@@ -203,8 +360,7 @@
           {% if env.get('is_build_time') %}<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">build</span>{% endif %}
         </div>
         <div class="flex items-center gap-3">
-          <span class="env-value max-w-[300px] truncate font-mono text-xs text-zinc-500 cursor-pointer" onclick="this.textContent = this.dataset.revealed === 'true' ? '••••••••' : this.dataset.full; this.dataset.revealed = this.dataset.revealed === 'true' ? 'false' : 'true';"
-                data-full="{{ env.get('value', '') }}" data-revealed="false">••••••••</span>
+          <span class="env-value max-w-[300px] truncate font-mono text-xs text-zinc-500 cursor-pointer" onclick="this.textContent = this.dataset.revealed === 'true' ? '••••••••' : this.dataset.full; this.dataset.revealed = this.dataset.revealed === 'true' ? 'false' : 'true';" data-full="{{ env.get('value', '') }}" data-revealed="false">••••••••</span>
           {% if env.get('uuid') %}
           <form method="post" action="/sites/{{ site.id }}/envs/{{ env.get('uuid') }}/delete" class="inline" onsubmit="return confirm('Delete {{ env.get('key', env.get('name', '')) }}?')">
             <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
@@ -225,7 +381,6 @@
     <h2 class="font-semibold">Application Settings</h2>
     <form method="post" action="/sites/{{ site.id }}/settings" class="mt-4 space-y-4">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-
       {% set r = raw or {} %}
       <div class="grid gap-4 sm:grid-cols-2">
         {% for field in [
@@ -243,13 +398,11 @@
           ('redirect', 'Redirect', 'text'),
         ] %}
         <div>
-          <label class="block text-sm font-medium text-zinc-400 mb-1">{{ field[1] }}</label>
-          <input type="{{ field[2] }}" name="{{ field[0] }}" value="{{ r.get(field[0], '') or '' }}"
-                 class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder-zinc-600 focus:border-primary focus:outline-none" />
+          <label class="mb-1 block text-sm font-medium text-zinc-400">{{ field[1] }}</label>
+          <input type="{{ field[2] }}" name="{{ field[0] }}" value="{{ r.get(field[0], '') or '' }}" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder-zinc-600 focus:border-primary focus:outline-none" />
         </div>
         {% endfor %}
       </div>
-
       <div class="flex justify-end pt-2">
         <button type="submit" class="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white hover:bg-primary/80">Save Settings</button>
       </div>
@@ -262,14 +415,13 @@
     <form method="post" action="/sites/{{ site.id }}/execute" class="mt-4">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
       <div class="flex gap-3">
-        <input type="text" name="command" placeholder="e.g. ls -la /app" required
-               class="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
+        <input type="text" name="command" placeholder="e.g. ls -la /app" required class="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono placeholder-zinc-600 focus:border-primary focus:outline-none" />
         <button type="submit" class="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary/80">Run</button>
       </div>
     </form>
     {% if request.query_params.get('output') %}
     <div class="mt-4">
-      <h3 class="text-sm font-medium text-zinc-400 mb-2">Output</h3>
+      <h3 class="mb-2 text-sm font-medium text-zinc-400">Output</h3>
       <pre class="max-h-[500px] overflow-auto rounded-xl border border-border bg-black p-4 font-mono text-xs text-zinc-300 leading-5">{{ request.query_params.get('output') }}</pre>
     </div>
     {% endif %}

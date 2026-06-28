@@ -4,7 +4,13 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_SITE
-from app.services.coolify import CoolifyApplication, CoolifyClient, CoolifyDeployment
+from app.services.coolify import (
+    CoolifyApplication,
+    CoolifyClient,
+    CoolifyDeployment,
+    CoolifyScheduledTask,
+    CoolifyStorage,
+)
 from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
 
@@ -166,3 +172,58 @@ class SitesService:
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.cancel_deployment(deployment_uuid)
+
+
+    async def list_scheduled_tasks_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
+    ) -> list[CoolifyScheduledTask]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.list_scheduled_tasks(application_id)
+
+    async def create_scheduled_task_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, data: dict[str, Any],
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.create_scheduled_task(application_id, data)
+
+    async def update_scheduled_task_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, task_uuid: str, data: dict[str, Any],
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.update_scheduled_task(application_id, task_uuid, data)
+
+    async def delete_scheduled_task_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, task_uuid: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.delete_scheduled_task(application_id, task_uuid)
+
+    async def list_scheduled_task_executions_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, task_uuid: str,
+    ) -> list[dict[str, Any]]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.list_scheduled_task_executions(application_id, task_uuid)
+
+    async def list_storages_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
+    ) -> list[CoolifyStorage]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.list_storages(application_id)
+
+    async def create_storage_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, data: dict[str, Any],
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.create_storage(application_id, data)
+
+    async def update_storage_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, data: dict[str, Any],
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.update_storage(application_id, data)
+
+    async def delete_storage_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str, storage_uuid: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.delete_storage(application_id, storage_uuid)

@@ -25,11 +25,19 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 20.0
     provider_cache_ttl_seconds: int = 30
     enable_provider_actions: bool = False
+
     coolify_url: str = ""
     coolify_token: str = ""
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
+
+    deploy_notify_webhook_url: str = ""
+    deploy_notify_webhook_bearer_token: str = ""
+    deploy_notify_default_channel: Literal["none", "webhook", "sms"] = "none"
+    deploy_notify_sms_to: str = ""
+    deploy_notify_enabled_events_raw: str = "requested,success,failure"
+
     admin_bootstrap_email: str = "admin@cloud-industry.com"
     admin_bootstrap_password: str = ""
     admin_bootstrap_name: str = "Platform Admin"
@@ -45,19 +53,19 @@ class Settings(BaseSettings):
     def normalize_database_url(cls, value: str) -> str:
         if value.startswith("sqlite:///"):
             return value.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
-        if value.startswith("postgresql://"):
+        if value.startswith("postgresql://"): 
             return value.replace("postgresql://", "postgresql+asyncpg://", 1)
         return value
 
-    @field_validator("mailcow_url", "coolify_url")
+    @field_validator("mailcow_url", "coolify_url", "base_url", "deploy_notify_webhook_url", mode="before")
     @classmethod
     def strip_provider_urls(cls, value: str) -> str:
-        return value.rstrip("/")
+        return value.rstrip("/") if isinstance(value, str) else value
 
-    @field_validator("allowed_hosts_raw")
+    @field_validator("allowed_hosts_raw", "deploy_notify_enabled_events_raw")
     @classmethod
-    def normalize_allowed_hosts(cls, value: str) -> str:
-        return ",".join(host.strip() for host in value.split(",") if host.strip())
+    def normalize_csv_strings(cls, value: str) -> str:
+        return ",".join(part.strip() for part in value.split(",") if part.strip())
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":
@@ -73,6 +81,11 @@ class Settings(BaseSettings):
     @property
     def allowed_hosts(self) -> list[str]:
         return [host.strip() for host in self.allowed_hosts_raw.split(",") if host.strip()]
+
+    @computed_field
+    @property
+    def deploy_notify_enabled_events(self) -> list[str]:
+        return [event.strip() for event in self.deploy_notify_enabled_events_raw.split(",") if event.strip()]
 
     @computed_field
     @property

@@ -59,6 +59,28 @@ class CoolifyDeployment(BaseModel):
     deployment_log: str = ""
 
 
+class CoolifyScheduledTask(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: str
+    name: str = ""
+    command: str = ""
+    frequency: str = ""
+    status: str = ""
+    raw: dict[str, Any] = {}
+
+
+class CoolifyStorage(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: str
+    name: str = ""
+    mount_path: str = ""
+    host_path: str = ""
+    content: str = ""
+    raw: dict[str, Any] = {}
+
+
 class CoolifyDatabase(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -181,6 +203,28 @@ def _normalize_service(raw: dict[str, Any]) -> CoolifyService:
         description=str(raw.get("description") or ""),
         created_at=str(raw.get("created_at") or ""),
         fqdn=str(raw.get("fqdn") or ""),
+    )
+
+
+def _normalize_scheduled_task(raw: dict[str, Any]) -> CoolifyScheduledTask:
+    return CoolifyScheduledTask(
+        id=str(raw.get("uuid") or raw.get("id") or raw.get("name") or "unknown"),
+        name=str(raw.get("name") or raw.get("title") or "Scheduled Task"),
+        command=str(raw.get("command") or raw.get("container_command") or ""),
+        frequency=str(raw.get("frequency") or raw.get("cron") or raw.get("interval") or ""),
+        status=str(raw.get("status") or raw.get("state") or ""),
+        raw=raw,
+    )
+
+
+def _normalize_storage(raw: dict[str, Any]) -> CoolifyStorage:
+    return CoolifyStorage(
+        id=str(raw.get("uuid") or raw.get("id") or raw.get("name") or "unknown"),
+        name=str(raw.get("name") or raw.get("mount_path") or raw.get("host_path") or "Storage"),
+        mount_path=str(raw.get("mount_path") or raw.get("destination") or ""),
+        host_path=str(raw.get("host_path") or raw.get("source") or ""),
+        content=str(raw.get("content") or ""),
+        raw=raw,
     )
 
 
@@ -488,6 +532,124 @@ class CoolifyClient:
             service="Coolify",
             method="DELETE",
             url=f"{self.base_url}/api/v1/applications/{application_uuid}/envs/{env_uuid}",
+            headers=self.headers(),
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def list_scheduled_tasks(self, application_uuid: str) -> list[CoolifyScheduledTask]:
+        if not self.is_configured():
+            return []
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/scheduled-tasks",
+            headers=self.headers(),
+        )
+        items = payload.get("data", payload) if isinstance(payload, dict) else payload
+        return [_normalize_scheduled_task(item) for item in items if isinstance(item, dict)]
+
+    async def create_scheduled_task(self, application_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="POST",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/scheduled-tasks",
+            headers=self.headers(),
+            json_body=data,
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def update_scheduled_task(self, application_uuid: str, task_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="PATCH",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/scheduled-tasks/{task_uuid}",
+            headers=self.headers(),
+            json_body=data,
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def delete_scheduled_task(self, application_uuid: str, task_uuid: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="DELETE",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/scheduled-tasks/{task_uuid}",
+            headers=self.headers(),
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def list_scheduled_task_executions(self, application_uuid: str, task_uuid: str) -> list[dict[str, Any]]:
+        if not self.is_configured():
+            return []
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/scheduled-tasks/{task_uuid}/executions",
+            headers=self.headers(),
+        )
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict):
+            return payload.get("data", [])
+        return []
+
+    async def list_storages(self, application_uuid: str) -> list[CoolifyStorage]:
+        if not self.is_configured():
+            return []
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/storages",
+            headers=self.headers(),
+        )
+        items = payload.get("data", payload) if isinstance(payload, dict) else payload
+        return [_normalize_storage(item) for item in items if isinstance(item, dict)]
+
+    async def create_storage(self, application_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="POST",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/storages",
+            headers=self.headers(),
+            json_body=data,
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def update_storage(self, application_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="PATCH",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/storages",
+            headers=self.headers(),
+            json_body=data,
+        )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def delete_storage(self, application_uuid: str, storage_uuid: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="DELETE",
+            url=f"{self.base_url}/api/v1/applications/{application_uuid}/storages/{storage_uuid}",
             headers=self.headers(),
         )
         return payload if isinstance(payload, dict) else {"ok": True}
