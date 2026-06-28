@@ -165,7 +165,7 @@ def test_api_deploy_is_limited_to_tenant_resources(client, monkeypatch):
 
     deploy_calls: list[str] = []
 
-    async def fake_deploy_application(self, application_uuid: str, force: bool = False):
+    async def fake_deploy_application(self, application_uuid: str, force: bool = False, tag: str = ""):
         deploy_calls.append(application_uuid)
         return {"ok": True, "message": f"Deployment queued for {application_uuid}"}
 

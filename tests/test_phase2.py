@@ -92,7 +92,7 @@ def test_sites_deploy_action_is_tenant_scoped(client, monkeypatch):
 
     deploy_calls: list[str] = []
 
-    async def fake_deploy_application(self, application_uuid: str, force: bool = False):
+    async def fake_deploy_application(self, application_uuid: str, force: bool = False, tag: str = ""):
         deploy_calls.append(application_uuid)
         return {"ok": True, "message": f"Deployment queued for {application_uuid}"}
 
@@ -104,7 +104,7 @@ def test_sites_deploy_action_is_tenant_scoped(client, monkeypatch):
         "/auth/login",
         data={
             "email": "owner@acme.test",
-            "password": "***",
+            "password": "acme-password",
             "csrf_token": csrf_token,
             "next_url": "/sites",
         },
@@ -121,7 +121,9 @@ def test_sites_deploy_action_is_tenant_scoped(client, monkeypatch):
         follow_redirects=False,
     )
     assert allowed_response.status_code == 303
-    assert allowed_response.headers["location"].endswith("/sites?deploy=Deployment%20queued%20for%20app-acme")
+    assert allowed_response.headers["location"].endswith(
+        "/sites/app-acme?tab=deployments&deploy=Deployment%20queued%20for%20app-acme"
+    )
 
     denied_response = client.post(
         "/sites/app-other/deploy",
@@ -130,7 +132,7 @@ def test_sites_deploy_action_is_tenant_scoped(client, monkeypatch):
     )
     assert denied_response.status_code == 303
     assert denied_response.headers["location"].endswith(
-        "/sites?deploy_error=Application%20is%20not%20assigned%20to%20this%20tenant."
+        "/sites/app-other?tab=deployments&deploy_error=Application%20is%20not%20assigned%20to%20this%20tenant."
     )
 
     assert deploy_calls == ["app-acme"]
@@ -168,7 +170,7 @@ def test_sites_start_restart_and_deployments_are_tenant_scoped(client, monkeypat
         "/auth/login",
         data={
             "email": "owner@acme.test",
-            "password": "***",
+            "password": "acme-password",
             "csrf_token": csrf_token,
             "next_url": "/sites",
         },
@@ -183,13 +185,13 @@ def test_sites_start_restart_and_deployments_are_tenant_scoped(client, monkeypat
     restart_response = client.post("/sites/app-acme/restart", data={"csrf_token": page_csrf}, follow_redirects=False)
     assert start_response.status_code == 303
     assert restart_response.status_code == 303
-    assert start_response.headers["location"].endswith("/sites?start=Start%20requested%20for%20app-acme")
-    assert restart_response.headers["location"].endswith("/sites?restart=Restart%20requested%20for%20app-acme")
+    assert start_response.headers["location"].endswith("/sites/app-acme?start=Start%20requested%20for%20app-acme")
+    assert restart_response.headers["location"].endswith("/sites/app-acme?restart=Restart%20requested%20for%20app-acme")
 
     denied_start = client.post("/sites/app-other/start", data={"csrf_token": page_csrf}, follow_redirects=False)
     denied_restart = client.post("/sites/app-other/restart", data={"csrf_token": page_csrf}, follow_redirects=False)
-    assert denied_start.headers["location"].endswith("/sites?start_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
-    assert denied_restart.headers["location"].endswith("/sites?restart_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
+    assert denied_start.headers["location"].endswith("/sites/app-other?start_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
+    assert denied_restart.headers["location"].endswith("/sites/app-other?restart_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
 
     deployments_page = client.get("/sites?app=app-acme")
     assert deployments_page.status_code == 200

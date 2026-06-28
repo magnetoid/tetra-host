@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
@@ -43,6 +44,16 @@ async def init_db() -> None:
 
 
 def _upgrade_existing_schema(connection) -> None:
+    """Legacy in-place migration for databases created before multi-tenancy.
+
+    This only needs to do anything for pre-existing databases that are missing
+    the tenant columns. On a freshly created schema the columns already exist
+    and there are no legacy rows to backfill, so the default tenant/admin are
+    seeded via the ORM in ``ensure_bootstrap_admin`` (which generates a proper
+    UUID primary key). We must NOT raw-insert a tenant here: a raw INSERT
+    bypasses the model's Python-side ``id`` default and violates the NOT NULL
+    primary-key constraint.
+    """
     inspector = inspect(connection)
     table_names = set(inspector.get_table_names())
     if "tenants" not in table_names or "admin_users" not in table_names:
@@ -53,29 +64,39 @@ def _upgrade_existing_schema(connection) -> None:
         connection.execute(text("ALTER TABLE tenants ADD COLUMN is_active BOOLEAN DEFAULT 1"))
 
     admin_columns = {column["name"] for column in inspector.get_columns("admin_users")}
-    if "tenant_id" not in admin_columns:
+    added_tenant_id = "tenant_id" not in admin_columns
+    if added_tenant_id:
         connection.execute(text("ALTER TABLE admin_users ADD COLUMN tenant_id VARCHAR(36)"))
 
-    tenant_row = connection.execute(
-        text("SELECT id FROM tenants LIMIT 1")
-    ).first()
+    # Only backfill when we just introduced the tenant_id column on a legacy
+    # database that already has admins predating multi-tenancy. A freshly
+    # created schema short-circuits here and lets the ORM bootstrap seed.
+    if not added_tenant_id:
+        return
+
+    orphaned = connection.execute(
+        text("SELECT COUNT(*) FROM admin_users WHERE tenant_id IS NULL OR tenant_id = ''")
+    ).scalar() or 0
+    if not orphaned:
+        return
+
+    tenant_row = connection.execute(text("SELECT id FROM tenants LIMIT 1")).first()
     if tenant_row is None:
+        tenant_id = str(uuid4())
         connection.execute(
             text(
                 """
-                INSERT INTO tenants (name, slug, is_active, created_at, updated_at)
-                VALUES (:name, :slug, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO tenants (id, name, slug, is_active, created_at, updated_at)
+                VALUES (:id, :name, :slug, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """
             ),
             {
+                "id": tenant_id,
                 "name": "Cloud Industry",
                 "slug": "cloud-industry",
                 "is_active": True,
             },
         )
-        tenant_id = connection.execute(
-            text("SELECT id FROM tenants WHERE slug = 'cloud-industry' LIMIT 1")
-        ).scalar()
     else:
         tenant_id = tenant_row[0]
 
