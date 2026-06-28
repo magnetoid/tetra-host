@@ -127,3 +127,48 @@ class CloudflareClient:
         if refresh:
             await self.cache.delete(cache_key)
         return await self.cache.get_or_set(cache_key, settings.provider_cache_ttl_seconds, fetch)
+
+    async def create_dns_record(
+        self, zone_id: str, record_type: str, name: str, content: str,
+        ttl: int = 1, proxied: bool = False, priority: int | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        body: dict[str, Any] = {"type": record_type, "name": name, "content": content, "ttl": ttl, "proxied": proxied}
+        if priority is not None:
+            body["priority"] = priority
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="POST",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+            headers=self.headers(), json_body=body,
+        )
+        await self.cache.delete(f"cloudflare:records:{zone_id}")
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def update_dns_record(
+        self, zone_id: str, record_id: str, record_type: str, name: str,
+        content: str, ttl: int = 1, proxied: bool = False, priority: int | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        body: dict[str, Any] = {"type": record_type, "name": name, "content": content, "ttl": ttl, "proxied": proxied}
+        if priority is not None:
+            body["priority"] = priority
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="PUT",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}",
+            headers=self.headers(), json_body=body,
+        )
+        await self.cache.delete(f"cloudflare:records:{zone_id}")
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def delete_dns_record(self, zone_id: str, record_id: str) -> dict[str, Any]:
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="DELETE",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}",
+            headers=self.headers(),
+        )
+        await self.cache.delete(f"cloudflare:records:{zone_id}")
+        return payload if isinstance(payload, dict) else {"ok": True}

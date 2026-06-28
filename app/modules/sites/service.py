@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,85 +44,125 @@ class SitesService:
         sites = await self.list_sites(refresh=refresh)
         return await TenantResourceFilter(session, tenant_id).filter_sites(sites)
 
+    # ── Actions ───────────────────────────────────────────────────
+
     async def deploy_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, force: bool = False, tag: str = "",
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
-        return await self.client.deploy_application(application_id)
+        return await self.client.deploy_application(application_id, force=force, tag=tag)
 
     async def start_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.start_application(application_id)
 
     async def restart_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.restart_application(application_id)
 
     async def stop_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.stop_application(application_id)
 
+    # ── Detail & Raw ──────────────────────────────────────────────
+
     async def get_site_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
-    ) -> "CoolifyApplication | None":
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
+    ) -> CoolifyApplication | None:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.get_application(application_id)
 
+    async def get_site_raw_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
+    ) -> dict[str, Any]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.get_application_raw(application_id)
+
+    async def update_site_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, data: dict[str, Any],
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.update_application(application_id, data)
+
+    async def delete_site_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.delete_application(application_id)
+
+    # ── Logs & Execute ────────────────────────────────────────────
+
     async def get_logs_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
-        lines: int = 100,
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, lines: int = 100,
     ) -> str:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.get_application_logs(application_id, lines=lines)
 
+    async def execute_command_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, command: str,
+    ) -> str:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.execute_command(application_id, command)
+
+    # ── Environment Variables ─────────────────────────────────────
+
     async def get_envs_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> list:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.get_application_envs(application_id)
 
-    async def cancel_deployment_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
-        deployment_uuid: str,
+    async def create_env_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, key: str, value: str,
+        is_preview: bool = False, is_build_time: bool = False,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
-        return await self.client.cancel_deployment(deployment_uuid)
+        return await self.client.create_env(application_id, key, value, is_preview, is_build_time)
+
+    async def update_env_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, key: str, value: str,
+        is_preview: bool = False, is_build_time: bool = False,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.update_env(application_id, key, value, is_preview, is_build_time)
+
+    async def delete_env_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, env_uuid: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.delete_env(application_id, env_uuid)
+
+    # ── Deployments ───────────────────────────────────────────────
 
     async def list_deployments_for_tenant(
-        self,
-        session: AsyncSession,
-        tenant_id: str | None,
-        application_id: str,
+        self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> list[CoolifyDeployment]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.list_deployments_for_application(application_id)
+
+    async def get_deployment_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, deployment_uuid: str,
+    ) -> CoolifyDeployment | None:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.get_deployment(deployment_uuid)
+
+    async def cancel_deployment_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, deployment_uuid: str,
+    ) -> dict[str, object]:
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        return await self.client.cancel_deployment(deployment_uuid)
