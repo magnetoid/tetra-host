@@ -1,7 +1,9 @@
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.tenant_resource import PROVIDER_CLOUDFLARE, RESOURCE_TYPE_DNS_ZONE
 from app.services.cloudflare import CloudflareClient, CloudflareDNSRecord, CloudflareZone
+from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
 
 
@@ -12,6 +14,24 @@ class DnsService:
             http_client=request.app.state.http_client,
             cache=request.app.state.cache,
         )
+
+    async def _ensure_zone_access(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        zone_id: str,
+    ) -> None:
+        allowed = await TenantResourceFilter(session, tenant_id).is_resource_accessible(
+            provider=PROVIDER_CLOUDFLARE,
+            resource_type=RESOURCE_TYPE_DNS_ZONE,
+            external_id=zone_id,
+        )
+        if not allowed:
+            raise ProviderAPIError(
+                service="Cloudflare",
+                message="Zone is not assigned to this tenant.",
+                status_code=403,
+            )
 
     async def load(
         self,
@@ -84,3 +104,39 @@ class DnsService:
 
     async def delete_record(self, zone_id: str, record_id: str) -> dict:
         return await self.client.delete_dns_record(zone_id, record_id)
+
+    # ── Tenant-guarded mutations (for the /api/v1 contract) ───────────────
+
+    async def create_record_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        zone_id: str,
+        *,
+        record_type: str,
+        name: str,
+        content: str,
+        ttl: int = 1,
+        proxied: bool = False,
+        priority: int | None = None,
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.create_record(
+            zone_id,
+            record_type=record_type,
+            name=name,
+            content=content,
+            ttl=ttl,
+            proxied=proxied,
+            priority=priority,
+        )
+
+    async def delete_record_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        zone_id: str,
+        record_id: str,
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.delete_record(zone_id, record_id)

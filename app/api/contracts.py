@@ -126,6 +126,22 @@ class DNSResponse(BaseModel):
     records: list[DNSRecordSummary]
 
 
+class DNSRecordCreateRequest(BaseModel):
+    type: str
+    name: str
+    content: str
+    ttl: int = 1
+    proxied: bool = False
+    priority: int | None = None
+
+
+class EnvVarCreateRequest(BaseModel):
+    key: str
+    value: str
+    is_preview: bool = False
+    is_build_time: bool = False
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]

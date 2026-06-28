@@ -14,9 +14,11 @@ from app.api.contracts import (
     DashboardResponse,
     DeploymentDetail,
     DeploymentLogLine,
+    DNSRecordCreateRequest,
     DNSRecordSummary,
     DNSResponse,
     DNSZoneSummary,
+    EnvVarCreateRequest,
     MailboxSummary,
     MailDomainSummary,
     MailResponse,
@@ -412,6 +414,48 @@ async def api_site_envs(
     return envs
 
 
+@router.post("/sites/{application_id}/envs", response_model=SiteActionResponse)
+async def api_create_env(
+    application_id: str,
+    payload: EnvVarCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        await service.create_env_for_tenant(
+            session,
+            current_admin.tenant_id,
+            application_id,
+            payload.key,
+            payload.value,
+            payload.is_preview,
+            payload.is_build_time,
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="Environment variable saved.")
+
+
+@router.delete("/sites/{application_id}/envs/{env_uuid}", response_model=SiteActionResponse)
+async def api_delete_env(
+    application_id: str,
+    env_uuid: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        await service.delete_env_for_tenant(session, current_admin.tenant_id, application_id, env_uuid)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="Environment variable deleted.")
+
+
 @router.get("/sites/{application_id}/deployments/{deployment_id}", response_model=DeploymentDetail)
 async def api_deployment_detail(
     application_id: str,
@@ -548,6 +592,50 @@ async def api_dns(
         zones=[DNSZoneSummary(**zone.model_dump()) for zone in zones],
         records=[DNSRecordSummary(**record.model_dump()) for record in records],
     )
+
+
+@router.post("/dns/zones/{zone_id}/records", response_model=SiteActionResponse)
+async def api_create_dns_record(
+    zone_id: str,
+    payload: DNSRecordCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    try:
+        await service.create_record_for_tenant(
+            session,
+            current_admin.tenant_id,
+            zone_id,
+            record_type=payload.type,
+            name=payload.name,
+            content=payload.content,
+            ttl=payload.ttl,
+            proxied=payload.proxied,
+            priority=payload.priority,
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="DNS record created.")
+
+
+@router.delete("/dns/zones/{zone_id}/records/{record_id}", response_model=SiteActionResponse)
+async def api_delete_dns_record(
+    zone_id: str,
+    record_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    try:
+        await service.delete_record_for_tenant(session, current_admin.tenant_id, zone_id, record_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(message="DNS record deleted.")
 
 
 @router.get("/admin", response_model=AdminResponse)

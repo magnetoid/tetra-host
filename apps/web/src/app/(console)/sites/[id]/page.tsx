@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { DeployConsole } from "@/components/sites/deploy-console"
+import { EnvManager, type EnvVar } from "@/components/sites/env-manager"
 import { PageHeader } from "@/components/ui/page-header"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { fetchBackend } from "@/lib/api"
@@ -16,11 +17,14 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const session = await requireConsoleSession()
   const { id } = await params
 
-  const [sites, deployments] = await Promise.all([
+  const [sites, deployments, envs] = await Promise.all([
     fetchBackend<SiteRecord[]>("/sites", { token: session.token }),
     fetchBackend<SiteDeploymentRecord[]>(`/sites/${id}/deployments`, {
       token: session.token,
     }).catch(() => [] as SiteDeploymentRecord[]),
+    fetchBackend<EnvVar[]>(`/sites/${id}/envs`, { token: session.token }).catch(
+      () => [] as EnvVar[],
+    ),
   ])
 
   const site = sites.find((item) => item.id === id)
@@ -59,6 +63,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       </div>
 
       <DeployConsole applicationId={site.id} initialDeployments={deployments} />
+
+      <EnvManager applicationId={site.id} initialEnvs={envs} />
     </div>
   )
 }
