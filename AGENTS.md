@@ -11,6 +11,7 @@
 - Build provider integrations against the latest official API docs, not memory: before adding or changing Coolify/Cloudflare/Mailcow code, consult and combine the current upstream API reference (use the `provider-api-docs` skill) and verify a capability exists upstream before building on it.
 - Tetra Host is a cutting-edge, Vercel-like, open-source hosting platform; hold every part to that bar — premium UX, modern architecture, and production-grade reliability — and keep it suitable for public open-source release.
 - Compose the platform from best-in-class open source: prefer integrating high-quality, well-known open-source apps/services to build the hosting infrastructure over reinventing them, and use the right language for the job (Python + TypeScript today; Go or other languages where they fit).
+- Keep `tetra-cli` in step with the dashboard: when adding a dashboard feature, also implement the best, most-automatable parts in the CLI, so the whole platform is operable from the command line (Vercel-style dashboard + CLI parity).
 <!-- /torsor:rules -->
 
 <!-- torsor:primer -->
