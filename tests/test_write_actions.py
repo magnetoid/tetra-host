@@ -173,6 +173,91 @@ def test_zone_settings_and_purge_are_tenant_scoped(client, monkeypatch):
     ).status_code == 403
 
 
+def test_zone_analytics_is_tenant_scoped(client, monkeypatch):
+    asyncio.run(_seed_writer_tenant())
+
+    captured: list[tuple[str, int]] = []
+
+    async def fake_get_zone_analytics(self, zone_id, days=7):
+        captured.append((zone_id, days))
+        return {
+            "since": "2026-06-21",
+            "until": "2026-06-28",
+            "points": [
+                {"date": "2026-06-27", "requests": 100, "bytes": 2048,
+                 "cached_requests": 60, "threats": 1, "uniques": 25},
+            ],
+            "totals": {"requests": 100, "bytes": 2048, "cached_requests": 60, "threats": 1, "uniques": 25},
+        }
+
+    monkeypatch.setattr(
+        "app.services.cloudflare.CloudflareClient.get_zone_analytics", fake_get_zone_analytics
+    )
+
+    headers = _login(client)
+
+    allowed = client.get("/api/v1/dns/zones/zone-writer/analytics?days=7", headers=headers)
+    assert allowed.status_code == 200
+    body = allowed.json()
+    assert body["zone_id"] == "zone-writer"
+    assert body["totals"]["requests"] == 100
+    assert body["points"][0]["uniques"] == 25
+
+    denied = client.get("/api/v1/dns/zones/zone-foreign/analytics", headers=headers)
+    assert denied.status_code == 403
+
+    assert captured == [("zone-writer", 7)]
+
+
+def test_dns_export_is_tenant_scoped(client, monkeypatch):
+    asyncio.run(_seed_writer_tenant())
+
+    bind = ";; Domain: writer.test\n$ORIGIN writer.test.\nwww 1 IN A 1.2.3.4\nmail 1 IN A 5.6.7.8\n"
+
+    async def fake_export(self, zone_id):
+        return bind
+
+    monkeypatch.setattr("app.services.cloudflare.CloudflareClient.export_dns_records", fake_export)
+
+    headers = _login(client)
+
+    allowed = client.get("/api/v1/dns/zones/zone-writer/export", headers=headers)
+    assert allowed.status_code == 200
+    payload = allowed.json()
+    assert payload["bind"] == bind
+    assert payload["record_count"] == 2  # comments and $ORIGIN excluded
+
+    denied = client.get("/api/v1/dns/zones/zone-foreign/export", headers=headers)
+    assert denied.status_code == 403
+
+
+def test_dns_import_is_tenant_scoped(client, monkeypatch):
+    asyncio.run(_seed_writer_tenant())
+
+    imported: list[tuple[str, str]] = []
+
+    async def fake_import(self, zone_id, bind_text):
+        imported.append((zone_id, bind_text))
+        return {"result": {"recs_added": 3, "total_records_parsed": 3}}
+
+    monkeypatch.setattr("app.services.cloudflare.CloudflareClient.import_dns_records", fake_import)
+
+    headers = _login(client)
+    body = {"bind": "www 1 IN A 1.2.3.4\n"}
+
+    allowed = client.post("/api/v1/dns/zones/zone-writer/import", headers=headers, json=body)
+    assert allowed.status_code == 200
+    assert allowed.json()["message"] == "Imported 3 records."
+
+    empty = client.post("/api/v1/dns/zones/zone-writer/import", headers=headers, json={"bind": "  "})
+    assert empty.status_code == 400
+
+    denied = client.post("/api/v1/dns/zones/zone-foreign/import", headers=headers, json=body)
+    assert denied.status_code == 403
+
+    assert imported == [("zone-writer", "www 1 IN A 1.2.3.4\n")]
+
+
 def test_create_env_is_tenant_scoped(client, monkeypatch):
     asyncio.run(_seed_writer_tenant())
 

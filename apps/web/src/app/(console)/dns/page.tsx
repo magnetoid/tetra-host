@@ -1,14 +1,16 @@
 import Link from "next/link"
 
 import { CreateRecordForm } from "@/components/dns/dns-record-controls"
+import { DnsImportExport } from "@/components/dns/dns-import-export"
 import { DnsRecordsTable } from "@/components/dns/dns-records-table"
 import { ZoneTools } from "@/components/dns/zone-tools"
+import { ZoneTraffic } from "@/components/dns/zone-traffic"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
-import type { DNSResponse, ZoneSettings } from "@/lib/types"
+import type { DNSResponse, ZoneAnalytics, ZoneSettings } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type DnsPageProps = {
@@ -26,11 +28,20 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
     },
   })
 
-  const settings = dns.selected_zone
-    ? await fetchBackend<ZoneSettings>(`/dns/zones/${dns.selected_zone}/settings`, {
-        token: session.token,
-      }).catch(() => null)
-    : null
+  const [settings, analytics] = dns.selected_zone
+    ? await Promise.all([
+        fetchBackend<ZoneSettings>(`/dns/zones/${dns.selected_zone}/settings`, {
+          token: session.token,
+        }).catch(() => null),
+        fetchBackend<ZoneAnalytics>(`/dns/zones/${dns.selected_zone}/analytics`, {
+          token: session.token,
+          searchParams: { days: "7" },
+        }).catch(() => null),
+      ])
+    : [null, null]
+
+  const selectedZoneName =
+    dns.zones.find((zone) => zone.id === dns.selected_zone)?.name ?? dns.selected_zone
 
   const refreshHref = params.zone
     ? `/dns?refresh=1&zone=${params.zone}`
@@ -85,8 +96,22 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
         </div>
 
         <div className="space-y-4">
+          {dns.selected_zone && analytics ? (
+            <div className="rounded-2xl border border-border bg-muted p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Traffic</h2>
+                <span className="text-sm text-zinc-500">Last 7 days</span>
+              </div>
+              <div className="mt-4">
+                <ZoneTraffic analytics={analytics} />
+              </div>
+            </div>
+          ) : null}
           {dns.selected_zone ? <CreateRecordForm zoneId={dns.selected_zone} /> : null}
           <DnsRecordsTable zoneId={dns.selected_zone} records={dns.records} />
+          {dns.selected_zone ? (
+            <DnsImportExport zoneId={dns.selected_zone} zoneName={selectedZoneName} />
+          ) : null}
           {dns.selected_zone && settings ? (
             <ZoneTools zoneId={dns.selected_zone} settings={settings} />
           ) : null}

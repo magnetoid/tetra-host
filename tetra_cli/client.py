@@ -158,6 +158,15 @@ class TetraClient:
             "POST", f"/dns/zones/{zone_id}/purge", json_body={"everything": everything, "files": files or []}
         )
 
+    def zone_analytics(self, zone_id: str, days: int = 7) -> Any:
+        return self._request("GET", f"/dns/zones/{zone_id}/analytics", params={"days": days})
+
+    def dns_export(self, zone_id: str) -> Any:
+        return self._request("GET", f"/dns/zones/{zone_id}/export")
+
+    def dns_import(self, zone_id: str, bind: str) -> Any:
+        return self._request("POST", f"/dns/zones/{zone_id}/import", json_body={"bind": bind})
+
     # ── Env vars ──────────────────────────────────────────────────────────
     def envs(self, site_id: str) -> list[dict]:
         return self._request("GET", f"/sites/{site_id}/envs")

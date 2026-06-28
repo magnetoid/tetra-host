@@ -15,7 +15,7 @@ class ProviderAPIError(Exception):
         return self.message
 
 
-async def request_json(
+async def _send_with_retries(
     client: httpx.AsyncClient,
     *,
     service: str,
@@ -24,8 +24,16 @@ async def request_json(
     headers: dict[str, str] | None = None,
     params: dict[str, Any] | None = None,
     json_body: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
+    files: dict[str, Any] | None = None,
     max_attempts: int = 3,
-) -> Any:
+) -> httpx.Response:
+    """Send a request with retry/backoff, raising ProviderAPIError on failure.
+
+    Shared core for ``request_json`` and ``request_text``. Supports JSON
+    (``json_body``) as well as form/multipart bodies (``data``/``files``) for
+    providers whose write endpoints expect uploads (e.g. Cloudflare's BIND import).
+    """
     last_error: Exception | None = None
 
     for attempt in range(1, max_attempts + 1):
@@ -36,6 +44,8 @@ async def request_json(
                 headers=headers,
                 params=params,
                 json=json_body,
+                data=data,
+                files=files,
             )
         except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as exc:
             last_error = exc
@@ -57,8 +67,59 @@ async def request_json(
                 status_code=response.status_code,
             )
 
-        if not response.content:
-            return {}
-        return response.json()
+        return response
 
     raise ProviderAPIError(service=service, message=f"{service} request failed.") from last_error
+
+
+async def request_json(
+    client: httpx.AsyncClient,
+    *,
+    service: str,
+    method: str,
+    url: str,
+    headers: dict[str, str] | None = None,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
+    files: dict[str, Any] | None = None,
+    max_attempts: int = 3,
+) -> Any:
+    response = await _send_with_retries(
+        client,
+        service=service,
+        method=method,
+        url=url,
+        headers=headers,
+        params=params,
+        json_body=json_body,
+        data=data,
+        files=files,
+        max_attempts=max_attempts,
+    )
+    if not response.content:
+        return {}
+    return response.json()
+
+
+async def request_text(
+    client: httpx.AsyncClient,
+    *,
+    service: str,
+    method: str,
+    url: str,
+    headers: dict[str, str] | None = None,
+    params: dict[str, Any] | None = None,
+    max_attempts: int = 3,
+) -> str:
+    """Like ``request_json`` but returns the raw response body (e.g. BIND export)."""
+    response = await _send_with_retries(
+        client,
+        service=service,
+        method=method,
+        url=url,
+        headers=headers,
+        params=params,
+        max_attempts=max_attempts,
+    )
+    return response.text

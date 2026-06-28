@@ -3,12 +3,19 @@ import Link from "next/link"
 
 import { BarList } from "@/components/charts/bar-list"
 import { ChartLegend, DonutChart, type DonutSlice } from "@/components/charts/donut-chart"
+import { ZoneTraffic } from "@/components/dns/zone-traffic"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { StatCard } from "@/components/ui/stat-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
-import type { DashboardResponse, DNSResponse, MailResponse, SiteRecord } from "@/lib/types"
+import type {
+  DashboardResponse,
+  DNSResponse,
+  MailResponse,
+  SiteRecord,
+  ZoneAnalytics,
+} from "@/lib/types"
 
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
@@ -27,6 +34,16 @@ export default async function DashboardPage() {
       records: [],
     })),
   ])
+
+  const primaryZone = dns.selected_zone || dns.zones[0]?.id || ""
+  const analytics = primaryZone
+    ? await fetchBackend<ZoneAnalytics>(`/dns/zones/${primaryZone}/analytics`, {
+        token: session.token,
+        searchParams: { days: "7" },
+      }).catch(() => null)
+    : null
+  const primaryZoneName =
+    dns.zones.find((zone) => zone.id === primaryZone)?.name ?? primaryZone
 
   const m = dashboard.metrics
   const providerCount = (status: string) =>
@@ -71,6 +88,25 @@ export default async function DashboardPage() {
         <StatCard icon={Globe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-amber-400" />
         <StatCard icon={Users} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-sky-400" />
       </section>
+
+      {analytics && analytics.points.length > 0 ? (
+        <section className="rounded-2xl border border-border bg-muted p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Traffic</h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                {primaryZoneName} · Cloudflare · last 7 days
+              </p>
+            </div>
+            <Link href="/dns" className="text-sm text-zinc-400 hover:text-white">
+              All zones
+            </Link>
+          </div>
+          <div className="mt-4">
+            <ZoneTraffic analytics={analytics} />
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-border bg-muted p-6">

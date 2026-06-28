@@ -106,6 +106,31 @@ export interface ZoneSettings {
   dnssec: string
 }
 
+export interface ZoneAnalyticsPoint {
+  date: string
+  requests: number
+  bytes: number
+  cached_requests: number
+  threats: number
+  uniques: number
+}
+
+export interface ZoneAnalyticsTotals {
+  requests: number
+  bytes: number
+  cached_requests: number
+  threats: number
+  uniques: number
+}
+
+export interface ZoneAnalytics {
+  zone_id: string
+  since: string
+  until: string
+  points: ZoneAnalyticsPoint[]
+  totals: ZoneAnalyticsTotals
+}
+
 export interface AdminRecord {
   id: string
   email: string

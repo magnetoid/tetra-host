@@ -165,6 +165,41 @@ class CachePurgeRequest(BaseModel):
     files: list[str] = []
 
 
+class ZoneAnalyticsPoint(BaseModel):
+    date: str
+    requests: int = 0
+    bytes: int = 0
+    cached_requests: int = 0
+    threats: int = 0
+    uniques: int = 0
+
+
+class ZoneAnalyticsTotals(BaseModel):
+    requests: int = 0
+    bytes: int = 0
+    cached_requests: int = 0
+    threats: int = 0
+    uniques: int = 0
+
+
+class ZoneAnalytics(BaseModel):
+    zone_id: str
+    since: str = ""
+    until: str = ""
+    points: list[ZoneAnalyticsPoint] = []
+    totals: ZoneAnalyticsTotals = ZoneAnalyticsTotals()
+
+
+class DnsExportResponse(BaseModel):
+    zone_id: str
+    bind: str
+    record_count: int = 0
+
+
+class DnsImportRequest(BaseModel):
+    bind: str
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]

@@ -74,6 +74,38 @@ def test_client_zone_set_uses_patch():
     make_client(handler).zone_set("z1", "ssl", "full")
 
 
+def test_client_zone_analytics_passes_days():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/dns/zones/z1/analytics"
+        assert request.url.params.get("days") == "30"
+        return httpx.Response(200, json={"zone_id": "z1", "points": [], "totals": {"requests": 0}})
+
+    result = make_client(handler).zone_analytics("z1", days=30)
+    assert result["zone_id"] == "z1"
+
+
+def test_client_dns_export_gets_bind():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/dns/zones/z1/export"
+        return httpx.Response(200, json={"zone_id": "z1", "bind": "www 1 IN A 1.2.3.4\n", "record_count": 1})
+
+    result = make_client(handler).dns_export("z1")
+    assert result["record_count"] == 1
+
+
+def test_client_dns_import_posts_bind_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/dns/zones/z1/import"
+        assert json.loads(request.content) == {"bind": "www 1 IN A 1.2.3.4\n"}
+        return httpx.Response(200, json={"message": "Imported 1 records."})
+
+    result = make_client(handler).dns_import("z1", "www 1 IN A 1.2.3.4\n")
+    assert result["message"] == "Imported 1 records."
+
+
 def test_client_raises_on_error_with_detail():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"detail": "Zone is not assigned to this tenant."})
@@ -111,6 +143,12 @@ def test_parser_dispatches_subcommands():
     assert args.command == "deploy" and args.site == "app-1" and args.force and args.follow
     args = parser.parse_args(["dns", "add", "z1", "A", "app", "1.2.3.4", "--proxied"])
     assert args.func is not None and args.proxied is True
+    args = parser.parse_args(["dns", "export", "z1", "-o", "zone.txt"])
+    assert args.zone == "z1" and args.output == "zone.txt"
+    args = parser.parse_args(["dns", "import", "z1", "zone.txt"])
+    assert args.zone == "z1" and args.file == "zone.txt"
+    args = parser.parse_args(["cf", "analytics", "z1", "--days", "14"])
+    assert args.zone == "z1" and args.days == 14
 
 
 def test_main_sites_renders_table(monkeypatch, capsys):

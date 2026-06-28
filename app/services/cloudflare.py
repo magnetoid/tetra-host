@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -6,7 +7,29 @@ from pydantic import BaseModel, ConfigDict
 
 from app.cache import TTLCache
 from app.config import get_settings
-from app.services.http import ProviderAPIError, request_json
+from app.services.http import ProviderAPIError, request_json, request_text
+
+# GraphQL Analytics endpoint (the REST zone-analytics API is deprecated).
+CLOUDFLARE_GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql"
+
+# Daily HTTP analytics for a zone — broadly available (incl. free plans).
+_ZONE_ANALYTICS_QUERY = """
+query ZoneDailyAnalytics($zoneTag: String!, $since: String!, $until: String!) {
+  viewer {
+    zones(filter: { zoneTag: $zoneTag }) {
+      httpRequests1dGroups(
+        limit: 60
+        filter: { date_geq: $since, date_leq: $until }
+        orderBy: [date_ASC]
+      ) {
+        dimensions { date }
+        sum { requests bytes cachedRequests cachedBytes threats }
+        uniq { uniques }
+      }
+    }
+  }
+}
+"""
 
 
 class CloudflareZone(BaseModel):
@@ -54,6 +77,47 @@ def normalize_record(raw: dict[str, Any]) -> CloudflareDNSRecord:
         proxied=raw.get("proxied"),
         priority=int(priority) if priority is not None else None,
     )
+
+
+def normalize_analytics(payload: Any, *, since: str, until: str) -> dict[str, Any]:
+    """Flatten the GraphQL httpRequests1dGroups response into points + totals."""
+    points: list[dict[str, Any]] = []
+    try:
+        groups = payload["data"]["viewer"]["zones"][0]["httpRequests1dGroups"]
+    except (KeyError, IndexError, TypeError):
+        groups = []
+
+    totals = {"requests": 0, "bytes": 0, "cached_requests": 0, "threats": 0, "uniques": 0}
+    for group in groups or []:
+        summed = group.get("sum") or {}
+        uniq = group.get("uniq") or {}
+        point = {
+            "date": str((group.get("dimensions") or {}).get("date") or ""),
+            "requests": int(summed.get("requests") or 0),
+            "bytes": int(summed.get("bytes") or 0),
+            "cached_requests": int(summed.get("cachedRequests") or 0),
+            "threats": int(summed.get("threats") or 0),
+            "uniques": int(uniq.get("uniques") or 0),
+        }
+        points.append(point)
+        totals["requests"] += point["requests"]
+        totals["bytes"] += point["bytes"]
+        totals["cached_requests"] += point["cached_requests"]
+        totals["threats"] += point["threats"]
+        totals["uniques"] += point["uniques"]
+
+    return {"since": since, "until": until, "points": points, "totals": totals}
+
+
+def count_bind_records(bind_text: str) -> int:
+    """Count actual records in a BIND zone file (skip blanks/comments/directives)."""
+    count = 0
+    for line in (bind_text or "").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or stripped.startswith("$"):
+            continue
+        count += 1
+    return count
 
 
 class CloudflareClient:
@@ -246,4 +310,57 @@ class CloudflareClient:
             url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/purge_cache",
             headers=self.headers(), json_body=body,
         )
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    # ── Analytics (GraphQL) ───────────────────────────────────────
+
+    async def get_zone_analytics(self, zone_id: str, *, days: int = 7) -> dict[str, Any]:
+        """Daily HTTP analytics for a zone over the trailing ``days`` window."""
+        if not self.is_configured():
+            return {"since": "", "until": "", "points": [], "totals": {}}
+
+        days = max(1, min(days, 60))
+        until = datetime.now(timezone.utc).date()
+        since = until - timedelta(days=days - 1)
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="POST",
+            url=CLOUDFLARE_GRAPHQL_URL, headers=self.headers(),
+            json_body={
+                "query": _ZONE_ANALYTICS_QUERY,
+                "variables": {
+                    "zoneTag": zone_id,
+                    "since": since.isoformat(),
+                    "until": until.isoformat(),
+                },
+            },
+        )
+        # GraphQL returns HTTP 200 even on query errors — surface them explicitly.
+        if isinstance(payload, dict) and payload.get("errors"):
+            messages = "; ".join(str(e.get("message", e)) for e in payload["errors"])
+            raise ProviderAPIError(service="Cloudflare", message=f"Analytics query failed: {messages}")
+        return normalize_analytics(payload, since=since.isoformat(), until=until.isoformat())
+
+    # ── Bulk import / export (BIND) ───────────────────────────────
+
+    async def export_dns_records(self, zone_id: str) -> str:
+        """Return the zone's records as a BIND-format zone file (text)."""
+        if not self.is_configured():
+            return ""
+        return await request_text(
+            self.http_client, service="Cloudflare", method="GET",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/export",
+            headers=self.headers(),
+        )
+
+    async def import_dns_records(self, zone_id: str, bind_text: str) -> dict[str, Any]:
+        """Import a BIND-format zone file via the multipart import endpoint."""
+        if not self.is_configured():
+            return {"ok": False, "message": "Cloudflare is not configured."}
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="POST",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/import",
+            headers=self.headers(),
+            files={"file": ("import.txt", bind_text.encode("utf-8"), "text/plain")},
+        )
+        await self.cache.delete(f"cloudflare:records:{zone_id}")
         return payload if isinstance(payload, dict) else {"ok": True}

@@ -225,6 +225,47 @@ def cmd_cf_purge(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cf_analytics(args: argparse.Namespace) -> int:
+    data = client_from_config().zone_analytics(args.zone, days=args.days)
+    totals = data.get("totals", {})
+    print(
+        c("Totals", "1")
+        + f"  requests={totals.get('requests', 0)} cached={totals.get('cached_requests', 0)} "
+        f"bytes={totals.get('bytes', 0)} threats={totals.get('threats', 0)} uniques={totals.get('uniques', 0)}"
+    )
+    rows = [
+        [p.get("date", ""), str(p.get("requests", 0)), str(p.get("cached_requests", 0)),
+         str(p.get("threats", 0)), str(p.get("uniques", 0))]
+        for p in data.get("points", [])
+    ]
+    print_table(["DATE", "REQUESTS", "CACHED", "THREATS", "UNIQUES"], rows)
+    return 0
+
+
+def cmd_dns_export(args: argparse.Namespace) -> int:
+    data = client_from_config().dns_export(args.zone)
+    bind = data.get("bind", "") if isinstance(data, dict) else ""
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as handle:
+            handle.write(bind)
+        count = data.get("record_count", 0) if isinstance(data, dict) else 0
+        print(c("✓", "32") + f" exported {count} records -> {args.output}")
+    else:
+        sys.stdout.write(bind if bind.endswith("\n") or not bind else bind + "\n")
+    return 0
+
+
+def cmd_dns_import(args: argparse.Namespace) -> int:
+    try:
+        with open(args.file, encoding="utf-8") as handle:
+            bind = handle.read()
+    except OSError as exc:
+        return die(f"cannot read {args.file}: {exc}")
+    result = client_from_config().dns_import(args.zone, bind)
+    print(c("✓", "32") + " " + str(result.get("message", "records imported") if isinstance(result, dict) else "records imported"))
+    return 0
+
+
 def cmd_env_list(args: argparse.Namespace) -> int:
     envs = client_from_config().envs(args.site)
     rows = [[str(e.get("key", "")), "•••" if not args.reveal else str(e.get("value", "")),
@@ -304,6 +345,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("zone")
     sp.add_argument("record")
     sp.set_defaults(func=cmd_dns_rm)
+    sp = dns.add_parser("export", help="export a zone as a BIND file")
+    sp.add_argument("zone")
+    sp.add_argument("-o", "--output", help="write to a file instead of stdout")
+    sp.set_defaults(func=cmd_dns_export)
+    sp = dns.add_parser("import", help="import a BIND file into a zone")
+    sp.add_argument("zone")
+    sp.add_argument("file")
+    sp.set_defaults(func=cmd_dns_import)
 
     env = sub.add_parser("env", help="manage site env vars").add_subparsers(dest="env_cmd", required=True)
     sp = env.add_parser("list", help="list env vars")
@@ -336,6 +385,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = cf.add_parser("purge", help="purge the zone cache")
     sp.add_argument("zone")
     sp.set_defaults(func=cmd_cf_purge)
+    sp = cf.add_parser("analytics", help="show zone HTTP analytics")
+    sp.add_argument("zone")
+    sp.add_argument("--days", type=int, default=7)
+    sp.set_defaults(func=cmd_cf_analytics)
 
     return p
 

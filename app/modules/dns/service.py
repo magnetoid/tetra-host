@@ -198,3 +198,23 @@ class DnsService:
     ) -> dict:
         await self._ensure_zone_access(session, tenant_id, zone_id)
         return await self.client.purge_cache(zone_id, everything=everything, files=files)
+
+    # ── Analytics + bulk import/export (tenant-guarded) ───────────────────
+
+    async def get_zone_analytics_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, zone_id: str, *, days: int = 7
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.get_zone_analytics(zone_id, days=days)
+
+    async def export_records_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, zone_id: str
+    ) -> str:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.export_dns_records(zone_id)
+
+    async def import_records_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, zone_id: str, bind_text: str
+    ) -> dict:
+        await self._ensure_zone_access(session, tenant_id, zone_id)
+        return await self.client.import_dns_records(zone_id, bind_text)

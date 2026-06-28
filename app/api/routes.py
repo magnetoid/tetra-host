@@ -18,9 +18,14 @@ from app.api.contracts import (
     DNSRecordSummary,
     DNSResponse,
     DNSZoneSummary,
+    DnsExportResponse,
+    DnsImportRequest,
     EnvVarCreateRequest,
     CachePurgeRequest,
     DnssecUpdateRequest,
+    ZoneAnalytics,
+    ZoneAnalyticsPoint,
+    ZoneAnalyticsTotals,
     ZoneSettings,
     ZoneSettingUpdateRequest,
     MailboxSummary,
@@ -43,6 +48,7 @@ from app.modules.auth.service import AuthService
 from app.modules.dns.service import DnsService
 from app.modules.mail.service import MailService
 from app.modules.sites.service import SitesService
+from app.services.cloudflare import count_bind_records
 from app.services.coolify import parse_deployment_log_lines
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
@@ -746,6 +752,73 @@ async def api_purge_cache(
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return SiteActionResponse(message="Cache purge requested.")
+
+
+@router.get("/dns/zones/{zone_id}/analytics", response_model=ZoneAnalytics)
+async def api_zone_analytics(
+    zone_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ZoneAnalytics:
+    service = DnsService(request)
+    try:
+        days = int(request.query_params.get("days", "7"))
+    except ValueError:
+        days = 7
+    try:
+        data = await service.get_zone_analytics_for_tenant(
+            session, current_admin.tenant_id, zone_id, days=days
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return ZoneAnalytics(
+        zone_id=zone_id,
+        since=str(data.get("since", "")),
+        until=str(data.get("until", "")),
+        points=[ZoneAnalyticsPoint(**point) for point in data.get("points", [])],
+        totals=ZoneAnalyticsTotals(**data.get("totals", {})),
+    )
+
+
+@router.get("/dns/zones/{zone_id}/export", response_model=DnsExportResponse)
+async def api_export_dns_records(
+    zone_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DnsExportResponse:
+    service = DnsService(request)
+    try:
+        bind = await service.export_records_for_tenant(session, current_admin.tenant_id, zone_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return DnsExportResponse(zone_id=zone_id, bind=bind, record_count=count_bind_records(bind))
+
+
+@router.post("/dns/zones/{zone_id}/import", response_model=SiteActionResponse)
+async def api_import_dns_records(
+    zone_id: str,
+    payload: DnsImportRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = DnsService(request)
+    if not payload.bind.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No zone file provided.")
+    try:
+        result = await service.import_records_for_tenant(
+            session, current_admin.tenant_id, zone_id, payload.bind
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    recs_added = ((result.get("result") or {}).get("recs_added")) if isinstance(result, dict) else None
+    message = f"Imported {recs_added} records." if recs_added is not None else "DNS records imported."
+    return SiteActionResponse(message=message)
 
 
 @router.get("/admin", response_model=AdminResponse)
