@@ -137,6 +137,7 @@ export interface LoginResponse {
   admin: AdminRecord
 }
 
+export interface DocEntry {
   slug: string
   title: string
   summary: string

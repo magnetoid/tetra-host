@@ -1,0 +1,511 @@
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.contracts import (
+    AdminResponse,
+    AdminSummary,
+    AuthResponse,
+    DashboardMetrics,
+    DashboardResponse,
+    DNSRecordSummary,
+    DNSResponse,
+    DNSZoneSummary,
+    MailboxSummary,
+    MailDomainSummary,
+    MailResponse,
+    ProviderSummary,
+    SiteActionResponse,
+    SiteDeploymentSummary,
+    SiteSummary,
+    TenantAdminCreateRequest,
+    TenantCreateRequest,
+    TenantResourceCreateRequest,
+    TenantResourceSummary,
+    TenantSummary,
+)
+from app.api.security import create_api_token, read_api_token
+from app.db import get_db_session
+from app.models import AdminUser, Tenant, TenantResource
+from app.modules.auth.service import AuthService
+from app.modules.dns.service import DnsService
+from app.modules.mail.service import MailService
+from app.modules.sites.service import SitesService
+from app.routes.deps import get_auth_service
+from app.services.http import ProviderAPIError
+
+router = APIRouter(prefix="/api/v1", tags=["api"])
+
+
+def _provider_summary(name: str, configured: bool, detail: str) -> ProviderSummary:
+    return ProviderSummary(
+        name=name,
+        status="connected" if configured else "not_configured",
+        detail=detail,
+    )
+
+
+def _admin_summary(admin: AdminUser) -> AdminSummary:
+    return AdminSummary(
+        id=admin.id,
+        email=admin.email,
+        full_name=admin.full_name,
+        is_active=admin.is_active,
+        tenant_id=admin.tenant_id,
+        tenant_slug=admin.tenant.slug if admin.tenant else "",
+        tenant_name=admin.tenant.name if admin.tenant else "",
+    )
+
+
+def _tenant_summary(tenant: Tenant) -> TenantSummary:
+    return TenantSummary(
+        id=tenant.id,
+        name=tenant.name,
+        slug=tenant.slug,
+        is_active=tenant.is_active,
+    )
+
+
+def _tenant_resource_summary(resource: TenantResource) -> TenantResourceSummary:
+    return TenantResourceSummary(
+        id=resource.id,
+        tenant_id=resource.tenant_id,
+        tenant_slug=resource.tenant.slug if resource.tenant else "",
+        tenant_name=resource.tenant.name if resource.tenant else "",
+        provider=resource.provider,
+        resource_type=resource.resource_type,
+        external_id=resource.external_id,
+        display_name=resource.display_name,
+    )
+
+
+async def get_current_api_admin(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    authorization: str | None = Header(default=None),
+) -> AdminUser:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+
+    token = authorization.removeprefix("Bearer ").strip()
+    payload = read_api_token(
+        request.state.settings,
+        token,
+        max_age_seconds=request.state.settings.session_max_age_seconds,
+    )
+    admin_id = payload.get("admin_user_id") if payload else None
+    if not admin_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session token.")
+
+    auth_service = AuthService(session)
+    admin = await auth_service.get_admin_by_id(admin_id)
+    if admin is None or not admin.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin session is no longer valid.")
+    return admin
+
+
+@router.get("/health")
+async def api_health(request: Request) -> dict[str, object]:
+    return {
+        "ok": True,
+        "app": request.state.settings.app_name,
+        "env": request.state.settings.app_env,
+        "version": "python-core",
+        "request_id": getattr(request.state, "request_id", ""),
+    }
+
+
+@router.get("/ready")
+async def api_ready(request: Request) -> dict[str, object]:
+    return {
+        "ok": True,
+        "providers": {
+            "coolify": bool(request.state.settings.coolify_url and request.state.settings.coolify_token),
+            "mailcow": bool(request.state.settings.mailcow_url and request.state.settings.mailcow_api_key),
+            "cloudflare": bool(request.state.settings.cloudflare_api_token),
+        },
+        "auth": {
+            "session": True,
+            "csrf": True,
+        },
+    }
+
+
+@router.post("/auth/login", response_model=AuthResponse)
+async def api_login(
+    request: Request,
+    payload: dict[str, str],
+    auth_service: AuthService = Depends(get_auth_service),
+) -> AuthResponse:
+    email = payload.get("email", "")
+    password = payload.get("password", "")
+    admin = await auth_service.authenticate(email, password)
+    if admin is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+    await auth_service.touch_last_login(admin)
+    token = create_api_token(request.state.settings, admin)
+    return AuthResponse(token=token, admin=_admin_summary(admin))
+
+
+@router.get("/auth/me", response_model=AdminSummary)
+async def api_me(current_admin: AdminUser = Depends(get_current_api_admin)) -> AdminSummary:
+    return _admin_summary(current_admin)
+
+
+@router.get("/dashboard", response_model=DashboardResponse)
+async def api_dashboard(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DashboardResponse:
+    sites_service = SitesService(request)
+    mail_service = MailService(request)
+    dns_service = DnsService(request)
+
+    sites = []
+    domains = []
+    mailboxes = []
+    zones = []
+    providers: list[ProviderSummary] = []
+
+    try:
+        sites = await sites_service.list_sites_for_tenant(session, current_admin.tenant_id)
+        detail = "Credentials missing"
+        if sites_service.client.is_configured():
+            detail = f"{len(sites)} applications"
+        providers.append(_provider_summary("Coolify", sites_service.client.is_configured(), detail))
+    except ProviderAPIError as exc:
+        providers.append(ProviderSummary(name="Coolify", status="degraded", detail=str(exc)))
+
+    try:
+        domains, mailboxes = await mail_service.load_for_tenant(session, current_admin.tenant_id)
+        detail = "Credentials missing"
+        if mail_service.client.is_configured():
+            detail = f"{len(domains)} domains · {len(mailboxes)} mailboxes"
+        providers.append(_provider_summary("Mailcow", mail_service.client.is_configured(), detail))
+    except ProviderAPIError as exc:
+        providers.append(ProviderSummary(name="Mailcow", status="degraded", detail=str(exc)))
+
+    try:
+        zones, _records, _selected_zone = await dns_service.load_for_tenant(session, current_admin.tenant_id)
+        detail = "Token missing"
+        if dns_service.client.is_configured():
+            detail = f"{len(zones)} DNS zones"
+        providers.append(_provider_summary("Cloudflare", dns_service.client.is_configured(), detail))
+    except ProviderAPIError as exc:
+        providers.append(ProviderSummary(name="Cloudflare", status="degraded", detail=str(exc)))
+
+    admin_count = await session.scalar(
+        select(func.count()).select_from(AdminUser).where(AdminUser.tenant_id == current_admin.tenant_id)
+    ) or 0
+    unhealthy_sites = sum(1 for site in sites if "unhealthy" in site.status or "exited" in site.status)
+    return DashboardResponse(
+        providers=providers,
+        metrics=DashboardMetrics(
+            sites=len(sites),
+            unhealthy_sites=unhealthy_sites,
+            mail_domains=len(domains),
+            dns_zones=len(zones),
+            admins=int(admin_count),
+        ),
+    )
+
+
+@router.get("/sites", response_model=list[SiteSummary])
+async def api_sites(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[SiteSummary]:
+    service = SitesService(request)
+    sites = await service.list_sites_for_tenant(
+        session,
+        current_admin.tenant_id,
+        refresh=request.query_params.get("refresh") == "1",
+    )
+    return [SiteSummary(**site.model_dump()) for site in sites]
+
+
+@router.post("/sites/{application_id}/deploy", response_model=SiteActionResponse)
+async def api_deploy_site(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        result = await service.deploy_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Deployment queued.")))
+
+
+@router.post("/sites/{application_id}/start", response_model=SiteActionResponse)
+async def api_start_site(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        result = await service.start_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application start requested.")))
+
+
+@router.post("/sites/{application_id}/restart", response_model=SiteActionResponse)
+async def api_restart_site(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    service = SitesService(request)
+    try:
+        result = await service.restart_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application restart requested.")))
+
+
+@router.get("/sites/{application_id}/deployments", response_model=list[SiteDeploymentSummary])
+async def api_site_deployments(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[SiteDeploymentSummary]:
+    service = SitesService(request)
+    try:
+        deployments = await service.list_deployments_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return [SiteDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
+
+
+@router.get("/mail", response_model=MailResponse)
+async def api_mail(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> MailResponse:
+    service = MailService(request)
+    providers: list[ProviderSummary] = []
+    domains = []
+    mailboxes = []
+    try:
+        domains, mailboxes = await service.load_for_tenant(
+            session,
+            current_admin.tenant_id,
+            refresh=request.query_params.get("refresh") == "1",
+        )
+        detail = "Credentials missing"
+        if service.client.is_configured():
+            detail = f"{len(domains)} domains · {len(mailboxes)} mailboxes"
+        providers.append(_provider_summary("Mailcow", service.client.is_configured(), detail))
+    except ProviderAPIError as exc:
+        providers.append(ProviderSummary(name="Mailcow", status="degraded", detail=str(exc)))
+
+    return MailResponse(
+        providers=providers,
+        domains=[MailDomainSummary(**domain.model_dump()) for domain in domains],
+        mailboxes=[MailboxSummary(**mailbox.model_dump()) for mailbox in mailboxes],
+    )
+
+
+@router.get("/dns", response_model=DNSResponse)
+async def api_dns(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DNSResponse:
+    service = DnsService(request)
+    zone_id = request.query_params.get("zone")
+    providers: list[ProviderSummary] = []
+    zones = []
+    records = []
+    selected_zone = ""
+    try:
+        zones, records, selected_zone = await service.load_for_tenant(
+            session,
+            current_admin.tenant_id,
+            zone_id=zone_id,
+            refresh=request.query_params.get("refresh") == "1",
+        )
+        detail = "Token missing"
+        if service.client.is_configured():
+            detail = f"{len(zones)} DNS zones"
+        providers.append(_provider_summary("Cloudflare", service.client.is_configured(), detail))
+    except ProviderAPIError as exc:
+        providers.append(ProviderSummary(name="Cloudflare", status="degraded", detail=str(exc)))
+
+    selected_zone = selected_zone or (zones[0].id if zones else "")
+    return DNSResponse(
+        providers=providers,
+        selected_zone=selected_zone,
+        zones=[DNSZoneSummary(**zone.model_dump()) for zone in zones],
+        records=[DNSRecordSummary(**record.model_dump()) for record in records],
+    )
+
+
+@router.get("/admin", response_model=AdminResponse)
+async def api_admin(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AdminResponse:
+    admins = list(
+        (
+            await session.scalars(
+                select(AdminUser)
+                .where(AdminUser.tenant_id == current_admin.tenant_id)
+                .order_by(AdminUser.created_at)
+            )
+        ).all()
+    )
+    providers = [
+        _provider_summary(
+            "Coolify",
+            bool(request.state.settings.coolify_url and request.state.settings.coolify_token),
+            request.state.settings.coolify_url or "Missing URL and token",
+        ),
+        _provider_summary(
+            "Mailcow",
+            bool(request.state.settings.mailcow_url and request.state.settings.mailcow_api_key),
+            request.state.settings.mailcow_url or "Missing URL and API key",
+        ),
+        _provider_summary(
+            "Cloudflare",
+            bool(request.state.settings.cloudflare_api_token),
+            "Scoped token present" if request.state.settings.cloudflare_api_token else "Missing API token",
+        ),
+    ]
+    return AdminResponse(admins=[_admin_summary(admin) for admin in admins], providers=providers)
+
+
+@router.post("/tenants", response_model=TenantSummary)
+async def api_create_tenant(
+    payload: TenantCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    normalized_slug = auth_service.normalize_slug(payload.slug)
+    existing = await auth_service.get_tenant_by_slug(normalized_slug)
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant slug already exists.")
+
+    tenant = Tenant(name=payload.name.strip(), slug=normalized_slug, is_active=True)
+    session.add(tenant)
+    await session.flush()
+    return _tenant_summary(tenant)
+
+
+@router.get("/tenants", response_model=list[TenantSummary])
+async def api_list_tenants(
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> list[TenantSummary]:
+    tenants = list((await session.scalars(select(Tenant).order_by(Tenant.created_at))).all())
+    return [_tenant_summary(tenant) for tenant in tenants]
+
+
+@router.post("/tenants/{tenant_slug}/activate", response_model=TenantSummary)
+async def api_activate_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    tenant.is_active = True
+    await session.flush()
+    return _tenant_summary(tenant)
+
+
+@router.post("/tenants/{tenant_slug}/deactivate", response_model=TenantSummary)
+async def api_deactivate_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    tenant.is_active = False
+    await session.flush()
+    return _tenant_summary(tenant)
+
+
+@router.post("/tenant-admins", response_model=AdminSummary)
+async def api_create_tenant_admin(
+    payload: TenantAdminCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> AdminSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+    normalized_email = auth_service.normalize_email(payload.email)
+    existing = await auth_service.get_admin_by_email(normalized_email)
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Admin email already exists.")
+
+    admin = AdminUser(
+        tenant_id=tenant.id,
+        email=normalized_email,
+        full_name=payload.full_name.strip(),
+        password_hash=auth_service.hash_password(payload.password),
+        is_active=True,
+    )
+    session.add(admin)
+    await session.flush()
+    refreshed = await auth_service.get_admin_by_id(admin.id)
+    assert refreshed is not None
+    return _admin_summary(refreshed)
+
+
+@router.post("/tenant-resources", response_model=TenantResourceSummary)
+async def api_create_tenant_resource(
+    payload: TenantResourceCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> TenantResourceSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+    resource = await session.scalar(
+        select(TenantResource).where(
+            TenantResource.provider == payload.provider.strip().lower(),
+            TenantResource.resource_type == payload.resource_type.strip().lower(),
+            TenantResource.external_id == payload.external_id.strip(),
+        )
+    )
+    if resource is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Resource already assigned.")
+
+    resource = TenantResource(
+        tenant_id=tenant.id,
+        provider=payload.provider.strip().lower(),
+        resource_type=payload.resource_type.strip().lower(),
+        external_id=payload.external_id.strip(),
+        display_name=payload.display_name.strip() or payload.external_id.strip(),
+    )
+    session.add(resource)
+    await session.flush()
+    await session.refresh(resource, attribute_names=["tenant"])
+    return _tenant_resource_summary(resource)

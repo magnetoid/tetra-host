@@ -1,31 +1,38 @@
 from functools import lru_cache
-from urllib.parse import urlparse
+from typing import Literal
 
+from pydantic import computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "Cloud Industry Hosting"
-    app_env: str = "development"
+    app_env: Literal["development", "staging", "production"] = "development"
     app_secret: str = "change-me"
     base_url: str = "http://127.0.0.1:8088"
-    database_url: str = "sqlite:///./data/tetra_host.db"
+    database_url: str = "sqlite+aiosqlite:///./data/tetra_host.db"
+    redis_url: str = ""
+    allowed_hosts_raw: str = "127.0.0.1,localhost,testserver"
+    theme: str = "cloud-industry"
+    template_search_path: str = ""
+    session_cookie_name: str = "tetra_host_session"
+    session_max_age_seconds: int = 60 * 60 * 12
+    session_https_only: bool = False
+    session_same_site: Literal["lax", "strict", "none"] = "lax"
+    force_https_redirect: bool = False
+    login_rate_limit_attempts: int = 5
+    login_rate_limit_window_seconds: int = 300
+    request_timeout_seconds: float = 20.0
+    provider_cache_ttl_seconds: int = 30
+    enable_provider_actions: bool = False
     coolify_url: str = ""
     coolify_token: str = ""
-    coolify_action_helper: str = ""
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
-    theme: str = "cloud-industry"
-    template_search_path: str = ""
-    allowed_hosts_raw: str = "127.0.0.1,localhost,testserver"
-    session_https_only: bool = False
-    force_https_redirect: bool = False
-    session_cookie_name: str = "tetra_session"
-    bootstrap_admin_email: str = "admin@cloud-industry.com"
-    bootstrap_admin_password: str = "change-me-now"
-    bootstrap_tenant_name: str = "Cloud Industry"
-    bootstrap_tenant_slug: str = "cloud-industry"
+    admin_bootstrap_email: str = "admin@cloud-industry.com"
+    admin_bootstrap_password: str = ""
+    admin_bootstrap_name: str = "Platform Admin"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -33,18 +40,51 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @property
-    def is_production(self) -> bool:
-        return self.app_env.lower() in {"production", "prod"}
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        if value.startswith("sqlite:///"):
+            return value.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+        if value.startswith("postgresql://"):***@field_validator("mailcow_url", "coolify_url")
+    @classmethod
+    def strip_provider_urls(cls, value: str) -> str:
+        return value.rstrip("/")
 
+    @field_validator("allowed_hosts_raw")
+    @classmethod
+    def normalize_allowed_hosts(cls, value: str) -> str:
+        return ",".join(host.strip() for host in value.split(",") if host.strip())
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.is_production and self.app_secret.startswith("change-me"):
+            msg = "APP_SECRET must be changed before running in production."
+            raise ValueError(msg)
+        if self.session_same_site == "none" and not self.session_https_only:
+            msg = "SESSION_SAME_SITE=none requires SESSION_HTTPS_ONLY=true."
+            raise ValueError(msg)
+        return self
+
+    @computed_field
     @property
     def allowed_hosts(self) -> list[str]:
-        hosts = [h.strip() for h in self.allowed_hosts_raw.split(",") if h.strip()]
-        if self.base_url:
-            parsed = urlparse(self.base_url)
-            if parsed.hostname and parsed.hostname not in hosts:
-                hosts.append(parsed.hostname)
-        return hosts
+        return [host.strip() for host in self.allowed_hosts_raw.split(",") if host.strip()]
+
+    @computed_field
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
+    @computed_field
+    @property
+    def provider_credentials_configured(self) -> bool:
+        return any(
+            [
+                bool(self.coolify_url and self.coolify_token),
+                bool(self.mailcow_url and self.mailcow_api_key),
+                bool(self.cloudflare_api_token),
+            ]
+        )
 
 
 @lru_cache

@@ -8,9 +8,17 @@ User=tetrahost
 Group=tetrahost
 WorkingDirectory=/opt/tetra-host
 EnvironmentFile=/opt/tetra-host/.env
-ExecStart=/opt/tetra-host/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8088
+Environment=PYTHONUNBUFFERED=1
+RuntimeDirectory=tetra-host
+ExecStartPre=/opt/tetra-host/scripts/check-production.sh
+ExecStart=/opt/tetra-host/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8088 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=always
 RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/tetra-host/data /opt/tetra-host/logs
 
 [Install]
 WantedBy=multi-user.target

@@ -1,52 +1,119 @@
+from contextlib import asynccontextmanager
+
+import httpx
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.routes import router as api_router
+from app.cache import TTLCache
 from app.config import get_settings
-from app.db import init_db
+from app.db import close_db, init_db, session_scope
 from app.modules import load_plugins
+from app.modules.auth.service import AuthService
+from app.observability import (
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+    configure_logging,
+)
 from app.plugins import registry
-from app.security import parse_session_token
-from app.services.tenants import current_user_from_session, ensure_bootstrap_data
+from app.rate_limit import InMemoryRateLimiter
 from app.templating import build_templates
 
-settings = get_settings()
-app = FastAPI(title=settings.app_name)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates: Jinja2Templates = build_templates()
 
-load_plugins()
-registry.register_all(app)
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    init_db()
-    ensure_bootstrap_data(
-        admin_email=settings.bootstrap_admin_email,
-        admin_password=settings.bootstrap_admin_password,
-        tenant_name=settings.bootstrap_tenant_name,
-        tenant_slug=settings.bootstrap_tenant_slug,
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    configure_logging(settings)
+    app.state.cache = TTLCache()
+    app.state.rate_limiter = InMemoryRateLimiter()
+    app.state.http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(settings.request_timeout_seconds),
+        follow_redirects=True,
+        headers={"User-Agent": "tetra-host/0.2"},
     )
+    await init_db()
+    async with session_scope() as session:
+        auth_service = AuthService(session)
+        await auth_service.ensure_bootstrap_admin(settings)
+    try:
+        yield
+    finally:
+        await app.state.http_client.aclose()
+        await close_db()
 
 
-@app.middleware("http")
-async def inject_core_context(request: Request, call_next):
-    request.state.settings = settings
-    request.state.nav_items = registry.nav_items()
-    request.state.plugins = registry.plugins()
-    token = request.cookies.get(settings.session_cookie_name)
-    session_user = parse_session_token(token) if token else None
-    request.state.session_user = session_user
-    request.state.current_user = current_user_from_session(session_user)
-    return await call_next(request)
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.app_secret,
+        session_cookie=settings.session_cookie_name,
+        max_age=settings.session_max_age_seconds,
+        same_site=settings.session_same_site,
+        https_only=settings.session_https_only,
+    )
+    app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
+    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+    if settings.allowed_hosts and settings.allowed_hosts != ["*"]:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    if settings.force_https_redirect:
+        app.add_middleware(HTTPSRedirectMiddleware)
+
+    templates: Jinja2Templates = build_templates()
+    app.state.templates = templates
+
+    load_plugins()
+    registry.register_all(app)
+    app.include_router(api_router)
+
+    @app.middleware("http")
+    async def inject_core_context(request: Request, call_next):
+        request.state.settings = settings
+        request.state.nav_items = [
+            item for item in registry.nav_items() if item.name not in {"public", "auth"}
+        ]
+        request.state.plugins = registry.plugins()
+        session = request.scope.get("session", {})
+        request.state.current_admin_email = session.get("admin_email") if isinstance(session, dict) else None
+        request.state.current_admin_name = session.get("admin_name") if isinstance(session, dict) else None
+        request.state.current_tenant_id = session.get("tenant_id") if isinstance(session, dict) else None
+        request.state.current_tenant_slug = session.get("tenant_slug") if isinstance(session, dict) else None
+        request.state.current_tenant_name = session.get("tenant_name") if isinstance(session, dict) else None
+        request.state.csrf_token = session.get("csrf_token", "") if isinstance(session, dict) else ""
+        return await call_next(request)
+
+    @app.get("/health")
+    async def health():
+        return {
+            "ok": True,
+            "app": settings.app_name,
+            "plugins": [p.name for p in registry.nav_items()],
+            "theme": settings.theme,
+            "env": settings.app_env,
+        }
+
+    @app.get("/ready")
+    async def ready():
+        return {
+            "ok": True,
+            "database_url": settings.database_url.split("://", 1)[0],
+            "providers": {
+                "coolify": bool(settings.coolify_url and settings.coolify_token),
+                "mailcow": bool(settings.mailcow_url and settings.mailcow_api_key),
+                "cloudflare": bool(settings.cloudflare_api_token),
+            },
+        }
+
+    return app
 
 
-@app.get("/health")
-async def health():
-    return {
-        "ok": True,
-        "app": settings.app_name,
-        "plugins": [p.name for p in registry.nav_items()],
-        "theme": settings.theme,
-    }
+app = create_app()

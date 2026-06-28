@@ -6,16 +6,12 @@
     <div>
       <div class="text-sm text-zinc-500">Cloud Industry PaaS</div>
       <h1 class="mt-2 text-4xl font-semibold tracking-tight">PaaS Overview</h1>
-      <p class="mt-3 max-w-2xl text-zinc-400">A professional customer hosting dashboard with a clean Vercel-like UX, powered by a Coolify backend, Mailcow mail stack and Cloudflare DNS.</p>
+      <p class="mt-3 max-w-2xl text-zinc-400">Operational command center for the current native-hosted stack, with live provider visibility and secured administrative access.</p>
     </div>
     <div class="flex gap-2">
-      <a href="/sites" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">New project</a>
-      <a href="/admin" class="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-zinc-900">Customer tenants</a>
+      <a href="/sites?refresh=1" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh providers</a>
+      <a href="/admin" class="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-zinc-900">Platform controls</a>
     </div>
-  </section>
-
-  <section class="rounded-2xl border border-border bg-muted p-4 text-sm text-zinc-300">
-    Signed in as <strong>{{ current_user.email }}</strong>.
   </section>
 
   <section class="grid gap-4 md:grid-cols-4">
@@ -31,23 +27,86 @@
   <section class="grid gap-4 lg:grid-cols-3">
     <div class="rounded-2xl border border-border bg-muted p-6 lg:col-span-2">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">Platform architecture</h2>
-        <span class="rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">Plugin based</span>
+        <h2 class="text-lg font-semibold">Provider connectivity</h2>
+        <span class="rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">Live state</span>
       </div>
       <div class="mt-5 grid gap-3 md:grid-cols-3">
-        <div class="rounded-xl border border-border bg-background p-4"><div class="font-medium">Coolify backend</div><p class="mt-2 text-sm text-zinc-500">Apps, deploys, logs, domains and SSL state.</p></div>
-        <div class="rounded-xl border border-border bg-background p-4"><div class="font-medium">Mailcow outside Coolify</div><p class="mt-2 text-sm text-zinc-500">Native compose stack for SMTP/IMAP reliability.</p></div>
-        <div class="rounded-xl border border-border bg-background p-4"><div class="font-medium">Cloudflare DNS</div><p class="mt-2 text-sm text-zinc-500">DNS automation, records and tenant domains.</p></div>
+        {% for provider in provider_status %}
+        <div class="rounded-xl border border-border bg-background p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="font-medium">{{ provider.name }}</div>
+            <span class="rounded-full border border-border px-3 py-1 text-xs text-zinc-400">{{ provider.status }}</span>
+          </div>
+          <p class="mt-2 text-sm text-zinc-500">{{ provider.detail }}</p>
+        </div>
+        {% endfor %}
       </div>
     </div>
     <div class="rounded-2xl border border-border bg-muted p-6">
-      <h2 class="text-lg font-semibold">Next milestones</h2>
+      <h2 class="text-lg font-semibold">Control plane posture</h2>
       <ol class="mt-4 space-y-3 text-sm text-zinc-300">
-        <li>1. Real auth + tenant isolation</li>
-        <li>2. Coolify project actions</li>
-        <li>3. Per-tenant provisioning flows</li>
-        <li>4. Usage/billing layer</li>
+        <li>1. Signed admin session and protected routes</li>
+        <li>2. Provider-backed operational inventory</li>
+        <li>3. Native deployment with hardened runtime defaults</li>
+        <li>4. Targeted observability and request tracing</li>
       </ol>
+    </div>
+  </section>
+
+  <section class="grid gap-4 lg:grid-cols-3">
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Recent sites</h2>
+        <a href="/sites" class="text-sm text-zinc-400 hover:text-white">View all</a>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% if recent_sites %}
+          {% for site in recent_sites %}
+          <div class="rounded-xl border border-border bg-background p-4">
+            <div class="font-medium">{{ site.name }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ site.primary_domain }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">No Coolify applications available yet.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Mail domains</h2>
+        <a href="/mail" class="text-sm text-zinc-400 hover:text-white">Open mail</a>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% if mail_domains %}
+          {% for domain in mail_domains %}
+          <div class="rounded-xl border border-border bg-background p-4">
+            <div class="font-medium">{{ domain.domain_name }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ domain.mailboxes }} mailboxes · {{ domain.aliases }} aliases</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">Mailcow is not configured or currently returns no domains.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">DNS zones</h2>
+        <a href="/dns" class="text-sm text-zinc-400 hover:text-white">Open DNS</a>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% if dns_zones %}
+          {% for zone in dns_zones %}
+          <div class="rounded-xl border border-border bg-background p-4">
+            <div class="font-medium">{{ zone.name }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ zone.status }}{% if zone.account_name %} · {{ zone.account_name }}{% endif %}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">Cloudflare is not configured or no zones were returned.</div>
+        {% endif %}
+      </div>
     </div>
   </section>
 </div>

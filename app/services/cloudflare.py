@@ -1,131 +1,129 @@
-from dataclasses import dataclass
+from typing import Any
 
 import httpx
+from pydantic import BaseModel, ConfigDict
 
+from app.cache import TTLCache
 from app.config import get_settings
+from app.services.http import request_json
 
 
-@dataclass(frozen=True)
-class CloudflareZone:
+class CloudflareZone(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     id: str
     name: str
     status: str
-    plan: str
-    nameservers: str
+    account_name: str = ""
+    paused: bool = False
 
 
-@dataclass(frozen=True)
-class CloudflareRecord:
+class CloudflareDNSRecord(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     id: str
-    zone_id: str
-    name: str
     type: str
+    name: str
     content: str
-    proxied: str
-    ttl: str
+    ttl: int
+    proxied: bool | None = None
 
 
-@dataclass
+def normalize_zone(raw: dict[str, Any]) -> CloudflareZone:
+    return CloudflareZone(
+        id=str(raw.get("id") or ""),
+        name=str(raw.get("name") or "unknown"),
+        status=str(raw.get("status") or "unknown"),
+        account_name=str((raw.get("account") or {}).get("name") or ""),
+        paused=bool(raw.get("paused", False)),
+    )
+
+
+def normalize_record(raw: dict[str, Any]) -> CloudflareDNSRecord:
+    return CloudflareDNSRecord(
+        id=str(raw.get("id") or ""),
+        type=str(raw.get("type") or ""),
+        name=str(raw.get("name") or ""),
+        content=str(raw.get("content") or ""),
+        ttl=int(raw.get("ttl") or 0),
+        proxied=raw.get("proxied"),
+    )
+
+
 class CloudflareClient:
-    api_token: str
+    def __init__(
+        self,
+        *,
+        api_token: str,
+        http_client: httpx.AsyncClient,
+        cache: TTLCache,
+    ) -> None:
+        self.api_token = api_token
+        self.http_client = http_client
+        self.cache = cache
 
     @classmethod
-    def from_settings(cls) -> "CloudflareClient":
-        return cls(api_token=get_settings().cloudflare_api_token)
+    def from_settings(
+        cls,
+        *,
+        http_client: httpx.AsyncClient,
+        cache: TTLCache,
+    ) -> "CloudflareClient":
+        return cls(
+            api_token=get_settings().cloudflare_api_token,
+            http_client=http_client,
+            cache=cache,
+        )
 
     def is_configured(self) -> bool:
         return bool(self.api_token)
 
     def headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self.api_token}",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        }
+        return {"Authorization": f"Bearer {self.api_token}", "Accept": "application/json"}
 
-    async def list_zones(self) -> list[CloudflareZone]:
+    async def list_zones(self, refresh: bool = False) -> list[CloudflareZone]:
         if not self.is_configured():
-            return self.placeholder_zones()
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.get("https://api.cloudflare.com/client/v4/zones", headers=self.headers())
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError):
-            return self.placeholder_zones()
+            return []
 
-        items = self._extract_items(payload)
-        if not items:
-            return self.placeholder_zones()
-        return [self.normalize_zone(item) for item in items]
+        settings = get_settings()
 
-    async def list_records(self, zone_id: str) -> list[CloudflareRecord]:
-        if not self.is_configured():
-            return self.placeholder_records(zone_id)
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.get(
-                    f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
-                    headers=self.headers(),
-                )
-                response.raise_for_status()
-                payload = response.json()
-        except (httpx.HTTPError, ValueError):
-            return self.placeholder_records(zone_id)
+        async def fetch() -> list[CloudflareZone]:
+            payload = await request_json(
+                self.http_client,
+                service="Cloudflare",
+                method="GET",
+                url="https://api.cloudflare.com/client/v4/zones",
+                headers=self.headers(),
+                params={"per_page": 50},
+            )
+            return [normalize_zone(item) for item in payload.get("result", [])]
 
-        items = self._extract_items(payload)
-        if not items:
-            return self.placeholder_records(zone_id)
-        return [self.normalize_record(zone_id, item) for item in items]
-
-    def _extract_items(self, payload: object) -> list[dict]:
-        if isinstance(payload, list):
-            return [item for item in payload if isinstance(item, dict)]
-        if isinstance(payload, dict):
-            result = payload.get("result")
-            if isinstance(result, list):
-                return [item for item in result if isinstance(item, dict)]
-            if isinstance(result, dict):
-                return [result]
-        return []
-
-    def normalize_zone(self, raw: dict) -> CloudflareZone:
-        plan = raw.get("plan") or {}
-        plan_name = plan.get("name") if isinstance(plan, dict) else str(plan or "")
-        nameservers = raw.get("name_servers") or raw.get("vanity_name_servers") or []
-        if isinstance(nameservers, list):
-            ns = ", ".join(nameservers[:2]) if nameservers else "—"
-        else:
-            ns = str(nameservers)
-        return CloudflareZone(
-            id=str(raw.get("id") or raw.get("name") or "unknown"),
-            name=str(raw.get("name") or "Unknown zone"),
-            status=str(raw.get("status") or "unknown"),
-            plan=str(plan_name or "—"),
-            nameservers=ns,
+        if refresh:
+            await self.cache.delete("cloudflare:zones")
+        return await self.cache.get_or_set(
+            "cloudflare:zones",
+            settings.provider_cache_ttl_seconds,
+            fetch,
         )
 
-    def normalize_record(self, zone_id: str, raw: dict) -> CloudflareRecord:
-        proxied = raw.get("proxied")
-        return CloudflareRecord(
-            id=str(raw.get("id") or raw.get("name") or "unknown"),
-            zone_id=zone_id,
-            name=str(raw.get("name") or "Unknown"),
-            type=str(raw.get("type") or "A"),
-            content=str(raw.get("content") or "—"),
-            proxied="Yes" if proxied is True else "No",
-            ttl=str(raw.get("ttl") or "auto"),
-        )
+    async def list_dns_records(self, zone_id: str, refresh: bool = False) -> list[CloudflareDNSRecord]:
+        if not self.is_configured() or not zone_id:
+            return []
 
-    def placeholder_zones(self) -> list[CloudflareZone]:
-        return [
-            CloudflareZone("montenegro-experience.me", "montenegro-experience.me", "active", "Free", "—"),
-            CloudflareZone("imbaproduction.com", "imbaproduction.com", "active", "Free", "—"),
-        ]
+        settings = get_settings()
+        cache_key = f"cloudflare:records:{zone_id}"
 
-    def placeholder_records(self, zone_id: str) -> list[CloudflareRecord]:
-        return [
-            CloudflareRecord(f"{zone_id}-root", zone_id, "@", "A", "65.21.238.89", "No", "auto"),
-            CloudflareRecord(f"{zone_id}-www", zone_id, "www", "CNAME", "@", "Yes", "auto"),
-            CloudflareRecord(f"{zone_id}-mail", zone_id, "mail", "A", "65.21.238.89", "No", "auto"),
-        ]
+        async def fetch() -> list[CloudflareDNSRecord]:
+            payload = await request_json(
+                self.http_client,
+                service="Cloudflare",
+                method="GET",
+                url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+                headers=self.headers(),
+                params={"per_page": 100},
+            )
+            return [normalize_record(item) for item in payload.get("result", [])]
+
+        if refresh:
+            await self.cache.delete(cache_key)
+        return await self.cache.get_or_set(cache_key, settings.provider_cache_ttl_seconds, fetch)

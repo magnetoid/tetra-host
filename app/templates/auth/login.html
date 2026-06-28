@@ -1,17 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Login · Cloud Industry{% endblock %}
 {% block content %}
-<div class="mx-auto max-w-md rounded-2xl border border-border bg-muted p-8">
-  <h1 class="text-2xl font-bold">Sign in</h1>
-  <p class="mt-2 text-sm text-zinc-400">Access your hosting dashboard.</p>
-  {% if error %}<div class="mt-4 rounded-md bg-red-950 p-3 text-sm text-red-200">{{ error }}</div>{% endif %}
-  <form method="post" class="mt-6 space-y-4">
-    <input name="email" type="email" placeholder="email@company.com" class="w-full rounded-lg border border-border bg-background px-3 py-2" />
-    <input name="password" type="password" placeholder="Password" class="w-full rounded-lg border border-border bg-background px-3 py-2" />
-    <button class="w-full rounded-lg bg-primary px-4 py-2 font-semibold">Login</button>
-  </form>
-  <div class="mt-6 rounded-lg border border-border bg-background p-4 text-xs text-zinc-400">
-    Bootstrap admin comes from environment variables, so production can seed a first owner account without keeping hardcoded users in code.
-  </div>
+<div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+  <section class="rounded-3xl border border-border bg-muted p-8 lg:p-10">
+    <div class="text-sm text-zinc-500">Cloud Industry Operations</div>
+    <h1 class="mt-3 text-4xl font-semibold tracking-tight">Secure access to your native PaaS control plane.</h1>
+    <p class="mt-4 max-w-2xl text-zinc-400">
+      Monitor provider health, review deployment state, and manage platform operations through a hardened admin session.
+    </p>
+    <div class="mt-8 grid gap-4 md:grid-cols-3">
+      <div class="rounded-2xl border border-border bg-background/70 p-4">
+        <div class="font-medium">Operational visibility</div>
+        <div class="mt-2 text-sm text-zinc-500">Coolify, Mailcow, and Cloudflare data flows into one admin view.</div>
+      </div>
+      <div class="rounded-2xl border border-border bg-background/70 p-4">
+        <div class="font-medium">Safer sessions</div>
+        <div class="mt-2 text-sm text-zinc-500">Signed cookies, CSRF validation, and rate-limited login attempts.</div>
+      </div>
+      <div class="rounded-2xl border border-border bg-background/70 p-4">
+        <div class="font-medium">Native-first deployment</div>
+        <div class="mt-2 text-sm text-zinc-500">Optimized for the current `systemd` + `nginx` production footprint.</div>
+      </div>
+    </div>
+  </section>
+  <section class="mx-auto w-full max-w-md rounded-3xl border border-border bg-muted p-8">
+    <h2 class="text-2xl font-bold">Sign in</h2>
+    <p class="mt-2 text-sm text-zinc-400">Use your platform admin account to continue.</p>
+    {% if error %}<div class="mt-4 rounded-xl border border-red-900 bg-red-950/80 p-3 text-sm text-red-100">{{ error }}</div>{% endif %}
+    <form method="post" class="mt-6 space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or request.state.csrf_token }}" />
+      <input type="hidden" name="next_url" value="{{ next_url or '/dashboard' }}" />
+      <label class="block text-sm">
+        <span class="mb-2 block text-zinc-300">Email</span>
+        <input name="email" type="email" placeholder="admin@company.com" autocomplete="username" class="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-zinc-500" />
+      </label>
+      <label class="block text-sm">
+        <span class="mb-2 block text-zinc-300">Password</span>
+        <input name="password" type="password" placeholder="Password" autocomplete="current-password" class="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-zinc-500" />
+      </label>
+      <button class="w-full rounded-xl bg-primary px-4 py-2.5 font-semibold text-white transition hover:opacity-90">Access dashboard</button>
+    </form>
+    <div class="mt-4 text-xs text-zinc-500">The session is protected and all administrative actions are tied to your account context.</div>
+  </section>
 </div>
 {% endblock %}

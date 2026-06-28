@@ -2,59 +2,73 @@
 {% block title %}DNS · Cloud Industry{% endblock %}
 {% block content %}
 <div class="space-y-6">
-  <div class="flex items-end justify-between gap-4">
+  <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
-      <h1 class="text-3xl font-bold">DNS</h1>
-      <p class="mt-2 text-zinc-400">Cloudflare zones and DNS records power the DNS feature layer.</p>
+      <div class="text-sm text-zinc-500">Cloudflare DNS</div>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight">DNS Operations</h1>
+      <p class="mt-3 max-w-2xl text-zinc-400">Zone and record visibility with API-aware pagination and rate-limit safe backend handling.</p>
     </div>
-    <div class="rounded-lg border border-border px-3 py-2 text-sm {{ 'text-emerald-300' if cloudflare_configured else 'text-amber-300' }}">
-      {{ 'Cloudflare connected' if cloudflare_configured else 'Using fallback data' }}
-    </div>
-  </div>
+    <a href="/dns?refresh=1{% if selected_zone %}&zone={{ selected_zone }}{% endif %}" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh DNS</a>
+  </section>
 
-  <div class="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
-    <section class="overflow-hidden rounded-xl border border-border bg-muted">
-      <table class="w-full text-sm">
-        <thead class="border-b border-border text-left text-zinc-400">
-          <tr>
-            <th class="p-4">Zone</th>
-            <th class="p-4">Status</th>
-            <th class="p-4">Plan</th>
-            <th class="p-4">Nameservers</th>
-          </tr>
-        </thead>
-        <tbody>
+  {% if error %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
+  {% endif %}
+  {% if not provider_configured %}
+  <div class="rounded-2xl border border-dashed border-border bg-muted p-6 text-sm text-zinc-400">Connect `CLOUDFLARE_API_TOKEN` to list zones and records.</div>
+  {% endif %}
+
+  <section class="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Zones</h2>
+        <span class="text-sm text-zinc-500">{{ zones|length }} total</span>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% if zones %}
           {% for zone in zones %}
-          <tr class="border-b border-border/60 last:border-b-0">
-            <td class="p-4 font-medium"><a class="hover:text-white" href="/dns/{{ zone.id }}">{{ zone.name }}</a></td>
-            <td class="p-4 text-zinc-300">{{ zone.status }}</td>
-            <td class="p-4 text-zinc-300">{{ zone.plan }}</td>
-            <td class="p-4 text-zinc-400">{{ zone.nameservers }}</td>
-          </tr>
+          <a href="/dns?zone={{ zone.id }}" class="block rounded-xl border px-4 py-4 transition {% if selected_zone == zone.id %}border-white bg-background text-white{% else %}border-border bg-background text-zinc-300 hover:border-zinc-600{% endif %}">
+            <div class="font-medium">{{ zone.name }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ zone.status }}{% if zone.account_name %} · {{ zone.account_name }}{% endif %}</div>
+          </a>
           {% endfor %}
-        </tbody>
-      </table>
-    </section>
-
-    <section class="rounded-xl border border-border bg-muted p-5">
-      {% if selected_zone %}
-        <h2 class="text-lg font-semibold">DNS records · {{ selected_zone.name }}</h2>
-        <div class="mt-4 space-y-3 text-sm">
-          {% for record in records %}
-          <div class="rounded-lg border border-border bg-background p-3">
-            <div class="flex items-center justify-between gap-3">
-              <div><span class="font-medium">{{ record.name }}</span> <span class="text-zinc-500">{{ record.type }}</span></div>
-              <div class="text-xs text-zinc-500">TTL {{ record.ttl }} · Proxied {{ record.proxied }}</div>
-            </div>
-            <div class="mt-2 text-zinc-300 break-all">{{ record.content }}</div>
-          </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <h2 class="text-lg font-semibold">Cloudflare zones</h2>
-        <p class="mt-3 text-sm text-zinc-400">Open a zone to inspect the DNS records coming from Cloudflare.</p>
-      {% endif %}
-    </section>
-  </div>
+        {% else %}
+          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">No zones returned.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">DNS records</h2>
+        <span class="text-sm text-zinc-500">{{ records|length }} shown</span>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-2xl border border-border">
+        <table class="min-w-full divide-y divide-border text-sm">
+          <thead class="bg-background/60 text-left text-zinc-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">Type</th>
+              <th class="px-4 py-3 font-medium">Name</th>
+              <th class="px-4 py-3 font-medium">Content</th>
+              <th class="px-4 py-3 font-medium">TTL</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border bg-background">
+            {% if records %}
+              {% for record in records %}
+              <tr>
+                <td class="px-4 py-3">{{ record.type }}</td>
+                <td class="px-4 py-3 text-zinc-300">{{ record.name }}</td>
+                <td class="px-4 py-3 text-zinc-400">{{ record.content }}</td>
+                <td class="px-4 py-3 text-zinc-400">{{ record.ttl }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="4" class="px-4 py-6 text-center text-zinc-500">Select a zone to inspect its records.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}

@@ -1,37 +1,74 @@
 {% extends "base.html" %}
 {% block title %}Mail · Cloud Industry{% endblock %}
 {% block content %}
-<div class="flex items-end justify-between gap-4">
-  <div>
-    <h1 class="text-3xl font-bold">Mail</h1>
-    <p class="mt-2 text-zinc-400">Mailcow domains, mailbox capacity and activation state.</p>
-  </div>
-  <div class="rounded-lg border border-border px-3 py-2 text-sm {{ 'text-emerald-300' if mailcow_configured else 'text-amber-300' }}">
-    {{ 'Mailcow connected' if mailcow_configured else 'Using fallback data' }}
-  </div>
-</div>
-<div class="mt-6 overflow-hidden rounded-xl border border-border bg-muted">
-  <table class="w-full text-sm">
-    <thead class="border-b border-border text-left text-zinc-400">
-      <tr>
-        <th class="p-4">Domain</th>
-        <th class="p-4">Status</th>
-        <th class="p-4">Mailboxes</th>
-        <th class="p-4">Aliases</th>
-        <th class="p-4">Quota</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for domain in domains %}
-      <tr class="border-b border-border/60 last:border-b-0">
-        <td class="p-4 font-medium">{{ domain.domain }}</td>
-        <td class="p-4 text-zinc-300">{{ domain.active }}</td>
-        <td class="p-4 text-zinc-300">{{ domain.mailboxes }}</td>
-        <td class="p-4 text-zinc-300">{{ domain.aliases }}</td>
-        <td class="p-4 text-zinc-400">{{ domain.quota }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="space-y-6">
+  <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <div class="text-sm text-zinc-500">Mailcow backend</div>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight">Mail Operations</h1>
+      <p class="mt-3 max-w-2xl text-zinc-400">Domain and mailbox inventory for the current Mailcow instance, designed for day-to-day operational checks.</p>
+    </div>
+    <a href="/mail?refresh=1" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh mail state</a>
+  </section>
+
+  {% if error %}
+  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
+  {% endif %}
+  {% if not provider_configured %}
+  <div class="rounded-2xl border border-dashed border-border bg-muted p-6 text-sm text-zinc-400">Connect `MAILCOW_URL` and `MAILCOW_API_KEY` to load domain and mailbox inventory.</div>
+  {% endif %}
+
+  <section class="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Mail domains</h2>
+        <span class="text-sm text-zinc-500">{{ domains|length }} total</span>
+      </div>
+      <div class="mt-4 space-y-3">
+        {% if domains %}
+          {% for domain in domains %}
+          <div class="rounded-xl border border-border bg-background p-4">
+            <div class="font-medium">{{ domain.domain_name }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ domain.mailboxes }} mailboxes · {{ domain.aliases }} aliases</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">No domains returned.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rounded-2xl border border-border bg-muted p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Recent mailboxes</h2>
+        <span class="text-sm text-zinc-500">{{ mailboxes|length }} shown</span>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-2xl border border-border">
+        <table class="min-w-full divide-y divide-border text-sm">
+          <thead class="bg-background/60 text-left text-zinc-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">Mailbox</th>
+              <th class="px-4 py-3 font-medium">Name</th>
+              <th class="px-4 py-3 font-medium">Quota</th>
+              <th class="px-4 py-3 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border bg-background">
+            {% if mailboxes %}
+              {% for mailbox in mailboxes %}
+              <tr>
+                <td class="px-4 py-3">{{ mailbox.username }}</td>
+                <td class="px-4 py-3 text-zinc-400">{{ mailbox.name or 'Mailbox user' }}</td>
+                <td class="px-4 py-3 text-zinc-400">{{ mailbox.quota_bytes }}</td>
+                <td class="px-4 py-3 text-zinc-400">{{ 'Active' if mailbox.active else 'Disabled' }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="4" class="px-4 py-6 text-center text-zinc-500">No mailboxes available.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}
