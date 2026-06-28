@@ -6,14 +6,16 @@ from app.models.tenant_resource import (
     PROVIDER_CLOUDFLARE,
     PROVIDER_COOLIFY,
     PROVIDER_MAILCOW,
+    RESOURCE_TYPE_DATABASE,
     RESOURCE_TYPE_DNS_RECORD,
     RESOURCE_TYPE_DNS_ZONE,
     RESOURCE_TYPE_MAILBOX,
     RESOURCE_TYPE_MAIL_DOMAIN,
+    RESOURCE_TYPE_SERVER,
     RESOURCE_TYPE_SITE,
 )
 from app.services.cloudflare import CloudflareDNSRecord, CloudflareZone
-from app.services.coolify import CoolifyApplication
+from app.services.coolify import CoolifyApplication, CoolifyDatabase, CoolifyServer
 from app.services.mailcow import MailcowDomain, MailcowMailbox
 
 
@@ -94,3 +96,16 @@ class TenantResourceFilter:
             if record.id in mapped_records or (normalized_selected_zone and record.name.endswith(tuple(zone.name for zone in filtered_zones if zone.id == normalized_selected_zone)))
         ]
         return filtered_zones, filtered_records, normalized_selected_zone
+
+
+    async def filter_databases(self, databases: list[CoolifyDatabase]) -> list[CoolifyDatabase]:
+        mapped_ids = await self._mapped_values(provider=PROVIDER_COOLIFY, resource_type=RESOURCE_TYPE_DATABASE)
+        if not mapped_ids and not await self._strict_mode():
+            return databases
+        return [database for database in databases if database.id in mapped_ids]
+
+    async def filter_servers(self, servers: list[CoolifyServer]) -> list[CoolifyServer]:
+        mapped_ids = await self._mapped_values(provider=PROVIDER_COOLIFY, resource_type=RESOURCE_TYPE_SERVER)
+        if not mapped_ids and not await self._strict_mode():
+            return servers
+        return [server for server in servers if server.id in mapped_ids]

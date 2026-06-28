@@ -6,82 +6,52 @@
     <div>
       <div class="text-sm text-zinc-500">Coolify backend</div>
       <h1 class="mt-2 text-4xl font-semibold tracking-tight">🗄 Databases</h1>
-      <p class="mt-3 max-w-2xl text-zinc-400">Manage Coolify-provisioned databases — start, stop, and restart instances.</p>
+      <p class="mt-3 max-w-2xl text-zinc-400">Tenant-aware database visibility and lifecycle controls.</p>
     </div>
-    <a href="/databases" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh</a>
+    <form method="get" class="flex gap-2">
+      <input type="text" name="q" value="{{ q or '' }}" placeholder="Search databases" class="rounded-xl border border-border bg-background px-3 py-2 text-sm">
+      <button class="rounded-xl border border-border bg-background px-4 py-2 text-sm">Search</button>
+    </form>
   </section>
 
-  {% for key in ['start', 'stop', 'restart'] %}
-    {% if request.query_params.get(key) %}
-    <div class="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 text-sm text-emerald-200">{{ request.query_params.get(key) }}</div>
-    {% endif %}
-    {% if request.query_params.get(key ~ '_error') %}
-    <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ request.query_params.get(key ~ '_error') }}</div>
-    {% endif %}
+  {% for key in ['start','stop','restart'] %}
+    {% if request.query_params.get(key) %}<div class="rounded-2xl border border-emerald-900 bg-emerald-950/70 p-4 text-sm text-emerald-200">{{ request.query_params.get(key) }}</div>{% endif %}
+    {% if request.query_params.get(key ~ '_error') %}<div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ request.query_params.get(key ~ '_error') }}</div>{% endif %}
   {% endfor %}
-  {% if error %}
-  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
-  {% endif %}
+  {% if error %}<div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>{% endif %}
 
   <div class="overflow-x-auto rounded-2xl border border-border">
     <table class="w-full text-sm">
       <thead class="border-b border-border bg-zinc-950/70 text-left text-zinc-400">
-        <tr>
-          <th class="px-5 py-3 font-medium">Name</th>
-          <th class="px-5 py-3 font-medium">Type</th>
-          <th class="px-5 py-3 font-medium">Status</th>
-          <th class="px-5 py-3 font-medium">Image</th>
-          <th class="px-5 py-3 font-medium text-right">Actions</th>
-        </tr>
+        <tr><th class="px-5 py-3 font-medium">Name</th><th class="px-5 py-3 font-medium">Type</th><th class="px-5 py-3 font-medium">Status</th><th class="px-5 py-3 font-medium">Image</th><th class="px-5 py-3 font-medium">Actions</th></tr>
       </thead>
       <tbody class="divide-y divide-border">
         {% if databases %}
-        {% for db in databases %}
-        <tr class="transition hover:bg-zinc-900/50">
-          <td class="px-5 py-4 font-medium">{{ db.name }}</td>
-          <td class="px-5 py-4 text-zinc-400">{{ db.type or '—' }}</td>
-          <td class="px-5 py-4">
-            {% if db.status == 'running' %}
-            <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">
-              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Running
-            </span>
-            {% elif db.status == 'stopped' or db.status == 'exited' %}
-            <span class="inline-flex items-center gap-1.5 rounded-full border border-red-900 bg-red-950 px-3 py-1 text-xs text-red-300">
-              <span class="h-1.5 w-1.5 rounded-full bg-red-400"></span>Stopped
-            </span>
-            {% else %}
-            <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs text-zinc-400">
-              <span class="h-1.5 w-1.5 rounded-full bg-zinc-500"></span>{{ db.status }}
-            </span>
-            {% endif %}
-          </td>
-          <td class="px-5 py-4 text-zinc-400">{{ db.image or '—' }}</td>
-          <td class="px-5 py-4 text-right">
-            {% if actions_enabled %}
-            <div class="flex justify-end gap-2">
-              <form method="post" action="/databases/{{ db.id }}/start">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="rounded-lg border border-emerald-800 bg-emerald-950 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-900">Start</button>
-              </form>
-              <form method="post" action="/databases/{{ db.id }}/stop">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="rounded-lg border border-red-800 bg-red-950 px-3 py-1.5 text-xs text-red-300 hover:bg-red-900">Stop</button>
-              </form>
-              <form method="post" action="/databases/{{ db.id }}/restart">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="rounded-lg border border-amber-800 bg-amber-950 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-900">Restart</button>
-              </form>
-            </div>
-            {% else %}
-            <span class="text-xs text-zinc-600">Actions disabled</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
+          {% for db in databases %}
+          <tr class="transition hover:bg-zinc-900/50">
+            <td class="px-5 py-4 font-medium">{{ db.name }}</td>
+            <td class="px-5 py-4 text-zinc-400">{{ db.type or '—' }}</td>
+            <td class="px-5 py-4">
+              {% set c = 'emerald' if db.status == 'running' else ('amber' if db.status in ['starting','restarting'] else 'zinc') %}
+              <span class="rounded-full border border-{{ c }}-900 bg-{{ c }}-950 px-3 py-1 text-xs text-{{ c }}-300">{{ db.status }}</span>
+            </td>
+            <td class="px-5 py-4 text-zinc-500">{{ db.image or '—' }}</td>
+            <td class="px-5 py-4">
+              {% if actions_enabled %}
+              <div class="flex flex-wrap gap-2">
+                {% for action in ['start','stop','restart'] %}
+                <form method="post" action="/databases/{{ db.id }}/{{ action }}">
+                  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                  <button class="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-zinc-900" {% if action == 'stop' %}onsubmit="return confirm('Stop this database?')"{% endif %}>{{ action|capitalize }}</button>
+                </form>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
         {% else %}
-        <tr>
-          <td colspan="5" class="px-5 py-10 text-center text-zinc-500">No databases found.</td>
-        </tr>
+          <tr><td colspan="5" class="px-5 py-10 text-center text-zinc-500">No databases found for this tenant.</td></tr>
         {% endif %}
       </tbody>
     </table>

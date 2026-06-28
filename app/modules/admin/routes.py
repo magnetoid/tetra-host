@@ -68,7 +68,7 @@ async def _load_admin_page_data(request: Request, session: AsyncSession, current
         "tenant_name": current_admin.tenant.name if current_admin.tenant else "",
         "platform_checks": platform_checks,
         "provider_options": ["coolify", "mailcow", "cloudflare"],
-        "resource_type_options": ["site", "mail_domain", "mailbox", "dns_zone", "dns_record"],
+        "resource_type_options": ["site", "database", "server", "mail_domain", "mailbox", "dns_zone", "dns_record"],
         "error": request.query_params.get("error"),
         "success": request.query_params.get("success"),
         "csrf_token": request.state.csrf_token,
@@ -216,3 +216,19 @@ async def create_tenant_resource(
     session.add(resource)
     await session.flush()
     return _redirect("/admin?success=Resource+assigned")
+
+@router.post("/resources/{resource_id}/delete")
+async def delete_tenant_resource(
+    request: Request,
+    resource_id: str,
+    csrf_token: str = Form(...),
+    _: AdminUser = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+):
+    verify_csrf_token(request, csrf_token)
+    resource = await session.get(TenantResource, resource_id)
+    if resource is None:
+        return _redirect("/admin?error=Resource+assignment+not+found")
+    await session.delete(resource)
+    await session.flush()
+    return _redirect("/admin?success=Resource+assignment+removed")

@@ -6,47 +6,33 @@
     <div>
       <div class="text-sm text-zinc-500">Coolify backend</div>
       <h1 class="mt-2 text-4xl font-semibold tracking-tight">🖥 Servers</h1>
-      <p class="mt-3 max-w-2xl text-zinc-400">Overview of all Coolify servers with reachability and resource status.</p>
+      <p class="mt-3 max-w-2xl text-zinc-400">Tenant-aware server visibility and diagnostics.</p>
     </div>
+    <form method="get" class="flex gap-2">
+      <input type="text" name="q" value="{{ q or '' }}" placeholder="Search servers" class="rounded-xl border border-border bg-background px-3 py-2 text-sm">
+      <button class="rounded-xl border border-border bg-background px-4 py-2 text-sm">Search</button>
+    </form>
   </section>
 
-  {% if error %}
-  <div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>
-  {% endif %}
+  {% if error %}<div class="rounded-2xl border border-red-900 bg-red-950/70 p-4 text-sm text-red-100">{{ error }}</div>{% endif %}
 
-  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
     {% if servers %}
-    {% for server in servers %}
-    <a href="/servers/{{ server.id }}" class="group rounded-2xl border border-border bg-zinc-950/70 p-5 transition hover:border-zinc-700 hover:bg-zinc-950">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background text-sm font-semibold">{{ server.name[:2] | upper }}</div>
+      {% for server in servers %}
+      <a href="/servers/{{ server.id }}" class="rounded-2xl border border-border bg-zinc-950/70 p-5 transition hover:border-zinc-700">
+        <div class="flex items-start justify-between gap-4">
           <div>
-            <h2 class="font-semibold group-hover:text-white">{{ server.name }}</h2>
-            <div class="text-sm text-zinc-500">{{ server.ip or 'No IP' }}</div>
+            <h3 class="font-semibold">{{ server.name }}</h3>
+            <p class="mt-1 text-sm text-zinc-500">{{ server.ip or 'No IP' }}</p>
           </div>
+          <span class="rounded-full border {{ 'border-emerald-900 bg-emerald-950 text-emerald-300' if server.is_reachable else 'border-red-900 bg-red-950 text-red-300' }} px-3 py-1 text-xs">{{ 'Reachable' if server.is_reachable else 'Unreachable' }}</span>
         </div>
-        {% if server.is_reachable %}
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-900 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">
-          <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Reachable
-        </span>
-        {% else %}
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-red-900 bg-red-950 px-3 py-1 text-xs text-red-300">
-          <span class="h-1.5 w-1.5 rounded-full bg-red-400"></span>Unreachable
-        </span>
-        {% endif %}
-      </div>
-      <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <div><span class="text-zinc-500">User:</span> {{ server.user or '—' }}</div>
-        <div><span class="text-zinc-500">Usable:</span> {{ 'Yes' if server.is_usable else 'No' }}</div>
-      </div>
-      {% if server.description %}
-      <p class="mt-3 text-sm text-zinc-500">{{ server.description }}</p>
-      {% endif %}
-    </a>
-    {% endfor %}
+        <div class="mt-4 text-sm text-zinc-400">{{ server.description or 'No description' }}</div>
+        <div class="mt-4 text-xs text-zinc-500">User: {{ server.user or '—' }} · Usable: {{ 'Yes' if server.is_usable else 'No' }}</div>
+      </a>
+      {% endfor %}
     {% else %}
-    <div class="col-span-full rounded-2xl border border-dashed border-border bg-muted p-10 text-center text-zinc-500">No servers found.</div>
+      <div class="col-span-full rounded-2xl border border-dashed border-border bg-muted p-8 text-center text-sm text-zinc-500">No servers found for this tenant.</div>
     {% endif %}
   </div>
 </div>
