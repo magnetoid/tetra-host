@@ -41,6 +41,9 @@ export async function fetchBackend<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
+    // The backend runs HTTPSRedirectMiddleware; over loopback there's no nginx to
+    // set this, so declare the (TLS-terminated) origin scheme or it 307s to https.
+    "X-Forwarded-Proto": "https",
   }
 
   if (options.token) {
@@ -86,6 +89,7 @@ export async function proxyBackendRequest(
   const url = buildUrl(path, Object.fromEntries(new URL(request.url).searchParams.entries()))
   const headers = new Headers()
   headers.set("Accept", "application/json")
+  headers.set("X-Forwarded-Proto", "https")
 
   const contentType = request.headers.get("content-type")
   if (contentType) {

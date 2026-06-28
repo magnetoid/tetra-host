@@ -33,6 +33,7 @@ export async function GET(request: Request, context: RouteContext) {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "text/event-stream",
+        "X-Forwarded-Proto": "https",
       },
       cache: "no-store",
       // Propagate browser disconnect upstream so the backend stops streaming.
