@@ -127,6 +127,19 @@ def test_client_apps_catalog_passes_search():
     assert result[0]["slug"] == "wordpress-with-mysql"
 
 
+def test_client_deploy_git_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/deploys/git"
+        assert json.loads(request.content) == {
+            "git_url": "https://github.com/x/y", "ref": "main", "name": "demo", "port": 8080,
+        }
+        return httpx.Response(200, json={"ok": True, "project": "demo", "builder": "nixpacks"})
+
+    result = make_client(handler).deploy_git("https://github.com/x/y", name="demo", port=8080)
+    assert result["project"] == "demo"
+
+
 def test_client_raises_on_error_with_detail():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"detail": "Zone is not assigned to this tenant."})

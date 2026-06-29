@@ -231,6 +231,22 @@ class AppActionResponse(BaseModel):
     domain: str = ""
 
 
+class GitDeployRequest(BaseModel):
+    git_url: str
+    ref: str = "main"
+    name: str
+    port: int = 3000
+
+
+class DeployResponse(BaseModel):
+    ok: bool = True
+    project: str
+    image: str = ""
+    builder: str = ""
+    commit: str = ""
+    domain: str = ""
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]

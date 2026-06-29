@@ -341,6 +341,15 @@ def cmd_apps_logs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_deploys_git(args: argparse.Namespace) -> int:
+    result = client_from_config().deploy_git(args.git_url, name=args.name, ref=args.ref, port=args.port)
+    builder = result.get("builder", "") if isinstance(result, dict) else ""
+    print(c("✓", "32") + f" deployed {result.get('project')}" + (f" ({builder})" if builder else ""))
+    if isinstance(result, dict) and result.get("domain"):
+        print(c(f"  https://{result['domain']}", "90"))
+    return 0
+
+
 # ── parser ────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -471,6 +480,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp = apps.add_parser("logs", help="show an app's logs")
     sp.add_argument("project")
     sp.set_defaults(func=cmd_apps_logs)
+
+    deploys = sub.add_parser("deploys", help="build & deploy git repos").add_subparsers(
+        dest="deploys_cmd", required=True
+    )
+    sp = deploys.add_parser("git", help="build and deploy a git repo (Dockerfile or Nixpacks)")
+    sp.add_argument("git_url")
+    sp.add_argument("--name", required=True)
+    sp.add_argument("--ref", default="main")
+    sp.add_argument("--port", type=int, default=3000)
+    sp.set_defaults(func=cmd_deploys_git)
 
     return p
 

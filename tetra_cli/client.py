@@ -208,3 +208,10 @@ class TetraClient:
 
     def apps_logs(self, project: str) -> Any:
         return self._request("GET", f"/apps/{project}/logs")
+
+    # ── Deploys (build & run git repos) ───────────────────────────────────
+    def deploy_git(self, git_url: str, name: str, ref: str = "main", port: int = 3000) -> Any:
+        return self._request(
+            "POST", "/deploys/git",
+            json_body={"git_url": git_url, "ref": ref, "name": name, "port": port},
+        )

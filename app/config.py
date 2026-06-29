@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     # Tetra Engine — independent Docker-native deployment (see docs/architecture/tetra-engine.md).
     docker_bin: str = "docker"
+    nixpacks_bin: str = "nixpacks"
     app_catalog_url: str = ""
     apps_base_domain: str = ""
     # Shared external Docker network the Caddy edge is attached to. Empty = edge disabled

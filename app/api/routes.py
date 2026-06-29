@@ -13,6 +13,8 @@ from app.api.contracts import (
     AppInstallRequest,
     AppTemplateSummary,
     AuthResponse,
+    DeployResponse,
+    GitDeployRequest,
     InstalledAppSummary,
     DashboardMetrics,
     DashboardResponse,
@@ -50,7 +52,9 @@ from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
+from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
+from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
 from app.modules.sites.service import SitesService
@@ -946,6 +950,28 @@ async def api_apps_logs(
     except (ProviderAPIError, DockerEngineError) as exc:
         raise _engine_exc_to_http(exc) from exc
     return {"logs": logs}
+
+
+@router.post("/deploys/git", response_model=DeployResponse)
+async def api_deploy_git(
+    payload: GitDeployRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DeployResponse:
+    service = DeploysService(request)
+    try:
+        result = await service.deploy_git_for_tenant(
+            session, current_admin.tenant_id,
+            git_url=payload.git_url, ref=payload.ref, name=payload.name, port=payload.port,
+        )
+    except (ProviderAPIError, DockerEngineError, BuildError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return DeployResponse(
+        project=str(result["project"]), image=str(result.get("image", "")),
+        builder=str(result.get("builder", "")), commit=str(result.get("commit", "")),
+        domain=str(result.get("domain", "")),
+    )
 
 
 @router.get("/admin", response_model=AdminResponse)
