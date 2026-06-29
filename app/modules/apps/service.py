@@ -20,6 +20,7 @@ from app.services.app_catalog import (
     render_service_vars,
 )
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
+from app.services.edge import apply_edge
 from app.services.tenant_resources import TenantResourceFilter
 
 
@@ -141,6 +142,8 @@ class AppsService:
             raise DockerEngineError(message=f"App '{project}' is already installed.", code=409)
 
         resolved_domain = domain or (f"{project}.{self.base_domain}" if self.base_domain else "")
+        # Attach Caddy routing labels + edge network (no-op unless the edge is configured).
+        compose = apply_edge(compose, project=project, port=template.port)
         env = render_service_vars(compose, domain=resolved_domain)
         await self.engine.deploy_stack(project, compose, env)
 

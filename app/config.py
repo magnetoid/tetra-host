@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     docker_bin: str = "docker"
     app_catalog_url: str = ""
     apps_base_domain: str = ""
+    # Shared external Docker network the Caddy edge is attached to. Empty = edge disabled
+    # (apps still deploy, just not routed). See app/services/edge.py.
+    edge_network: str = ""
 
     deploy_notify_webhook_url: str = ""
     deploy_notify_webhook_bearer_token: str = ""
