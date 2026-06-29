@@ -1,8 +1,7 @@
-import Link from "next/link"
-
 import { CreateRecordForm } from "@/components/dns/dns-record-controls"
 import { DnsImportExport } from "@/components/dns/dns-import-export"
 import { DnsRecordsTable } from "@/components/dns/dns-records-table"
+import { ZoneSelector } from "@/components/dns/zone-selector"
 import { ZoneTools } from "@/components/dns/zone-tools"
 import { ZoneTraffic } from "@/components/dns/zone-traffic"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -11,7 +10,6 @@ import { ProviderCard } from "@/components/ui/provider-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import type { DNSResponse, ZoneAnalytics, ZoneSettings } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 type DnsPageProps = {
   searchParams: Promise<{ refresh?: string; zone?: string }>
@@ -43,16 +41,14 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
   const selectedZoneName =
     dns.zones.find((zone) => zone.id === dns.selected_zone)?.name ?? dns.selected_zone
 
-  const refreshHref = params.zone
-    ? `/dns?refresh=1&zone=${params.zone}`
-    : "/dns?refresh=1"
+  const refreshHref = params.zone ? `/dns?refresh=1&zone=${params.zone}` : "/dns?refresh=1"
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Cloudflare DNS"
         title="DNS"
-        description="Zone and record visibility with tenant-scoped backend handling."
+        description="Zone and record management with tenant-scoped backend handling."
         action={<RefreshLink href={refreshHref} label="Refresh DNS" />}
       />
 
@@ -64,59 +60,36 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
         </section>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="rounded-2xl border border-border bg-muted p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Zones</h2>
-            <span className="text-sm text-zinc-500">{dns.zones.length} total</span>
-          </div>
-          <div className="mt-4 space-y-3">
-            {dns.zones.length > 0 ? (
-              dns.zones.map((zone) => (
-                <Link
-                  key={zone.id}
-                  href={`/dns?zone=${zone.id}`}
-                  className={cn(
-                    "block rounded-xl border px-4 py-4 transition",
-                    dns.selected_zone === zone.id
-                      ? "border-white bg-background text-white"
-                      : "border-border bg-background text-zinc-300 hover:border-zinc-600",
-                  )}
-                >
-                  <div className="font-medium">{zone.name}</div>
-                  <div className="mt-1 text-sm text-zinc-500">
-                    {[zone.status, zone.account_name].filter(Boolean).join(" · ")}
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <EmptyState title="No zones returned." />
-            )}
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4">
+        <ZoneSelector zones={dns.zones} selected={dns.selected_zone} />
+        <span className="text-sm text-zinc-500">{dns.zones.length} zones</span>
+      </div>
 
-        <div className="space-y-4">
-          {dns.selected_zone && analytics ? (
+      {dns.selected_zone ? (
+        <section className="space-y-4">
+          {analytics ? (
             <div className="rounded-2xl border border-border bg-muted p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Traffic</h2>
-                <span className="text-sm text-zinc-500">Last 7 days</span>
+                <span className="text-sm text-zinc-500">{selectedZoneName} · last 7 days</span>
               </div>
               <div className="mt-4">
                 <ZoneTraffic analytics={analytics} />
               </div>
             </div>
           ) : null}
-          {dns.selected_zone ? <CreateRecordForm zoneId={dns.selected_zone} /> : null}
+
+          <CreateRecordForm zoneId={dns.selected_zone} />
           <DnsRecordsTable zoneId={dns.selected_zone} records={dns.records} />
-          {dns.selected_zone ? (
+
+          <div className="grid gap-4 lg:grid-cols-2">
             <DnsImportExport zoneId={dns.selected_zone} zoneName={selectedZoneName} />
-          ) : null}
-          {dns.selected_zone && settings ? (
-            <ZoneTools zoneId={dns.selected_zone} settings={settings} />
-          ) : null}
-        </div>
-      </section>
+            {settings ? <ZoneTools zoneId={dns.selected_zone} settings={settings} /> : null}
+          </div>
+        </section>
+      ) : (
+        <EmptyState title="No zones returned." />
+      )}
     </div>
   )
 }
