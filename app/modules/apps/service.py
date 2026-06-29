@@ -13,7 +13,12 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.models import TenantResource
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
-from app.services.app_catalog import AppCatalog, AppTemplate, render_service_vars
+from app.services.app_catalog import (
+    AppCatalog,
+    AppTemplate,
+    normalize_compose_for_engine,
+    render_service_vars,
+)
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.tenant_resources import TenantResourceFilter
 
@@ -119,7 +124,7 @@ class AppsService:
         template = await self.catalog.get_template(slug)
         if template is None:
             raise DockerEngineError(message=f"Unknown app template '{slug}'.", code=404)
-        compose = template.decoded_compose()
+        compose = normalize_compose_for_engine(template.decoded_compose())
         if not compose:
             raise DockerEngineError(message="Template has no compose definition.", code=422)
 

@@ -1,6 +1,31 @@
 import base64
 
-from app.services.app_catalog import normalize_template, render_service_vars
+import yaml
+
+from app.services.app_catalog import (
+    normalize_compose_for_engine,
+    normalize_template,
+    render_service_vars,
+)
+
+
+def test_normalize_compose_declares_implicit_named_volumes():
+    compose = """
+services:
+  wordpress:
+    image: wordpress:latest
+    volumes:
+      - 'wordpress-files:/var/www/html'
+      - '/host/path:/bind'
+  mariadb:
+    image: mariadb:11
+    volumes:
+      - 'mariadb-data:/var/lib/mysql'
+"""
+    doc = yaml.safe_load(normalize_compose_for_engine(compose))
+    assert "wordpress-files" in doc["volumes"]
+    assert "mariadb-data" in doc["volumes"]
+    assert "/host/path" not in doc["volumes"]  # bind mounts are not declared
 
 
 def test_normalize_and_decode_compose():

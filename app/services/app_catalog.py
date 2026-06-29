@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+import yaml
 from pydantic import BaseModel
 
 from app.cache import TTLCache
@@ -85,6 +86,53 @@ def render_service_vars(compose_yaml: str, *, domain: str = "") -> dict[str, str
         if token not in env:
             env[token] = _value_for_token(token, domain=domain)
     return env
+
+
+def _referenced_volume_name(entry: Any) -> str | None:
+    """Return the named-volume referenced by a service `volumes:` entry, or None for binds."""
+    if isinstance(entry, dict):  # long syntax
+        if entry.get("type") == "volume" and entry.get("source"):
+            return str(entry["source"])
+        return None
+    if isinstance(entry, str):  # short syntax "name:/path[:mode]"
+        source = entry.split(":", 1)[0].strip()
+        if source and not source.startswith(("/", ".", "~", "$")):
+            return source
+    return None
+
+
+def normalize_compose_for_engine(compose_yaml: str) -> str:
+    """Make a Coolify template runnable by plain `docker compose`.
+
+    Coolify auto-declares named volumes that services reference; plain compose requires
+    them in the top-level `volumes:` map or it rejects the project. Declare any missing ones.
+    """
+    try:
+        doc = yaml.safe_load(compose_yaml)
+    except yaml.YAMLError:
+        return compose_yaml
+    if not isinstance(doc, dict):
+        return compose_yaml
+
+    services = doc.get("services") or {}
+    referenced: set[str] = set()
+    for service in services.values():
+        if not isinstance(service, dict):
+            continue
+        for entry in service.get("volumes") or []:
+            name = _referenced_volume_name(entry)
+            if name:
+                referenced.add(name)
+    if not referenced:
+        return compose_yaml
+
+    declared = doc.get("volumes")
+    if not isinstance(declared, dict):
+        declared = {}
+    for name in referenced:
+        declared.setdefault(name, {})
+    doc["volumes"] = declared
+    return yaml.safe_dump(doc, sort_keys=False, default_flow_style=False)
 
 
 def _value_for_token(token: str, *, domain: str) -> str:
