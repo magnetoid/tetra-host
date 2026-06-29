@@ -20,9 +20,21 @@ from app.services.edge import apply_edge
 
 
 def compose_for_image(image: str, port: int) -> str:
-    """Minimal one-service compose wrapping a built image; edge labels are applied separately."""
+    """Minimal one-service compose wrapping a built image; edge labels are applied separately.
+
+    PORT is injected so Nixpacks-built apps (which listen on $PORT) bind the routed port.
+    """
     return yaml.safe_dump(
-        {"services": {"app": {"image": image, "restart": "unless-stopped", "expose": [str(port)]}}},
+        {
+            "services": {
+                "app": {
+                    "image": image,
+                    "restart": "unless-stopped",
+                    "environment": [f"PORT={port}"],
+                    "expose": [str(port)],
+                }
+            }
+        },
         sort_keys=False,
     )
 
@@ -56,6 +68,8 @@ class DeploysService:
         project = sanitize_project_name(name)
 
         build = await self.builder.build_from_git(git_url, ref, project=project)
+        # The image's own EXPOSE wins (Vercel-style "we detected the port"); else the request.
+        port = build.port or port
 
         compose = compose_for_image(build.image, port)
         compose = apply_edge(compose, project=project, port=str(port))
@@ -87,5 +101,6 @@ class DeploysService:
             "image": build.image,
             "builder": build.builder,
             "commit": build.commit,
+            "port": port,
             "domain": f"{project}.{self.base_domain}" if self.base_domain else "",
         }

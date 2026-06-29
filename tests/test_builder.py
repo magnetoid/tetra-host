@@ -41,6 +41,15 @@ def test_build_from_git_tags_with_commit_sha():
     assert any(a[:2] == ["docker", "build"] for a in rec)
 
 
+def test_detect_port_reads_first_expose():
+    async def runner(argv, cwd):
+        if "inspect" in argv:
+            return (0, '{"3000/tcp":{}}', "")
+        return (0, "", "")
+
+    assert asyncio.run(Builder(runner=runner).detect_port("img:1")) == 3000
+
+
 def test_build_raises_on_nonzero_exit():
     async def runner(argv, cwd):
         if argv[:2] == ["test", "-f"]:

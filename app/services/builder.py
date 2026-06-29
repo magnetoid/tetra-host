@@ -8,6 +8,7 @@ repo, generates a build, and produces a local image via the Docker daemon. Comma
 """
 
 import asyncio
+import json
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -32,6 +33,7 @@ class BuildResult:
     image: str
     builder: str  # "dockerfile" | "nixpacks"
     commit: str = ""
+    port: int = 0  # detected from the image's EXPOSE, 0 if none
 
 
 async def _default_runner(argv: list[str], cwd: str | None) -> tuple[int, str, str]:
@@ -82,13 +84,30 @@ class Builder:
         sha = out.strip()
         return sha if _SHA.match(sha) else ""
 
+    async def detect_port(self, image: str) -> int:
+        """Read the first EXPOSE port from a built image (0 if none declared)."""
+        out = await self._exec([self.docker, "inspect", "--format", "{{json .Config.ExposedPorts}}", image])
+        try:
+            ports = json.loads(out.strip() or "null")
+        except json.JSONDecodeError:
+            return 0
+        if not isinstance(ports, dict):
+            return 0
+        for key in ports:
+            number = str(key).split("/")[0]
+            if number.isdigit():
+                return int(number)
+        return 0
+
     async def build(self, src_dir: str, image: str) -> BuildResult:
         """Build ``src_dir`` into ``image`` — Dockerfile if present, else Nixpacks."""
         if await self._has_dockerfile(src_dir):
             await self._exec([self.docker, "build", "-t", image, src_dir])
-            return BuildResult(image=image, builder="dockerfile")
-        await self._exec([self.nixpacks, "build", src_dir, "--name", image])
-        return BuildResult(image=image, builder="nixpacks")
+            builder = "dockerfile"
+        else:
+            await self._exec([self.nixpacks, "build", src_dir, "--name", image])
+            builder = "nixpacks"
+        return BuildResult(image=image, builder=builder, port=await self.detect_port(image))
 
     async def build_from_git(self, git_url: str, ref: str, *, project: str) -> BuildResult:
         """Clone + build a git repo into an immutable ``tetra-<project>:<sha>`` image."""

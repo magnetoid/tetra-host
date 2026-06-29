@@ -244,6 +244,7 @@ class DeployResponse(BaseModel):
     image: str = ""
     builder: str = ""
     commit: str = ""
+    port: int = 0
     domain: str = ""
 
 

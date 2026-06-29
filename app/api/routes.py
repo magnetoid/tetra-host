@@ -970,7 +970,7 @@ async def api_deploy_git(
     return DeployResponse(
         project=str(result["project"]), image=str(result.get("image", "")),
         builder=str(result.get("builder", "")), commit=str(result.get("commit", "")),
-        domain=str(result.get("domain", "")),
+        port=int(result.get("port", 0)), domain=str(result.get("domain", "")),
     )
 
 
