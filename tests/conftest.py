@@ -29,15 +29,22 @@ def extract_csrf_token(html: str) -> str:
     return match.group(1)
 
 
-@pytest.fixture
-def client() -> TestClient:
+@pytest.fixture(autouse=True)
+def _isolate_test_db():
+    """Give every test (not only those using ``client``) a fresh DB file, so direct-DB
+    tests (``session_scope``) can't leak rows — e.g. a seeded plan — into later tests/runs."""
     Path("data").mkdir(exist_ok=True)
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
-    with TestClient(app) as test_client:
-        yield test_client
+    yield
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
+
+
+@pytest.fixture
+def client() -> TestClient:
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture
