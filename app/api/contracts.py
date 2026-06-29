@@ -238,14 +238,26 @@ class GitDeployRequest(BaseModel):
     port: int = 3000
 
 
-class DeployResponse(BaseModel):
+class DeployStartResponse(BaseModel):
     ok: bool = True
+    deployment_id: str
+    status: str = "queued"
+
+
+class DeploymentStatus(BaseModel):
+    id: str
     project: str
-    image: str = ""
+    status: str
+    git_url: str = ""
+    ref: str = "main"
     builder: str = ""
+    image: str = ""
     commit: str = ""
     port: int = 0
     domain: str = ""
+    log: str = ""
+    error: str = ""
+    created_at: str = ""
 
 
 class AdminResponse(BaseModel):

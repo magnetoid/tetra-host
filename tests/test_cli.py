@@ -134,10 +134,10 @@ def test_client_deploy_git_posts_body():
         assert json.loads(request.content) == {
             "git_url": "https://github.com/x/y", "ref": "main", "name": "demo", "port": 8080,
         }
-        return httpx.Response(200, json={"ok": True, "project": "demo", "builder": "nixpacks"})
+        return httpx.Response(200, json={"ok": True, "deployment_id": "dep-1", "status": "queued"})
 
     result = make_client(handler).deploy_git("https://github.com/x/y", name="demo", port=8080)
-    assert result["project"] == "demo"
+    assert result["deployment_id"] == "dep-1"
 
 
 def test_client_raises_on_error_with_detail():

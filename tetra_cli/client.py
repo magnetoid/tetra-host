@@ -215,3 +215,6 @@ class TetraClient:
             "POST", "/deploys/git",
             json_body={"git_url": git_url, "ref": ref, "name": name, "port": port},
         )
+
+    def deploy_status(self, deployment_id: str) -> Any:
+        return self._request("GET", f"/deploys/{deployment_id}")

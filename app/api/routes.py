@@ -13,7 +13,8 @@ from app.api.contracts import (
     AppInstallRequest,
     AppTemplateSummary,
     AuthResponse,
-    DeployResponse,
+    DeploymentStatus,
+    DeployStartResponse,
     GitDeployRequest,
     InstalledAppSummary,
     DashboardMetrics,
@@ -952,26 +953,57 @@ async def api_apps_logs(
     return {"logs": logs}
 
 
-@router.post("/deploys/git", response_model=DeployResponse)
+def _deployment_status(deployment) -> DeploymentStatus:
+    return DeploymentStatus(
+        id=deployment.id, project=deployment.project, status=deployment.status,
+        git_url=deployment.git_url, ref=deployment.ref, builder=deployment.builder,
+        image=deployment.image, commit=deployment.commit, port=deployment.port,
+        domain=deployment.domain, log=deployment.log, error=deployment.error,
+        created_at=deployment.created_at.isoformat() if deployment.created_at else "",
+    )
+
+
+@router.post("/deploys/git", response_model=DeployStartResponse)
 async def api_deploy_git(
     payload: GitDeployRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> DeployResponse:
+) -> DeployStartResponse:
     service = DeploysService(request)
     try:
-        result = await service.deploy_git_for_tenant(
-            session, current_admin.tenant_id,
+        deployment_id = await service.start_deploy_for_tenant(
+            current_admin.tenant_id,
             git_url=payload.git_url, ref=payload.ref, name=payload.name, port=payload.port,
         )
     except (ProviderAPIError, DockerEngineError, BuildError) as exc:
         raise _engine_exc_to_http(exc) from exc
-    return DeployResponse(
-        project=str(result["project"]), image=str(result.get("image", "")),
-        builder=str(result.get("builder", "")), commit=str(result.get("commit", "")),
-        port=int(result.get("port", 0)), domain=str(result.get("domain", "")),
-    )
+    return DeployStartResponse(deployment_id=deployment_id)
+
+
+@router.get("/deploys", response_model=list[DeploymentStatus])
+async def api_list_deploys(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[DeploymentStatus]:
+    service = DeploysService(request)
+    deployments = await service.list_deployments_for_tenant(session, current_admin.tenant_id)
+    return [_deployment_status(deployment) for deployment in deployments]
+
+
+@router.get("/deploys/{deployment_id}", response_model=DeploymentStatus)
+async def api_deploy_status(
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DeploymentStatus:
+    service = DeploysService(request)
+    deployment = await service.get_deployment_for_tenant(session, current_admin.tenant_id, deployment_id)
+    if deployment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
+    return _deployment_status(deployment)
 
 
 @router.get("/admin", response_model=AdminResponse)

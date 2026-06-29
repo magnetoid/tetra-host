@@ -342,12 +342,29 @@ def cmd_apps_logs(args: argparse.Namespace) -> int:
 
 
 def cmd_deploys_git(args: argparse.Namespace) -> int:
-    result = client_from_config().deploy_git(args.git_url, name=args.name, ref=args.ref, port=args.port)
-    builder = result.get("builder", "") if isinstance(result, dict) else ""
-    print(c("✓", "32") + f" deployed {result.get('project')}" + (f" ({builder})" if builder else ""))
-    if isinstance(result, dict) and result.get("domain"):
-        print(c(f"  https://{result['domain']}", "90"))
-    return 0
+    import time
+
+    client = client_from_config()
+    start = client.deploy_git(args.git_url, name=args.name, ref=args.ref, port=args.port)
+    deployment_id = start.get("deployment_id", "") if isinstance(start, dict) else ""
+    if not deployment_id:
+        return die("deploy did not start")
+    print(c(f"-- building {args.name} (deployment {deployment_id[:8]}) --", "90"))
+    seen = 0
+    while True:
+        status = client.deploy_status(deployment_id)
+        lines = (status.get("log", "") or "").splitlines()
+        for line in lines[seen:]:
+            print(line)
+        seen = len(lines)
+        state = status.get("status", "")
+        if state == "ready":
+            domain = status.get("domain", "")
+            print(c("✓ deployed", "1;32") + (c(f"  https://{domain}", "90") if domain else ""))
+            return 0
+        if state == "error":
+            return die(status.get("error", "build failed"))
+        time.sleep(2)
 
 
 # ── parser ────────────────────────────────────────────────────────────────
