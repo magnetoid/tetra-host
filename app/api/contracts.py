@@ -200,6 +200,37 @@ class DnsImportRequest(BaseModel):
     bind: str
 
 
+class AppTemplateSummary(BaseModel):
+    slug: str
+    name: str
+    description: str = ""
+    category: str = ""
+    tags: list[str] = []
+    logo: str = ""
+    port: str = ""
+
+
+class InstalledAppSummary(BaseModel):
+    project: str
+    name: str
+    template: str = ""
+    status: str = "unknown"
+    domain: str = ""
+
+
+class AppInstallRequest(BaseModel):
+    slug: str
+    name: str | None = None
+    domain: str | None = None
+
+
+class AppActionResponse(BaseModel):
+    ok: bool = True
+    message: str
+    project: str = ""
+    domain: str = ""
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]

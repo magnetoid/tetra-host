@@ -14,10 +14,12 @@ RESOURCE_TYPE_DNS_ZONE = "dns_zone"
 RESOURCE_TYPE_DNS_RECORD = "dns_record"
 RESOURCE_TYPE_DATABASE = "database"
 RESOURCE_TYPE_SERVER = "server"
+RESOURCE_TYPE_APP = "app"
 
 PROVIDER_COOLIFY = "coolify"
 PROVIDER_MAILCOW = "mailcow"
 PROVIDER_CLOUDFLARE = "cloudflare"
+PROVIDER_DOCKER = "docker"
 
 
 def utc_now() -> datetime:

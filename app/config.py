@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
 
+    # Tetra Engine — independent Docker-native deployment (see docs/architecture/tetra-engine.md).
+    docker_bin: str = "docker"
+    app_catalog_url: str = ""
+    apps_base_domain: str = ""
+
     deploy_notify_webhook_url: str = ""
     deploy_notify_webhook_bearer_token: str = ""
     deploy_notify_default_channel: Literal["none", "webhook", "sms"] = "none"

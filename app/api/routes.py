@@ -9,7 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.contracts import (
     AdminResponse,
     AdminSummary,
+    AppActionResponse,
+    AppInstallRequest,
+    AppTemplateSummary,
     AuthResponse,
+    InstalledAppSummary,
     DashboardMetrics,
     DashboardResponse,
     DeploymentDetail,
@@ -44,8 +48,10 @@ from app.api.contracts import (
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
+from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.dns.service import DnsService
+from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
 from app.modules.sites.service import SitesService
 from app.services.cloudflare import count_bind_records
@@ -819,6 +825,127 @@ async def api_import_dns_records(
     recs_added = ((result.get("result") or {}).get("recs_added")) if isinstance(result, dict) else None
     message = f"Imported {recs_added} records." if recs_added is not None else "DNS records imported."
     return SiteActionResponse(message=message)
+
+
+def _engine_exc_to_http(exc: Exception) -> HTTPException:
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None) or status.HTTP_502_BAD_GATEWAY
+    return HTTPException(status_code=int(code), detail=str(exc))
+
+
+@router.get("/apps/catalog", response_model=list[AppTemplateSummary])
+async def api_apps_catalog(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[AppTemplateSummary]:
+    service = AppsService(request)
+    try:
+        templates = await service.list_catalog(
+            search=request.query_params.get("search"),
+            category=request.query_params.get("category"),
+        )
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return [
+        AppTemplateSummary(
+            slug=t.slug, name=t.name, description=t.description,
+            category=t.category, tags=t.tags, logo=t.logo, port=t.port,
+        )
+        for t in templates
+    ]
+
+
+@router.get("/apps", response_model=list[InstalledAppSummary])
+async def api_apps_installed(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[InstalledAppSummary]:
+    service = AppsService(request)
+    apps = await service.list_installed_for_tenant(session, current_admin.tenant_id)
+    return [InstalledAppSummary(**app.model_dump()) for app in apps]
+
+
+@router.post("/apps/install", response_model=AppActionResponse)
+async def api_apps_install(
+    payload: AppInstallRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppActionResponse:
+    service = AppsService(request)
+    try:
+        result = await service.install_for_tenant(
+            session, current_admin.tenant_id, slug=payload.slug, name=payload.name, domain=payload.domain
+        )
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return AppActionResponse(
+        message="App installed.",
+        project=str(result.get("project", "")),
+        domain=str(result.get("domain", "")),
+    )
+
+
+@router.post("/apps/{project}/start", response_model=AppActionResponse)
+async def api_apps_start(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppActionResponse:
+    service = AppsService(request)
+    try:
+        await service.control_for_tenant(session, current_admin.tenant_id, project, "start")
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return AppActionResponse(message="App started.", project=project)
+
+
+@router.post("/apps/{project}/stop", response_model=AppActionResponse)
+async def api_apps_stop(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppActionResponse:
+    service = AppsService(request)
+    try:
+        await service.control_for_tenant(session, current_admin.tenant_id, project, "stop")
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return AppActionResponse(message="App stopped.", project=project)
+
+
+@router.delete("/apps/{project}", response_model=AppActionResponse)
+async def api_apps_remove(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppActionResponse:
+    service = AppsService(request)
+    volumes = request.query_params.get("volumes") in {"1", "true", "yes"}
+    try:
+        await service.remove_for_tenant(session, current_admin.tenant_id, project, volumes=volumes)
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return AppActionResponse(message="App removed.", project=project)
+
+
+@router.get("/apps/{project}/logs")
+async def api_apps_logs(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, str]:
+    service = AppsService(request)
+    try:
+        logs = await service.logs_for_tenant(session, current_admin.tenant_id, project)
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return {"logs": logs}
 
 
 @router.get("/admin", response_model=AdminResponse)
