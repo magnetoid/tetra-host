@@ -13,7 +13,7 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-screen">
-      <aside className="sidebar-creative relative z-10 hidden w-72 border-r border-border bg-muted/40 p-6 lg:block">
+      <aside className="hidden w-72 border-r border-border bg-muted/40 p-6 lg:block">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-sm font-bold">
             CI
