@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
+from app.models.tenant import TENANT_ACTIVE, TENANT_SUSPENDED
 from app.modules.auth.service import AuthService
 from app.routes import require_admin
 from app.routes.deps import verify_csrf_token
@@ -101,7 +102,7 @@ async def create_tenant(
     if existing is not None:
         return _redirect("/admin?error=Tenant+slug+already+exists")
 
-    tenant = Tenant(name=name.strip(), slug=normalized_slug, is_active=True)
+    tenant = Tenant(name=name.strip(), slug=normalized_slug, status=TENANT_ACTIVE)
     session.add(tenant)
     await session.flush()
     return _redirect("/admin?success=Tenant+created")
@@ -119,7 +120,7 @@ async def activate_tenant(
     tenant = await _load_tenant_by_slug(session, tenant_slug)
     if tenant is None:
         return _redirect("/admin?error=Tenant+not+found")
-    tenant.is_active = True
+    tenant.status = TENANT_ACTIVE
     await session.flush()
     return _redirect("/admin?success=Tenant+activated")
 
@@ -136,7 +137,7 @@ async def deactivate_tenant(
     tenant = await _load_tenant_by_slug(session, tenant_slug)
     if tenant is None:
         return _redirect("/admin?error=Tenant+not+found")
-    tenant.is_active = False
+    tenant.status = TENANT_SUSPENDED
     await session.flush()
     return _redirect("/admin?success=Tenant+deactivated")
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import Settings
 from app.models import AdminUser, Tenant
+from app.models.tenant import TENANT_ACTIVE
 
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
@@ -54,7 +55,7 @@ class AuthService:
         if tenant is not None:
             return tenant
 
-        tenant = Tenant(name="Default Tenant", slug="default", is_active=True)
+        tenant = Tenant(name="Default Tenant", slug="default", status=TENANT_ACTIVE, is_platform_scope=True)
         self.session.add(tenant)
         await self.session.flush()
         return tenant

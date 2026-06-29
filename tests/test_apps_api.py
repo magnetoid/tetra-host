@@ -12,7 +12,7 @@ from app.services.app_catalog import AppTemplate
 async def _seed_apps_tenant() -> None:
     async with session_scope() as session:
         auth_service = AuthService(session)
-        tenant = Tenant(name="Apps Tenant", slug="appst", is_active=True)
+        tenant = Tenant(name="Apps Tenant", slug="appst", status="active")
         session.add(tenant)
         await session.flush()
         session.add(

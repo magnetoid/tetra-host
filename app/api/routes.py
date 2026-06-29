@@ -51,6 +51,7 @@ from app.api.contracts import (
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
+from app.models.tenant import TENANT_ACTIVE, TENANT_SUSPENDED
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.deploys.service import DeploysService
@@ -1053,7 +1054,7 @@ async def api_create_tenant(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant slug already exists.")
 
-    tenant = Tenant(name=payload.name.strip(), slug=normalized_slug, is_active=True)
+    tenant = Tenant(name=payload.name.strip(), slug=normalized_slug, status=TENANT_ACTIVE)
     session.add(tenant)
     await session.flush()
     return _tenant_summary(tenant)
@@ -1078,7 +1079,7 @@ async def api_activate_tenant(
     tenant = await auth_service.get_tenant_by_slug(tenant_slug)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
-    tenant.is_active = True
+    tenant.status = TENANT_ACTIVE
     await session.flush()
     return _tenant_summary(tenant)
 
@@ -1093,7 +1094,7 @@ async def api_deactivate_tenant(
     tenant = await auth_service.get_tenant_by_slug(tenant_slug)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
-    tenant.is_active = False
+    tenant.status = TENANT_SUSPENDED
     await session.flush()
     return _tenant_summary(tenant)
 

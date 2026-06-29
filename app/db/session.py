@@ -60,8 +60,10 @@ def _upgrade_existing_schema(connection) -> None:
         return
 
     tenant_columns = {column["name"] for column in inspector.get_columns("tenants")}
-    if "is_active" not in tenant_columns:
-        connection.execute(text("ALTER TABLE tenants ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+    if "status" not in tenant_columns:
+        connection.execute(text("ALTER TABLE tenants ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'"))
+    if "is_platform_scope" not in tenant_columns:
+        connection.execute(text("ALTER TABLE tenants ADD COLUMN is_platform_scope BOOLEAN NOT NULL DEFAULT 0"))
 
     admin_columns = {column["name"] for column in inspector.get_columns("admin_users")}
     added_tenant_id = "tenant_id" not in admin_columns
@@ -86,15 +88,16 @@ def _upgrade_existing_schema(connection) -> None:
         connection.execute(
             text(
                 """
-                INSERT INTO tenants (id, name, slug, is_active, created_at, updated_at)
-                VALUES (:id, :name, :slug, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO tenants (id, name, slug, status, is_platform_scope, created_at, updated_at)
+                VALUES (:id, :name, :slug, :status, :is_platform_scope, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """
             ),
             {
                 "id": tenant_id,
                 "name": "Cloud Industry",
                 "slug": "cloud-industry",
-                "is_active": True,
+                "status": "active",
+                "is_platform_scope": True,
             },
         )
     else:

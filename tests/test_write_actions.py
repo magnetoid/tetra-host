@@ -14,7 +14,7 @@ from app.modules.auth.service import AuthService
 async def _seed_writer_tenant() -> None:
     async with session_scope() as session:
         auth_service = AuthService(session)
-        tenant = Tenant(name="Writer Tenant", slug="writer", is_active=True)
+        tenant = Tenant(name="Writer Tenant", slug="writer", status="active")
         session.add(tenant)
         await session.flush()
         session.add(

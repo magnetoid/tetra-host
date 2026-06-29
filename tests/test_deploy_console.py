@@ -127,7 +127,7 @@ def test_stream_reports_missing_deployment():
 async def _seed_console_tenant() -> None:
     async with session_scope() as session:
         auth_service = AuthService(session)
-        tenant = Tenant(name="Console Tenant", slug="console", is_active=True)
+        tenant = Tenant(name="Console Tenant", slug="console", status="active")
         session.add(tenant)
         await session.flush()
         session.add(
