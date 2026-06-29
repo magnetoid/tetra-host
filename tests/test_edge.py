@@ -28,8 +28,8 @@ def test_apply_edge_labels_only_the_public_service(monkeypatch):
     doc = yaml.safe_load(apply_edge(WP_COMPOSE, project="blog", port="80"))
 
     wp = doc["services"]["wordpress"]
-    assert wp["labels"]["caddy"] == "http://blog.apps.example.com"
-    assert wp["labels"]["caddy.reverse_proxy"] == "{{upstreams 80}}"
+    assert wp["labels"]["tetra"] == "http://blog.apps.example.com"
+    assert wp["labels"]["tetra.reverse_proxy"] == "{{upstreams 80}}"
     net = wp["networks"]
     assert "tetra-edge" in (net if isinstance(net, list) else net.keys())
     assert doc["networks"]["tetra-edge"] == {"external": True}

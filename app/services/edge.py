@@ -88,10 +88,11 @@ def apply_edge(compose_yaml: str, *, project: str, port: str) -> str:
     upstream = f"{{{{upstreams {port}}}}}" if port else "{{upstreams}}"
 
     labels = _labels_to_dict(svc.get("labels"))
-    # http:// scheme => Caddy serves this site HTTP-only (no ACME); nginx terminates the
-    # wildcard TLS upstream and forwards plain HTTP to Caddy on the box's public edge.
-    labels["caddy"] = f"http://{host}"
-    labels["caddy.reverse_proxy"] = upstream
+    # We run caddy-docker-proxy with a CUSTOM label prefix ("tetra") so it ONLY ever reads
+    # our labels — never the `caddy.*` labels other tenants' containers carry on this shared
+    # box. http:// => Caddy serves HTTP-only (no ACME); nginx terminates the wildcard TLS.
+    labels["tetra"] = f"http://{host}"
+    labels["tetra.reverse_proxy"] = upstream
     svc["labels"] = labels
 
     svc["networks"] = _networks_with(svc.get("networks"), network)
