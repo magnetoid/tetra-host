@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { LoginForm } from "@/components/auth/login-form"
-import { getSessionToken } from "@/lib/session"
+import { getConsoleSession } from "@/lib/auth"
 import { safeNextPath } from "@/lib/utils"
 
 type LoginPageProps = {
@@ -10,11 +10,13 @@ type LoginPageProps = {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const token = await getSessionToken()
+  // Validate the session (not just cookie presence) — otherwise a stale/expired cookie
+  // bounces login -> dashboard -> login forever ("too many redirects").
+  const session = await getConsoleSession()
   const params = await searchParams
   const nextPath = safeNextPath(params.next)
 
-  if (token) {
+  if (session) {
     redirect(nextPath)
   }
 
