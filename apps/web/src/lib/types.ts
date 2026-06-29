@@ -131,6 +131,24 @@ export interface ZoneAnalytics {
   totals: ZoneAnalyticsTotals
 }
 
+export interface AppTemplate {
+  slug: string
+  name: string
+  description: string
+  category: string
+  tags: string[]
+  logo: string
+  port: string
+}
+
+export interface InstalledApp {
+  project: string
+  name: string
+  template: string
+  status: string
+  domain: string
+}
+
 export interface AdminRecord {
   id: string
   email: string

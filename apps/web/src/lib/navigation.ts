@@ -6,6 +6,7 @@ export type NavItem = {
 export const consoleNavItems: NavItem[] = [
   { href: "/dashboard", label: "Overview" },
   { href: "/sites", label: "Sites" },
+  { href: "/apps", label: "Apps" },
   { href: "/mail", label: "Mail" },
   { href: "/dns", label: "DNS" },
   { href: "/admin", label: "Admin" },

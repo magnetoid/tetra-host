@@ -176,3 +176,35 @@ class TetraClient:
 
     def env_rm(self, site_id: str, env_uuid: str) -> Any:
         return self._request("DELETE", f"/sites/{site_id}/envs/{env_uuid}")
+
+    # ── Apps (Tetra Engine — pre-defined Docker containers) ───────────────
+    def apps_catalog(self, search: str | None = None, category: str | None = None) -> Any:
+        params: dict[str, str] = {}
+        if search:
+            params["search"] = search
+        if category:
+            params["category"] = category
+        return self._request("GET", "/apps/catalog", params=params or None)
+
+    def apps(self) -> Any:
+        return self._request("GET", "/apps")
+
+    def apps_install(self, slug: str, name: str | None = None, domain: str | None = None) -> Any:
+        body: dict[str, str] = {"slug": slug}
+        if name:
+            body["name"] = name
+        if domain:
+            body["domain"] = domain
+        return self._request("POST", "/apps/install", json_body=body)
+
+    def apps_start(self, project: str) -> Any:
+        return self._request("POST", f"/apps/{project}/start")
+
+    def apps_stop(self, project: str) -> Any:
+        return self._request("POST", f"/apps/{project}/stop")
+
+    def apps_rm(self, project: str, volumes: bool = False) -> Any:
+        return self._request("DELETE", f"/apps/{project}", params={"volumes": "1"} if volumes else None)
+
+    def apps_logs(self, project: str) -> Any:
+        return self._request("GET", f"/apps/{project}/logs")

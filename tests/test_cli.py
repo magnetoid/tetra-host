@@ -106,6 +106,27 @@ def test_client_dns_import_posts_bind_body():
     assert result["message"] == "Imported 1 records."
 
 
+def test_client_apps_install_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/apps/install"
+        assert json.loads(request.content) == {"slug": "wordpress-with-mariadb", "name": "blog"}
+        return httpx.Response(200, json={"message": "App installed.", "project": "blog", "domain": ""})
+
+    result = make_client(handler).apps_install("wordpress-with-mariadb", name="blog")
+    assert result["project"] == "blog"
+
+
+def test_client_apps_catalog_passes_search():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/apps/catalog"
+        assert request.url.params.get("search") == "wordpress"
+        return httpx.Response(200, json=[{"slug": "wordpress-with-mysql", "name": "WordPress"}])
+
+    result = make_client(handler).apps_catalog(search="wordpress")
+    assert result[0]["slug"] == "wordpress-with-mysql"
+
+
 def test_client_raises_on_error_with_detail():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"detail": "Zone is not assigned to this tenant."})
@@ -149,6 +170,10 @@ def test_parser_dispatches_subcommands():
     assert args.zone == "z1" and args.file == "zone.txt"
     args = parser.parse_args(["cf", "analytics", "z1", "--days", "14"])
     assert args.zone == "z1" and args.days == 14
+    args = parser.parse_args(["apps", "install", "wordpress-with-mariadb", "--name", "blog"])
+    assert args.slug == "wordpress-with-mariadb" and args.name == "blog"
+    args = parser.parse_args(["apps", "catalog", "--search", "wp"])
+    assert args.search == "wp"
 
 
 def test_main_sites_renders_table(monkeypatch, capsys):

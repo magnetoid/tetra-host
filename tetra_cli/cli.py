@@ -286,6 +286,61 @@ def cmd_env_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_apps_catalog(args: argparse.Namespace) -> int:
+    data = client_from_config().apps_catalog(search=args.search, category=args.category)
+    rows = [
+        [t["slug"], t.get("name", ""), t.get("category", ""), ", ".join(t.get("tags", [])[:3])]
+        for t in data
+    ]
+    print_table(["SLUG", "NAME", "CATEGORY", "TAGS"], rows)
+    print(c(f"  {len(data)} apps", "90"))
+    return 0
+
+
+def cmd_apps_list(args: argparse.Namespace) -> int:
+    data = client_from_config().apps()
+    rows = [
+        [a["project"], a.get("name", ""), status_color(a.get("status", "unknown")), a.get("domain", "")]
+        for a in data
+    ]
+    print_table(["PROJECT", "NAME", "STATUS", "DOMAIN"], rows)
+    return 0
+
+
+def cmd_apps_install(args: argparse.Namespace) -> int:
+    result = client_from_config().apps_install(args.slug, name=args.name, domain=args.domain)
+    project = result.get("project", "") if isinstance(result, dict) else ""
+    print(c("✓", "32") + f" {result.get('message', 'installed') if isinstance(result, dict) else 'installed'}"
+          + (f"  project={project}" if project else ""))
+    if isinstance(result, dict) and result.get("domain"):
+        print(c(f"  {result['domain']}", "90"))
+    return 0
+
+
+def cmd_apps_start(args: argparse.Namespace) -> int:
+    client_from_config().apps_start(args.project)
+    print(c("✓", "32") + f" started {args.project}")
+    return 0
+
+
+def cmd_apps_stop(args: argparse.Namespace) -> int:
+    client_from_config().apps_stop(args.project)
+    print(c("✓", "32") + f" stopped {args.project}")
+    return 0
+
+
+def cmd_apps_rm(args: argparse.Namespace) -> int:
+    client_from_config().apps_rm(args.project, volumes=args.volumes)
+    print(c("✓", "32") + f" removed {args.project}")
+    return 0
+
+
+def cmd_apps_logs(args: argparse.Namespace) -> int:
+    result = client_from_config().apps_logs(args.project)
+    print(result.get("logs", "") if isinstance(result, dict) else result)
+    return 0
+
+
 # ── parser ────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -389,6 +444,33 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("zone")
     sp.add_argument("--days", type=int, default=7)
     sp.set_defaults(func=cmd_cf_analytics)
+
+    apps = sub.add_parser("apps", help="install & control pre-defined Docker apps").add_subparsers(
+        dest="apps_cmd", required=True
+    )
+    sp = apps.add_parser("catalog", help="browse the app marketplace")
+    sp.add_argument("--search")
+    sp.add_argument("--category")
+    sp.set_defaults(func=cmd_apps_catalog)
+    apps.add_parser("list", help="list installed apps").set_defaults(func=cmd_apps_list)
+    sp = apps.add_parser("install", help="install an app (e.g. wordpress-with-mariadb)")
+    sp.add_argument("slug")
+    sp.add_argument("--name")
+    sp.add_argument("--domain")
+    sp.set_defaults(func=cmd_apps_install)
+    sp = apps.add_parser("start", help="start an installed app")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_apps_start)
+    sp = apps.add_parser("stop", help="stop an installed app")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_apps_stop)
+    sp = apps.add_parser("rm", help="remove an installed app")
+    sp.add_argument("project")
+    sp.add_argument("--volumes", action="store_true", help="also delete volumes (data loss)")
+    sp.set_defaults(func=cmd_apps_rm)
+    sp = apps.add_parser("logs", help="show an app's logs")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_apps_logs)
 
     return p
 
