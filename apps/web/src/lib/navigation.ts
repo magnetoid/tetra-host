@@ -1,15 +1,20 @@
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
+
+import { faBox, faEnvelope, faGaugeHigh, faGlobe, faServer, faUserShield } from "@/lib/icons"
+
 export type NavItem = {
   href: string
   label: string
+  icon?: IconDefinition
 }
 
 export const consoleNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/sites", label: "Sites" },
-  { href: "/apps", label: "Apps" },
-  { href: "/mail", label: "Mail" },
-  { href: "/dns", label: "DNS" },
-  { href: "/admin", label: "Admin" },
+  { href: "/dashboard", label: "Overview", icon: faGaugeHigh },
+  { href: "/sites", label: "Sites", icon: faServer },
+  { href: "/apps", label: "Apps", icon: faBox },
+  { href: "/mail", label: "Mail", icon: faEnvelope },
+  { href: "/dns", label: "DNS", icon: faGlobe },
+  { href: "/admin", label: "Admin", icon: faUserShield },
 ]
 
 export const publicNavItems: NavItem[] = [

@@ -1,5 +1,6 @@
-import { AlertTriangle, Globe, Mail, Server, Users } from "lucide-react"
 import Link from "next/link"
+
+import { faEnvelope, faGlobe, faServer, faTriangleExclamation, faUsers } from "@/lib/icons"
 
 import { BarList } from "@/components/charts/bar-list"
 import { ChartLegend, DonutChart, type DonutSlice } from "@/components/charts/donut-chart"
@@ -82,11 +83,11 @@ export default async function DashboardPage() {
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={Server} label="Sites" value={m.sites} hint={`${m.unhealthy_sites} need attention`} accent="text-violet-400" />
-        <StatCard icon={AlertTriangle} label="Unhealthy" value={m.unhealthy_sites} hint="Degraded apps" accent="text-red-400" />
-        <StatCard icon={Mail} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-emerald-400" />
-        <StatCard icon={Globe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-amber-400" />
-        <StatCard icon={Users} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-sky-400" />
+        <StatCard icon={faServer} label="Sites" value={m.sites} hint={`${m.unhealthy_sites} need attention`} accent="text-violet-400" />
+        <StatCard icon={faTriangleExclamation} label="Unhealthy" value={m.unhealthy_sites} hint="Degraded apps" accent="text-red-400" />
+        <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-emerald-400" />
+        <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-amber-400" />
+        <StatCard icon={faUsers} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-sky-400" />
       </section>
 
       {analytics && analytics.points.length > 0 ? (

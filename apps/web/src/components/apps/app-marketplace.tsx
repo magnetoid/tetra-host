@@ -4,8 +4,9 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
+import { Button } from "@/components/ui/button"
+import { faCircleCheck, faPlus } from "@/lib/icons"
 import type { AppTemplate } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 const LOGO_BASE = "https://cdn.jsdelivr.net/gh/coollabsio/coolify@main/public/"
 const MAX_CARDS = 60
@@ -109,19 +110,15 @@ export function AppMarketplace({
                 </div>
               </div>
               <p className="line-clamp-2 min-h-[2.5rem] text-sm text-zinc-400">{template.description}</p>
-              <button
-                type="button"
+              <Button
+                variant={installed ? "secondary" : "primary"}
+                icon={installed ? faCircleCheck : faPlus}
                 disabled={installed || installing !== null}
                 onClick={() => install(template.slug)}
-                className={cn(
-                  "mt-auto rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-60",
-                  installed
-                    ? "border border-border text-zinc-400"
-                    : "bg-white text-black hover:bg-zinc-200",
-                )}
+                className="mt-auto"
               >
                 {installed ? "Installed" : installing === template.slug ? "Installing…" : "Install"}
-              </button>
+              </Button>
             </div>
           )
         })}

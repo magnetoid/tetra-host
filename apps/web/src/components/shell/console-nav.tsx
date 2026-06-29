@@ -1,29 +1,29 @@
 "use client"
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { consoleNavItems } from "@/lib/navigation"
+import { type NavItem, consoleNavItems } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 
-function SidebarLink({
-  href,
-  label,
-  active,
-}: {
-  href: string
-  label: string
-  active: boolean
-}) {
+function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
-      href={href}
+      href={item.href}
       className={cn(
-        "block rounded-lg px-3 py-2 text-zinc-300 transition hover:bg-zinc-800 hover:text-white",
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-zinc-300 transition hover:bg-zinc-800 hover:text-white",
         active && "bg-zinc-800 text-white",
       )}
     >
-      {label}
+      {item.icon ? (
+        <FontAwesomeIcon
+          icon={item.icon}
+          className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-zinc-500")}
+          fixedWidth
+        />
+      ) : null}
+      {item.label}
     </Link>
   )
 }
@@ -36,8 +36,7 @@ export function ConsoleNav() {
       {consoleNavItems.map((item) => (
         <SidebarLink
           key={item.href}
-          href={item.href}
-          label={item.label}
+          item={item}
           active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
         />
       ))}

@@ -4,8 +4,10 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
+import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { faCirclePlay, faCircleStop, faTrash } from "@/lib/icons"
 import type { InstalledApp } from "@/lib/types"
 
 export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
@@ -61,42 +63,18 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ActionButton label="Start" busy={pending === `start:${app.project}`} disabled={pending !== null} onClick={() => act(app.project, "start")} />
-            <ActionButton label="Stop" busy={pending === `stop:${app.project}`} disabled={pending !== null} onClick={() => act(app.project, "stop")} />
-            <ActionButton label="Remove" tone="danger" busy={pending === `remove:${app.project}`} disabled={pending !== null} onClick={() => act(app.project, "remove")} />
+            <Button size="sm" icon={faCirclePlay} disabled={pending !== null} onClick={() => act(app.project, "start")}>
+              {pending === `start:${app.project}` ? "…" : "Start"}
+            </Button>
+            <Button size="sm" icon={faCircleStop} disabled={pending !== null} onClick={() => act(app.project, "stop")}>
+              {pending === `stop:${app.project}` ? "…" : "Stop"}
+            </Button>
+            <Button size="sm" variant="danger" icon={faTrash} disabled={pending !== null} onClick={() => act(app.project, "remove")}>
+              {pending === `remove:${app.project}` ? "…" : "Remove"}
+            </Button>
           </div>
         </div>
       ))}
     </div>
-  )
-}
-
-function ActionButton({
-  label,
-  busy,
-  disabled,
-  tone,
-  onClick,
-}: {
-  label: string
-  busy: boolean
-  disabled: boolean
-  tone?: "danger"
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={
-        "rounded-md border px-2.5 py-1 text-xs transition disabled:opacity-60 " +
-        (tone === "danger"
-          ? "border-red-900 text-red-300 hover:bg-red-950"
-          : "border-border text-zinc-300 hover:bg-zinc-900")
-      }
-    >
-      {busy ? "…" : label}
-    </button>
   )
 }
