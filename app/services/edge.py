@@ -39,11 +39,19 @@ def _labels_to_dict(labels: Any) -> dict[str, str]:
 
 
 def _networks_with(networks: Any, name: str) -> list[str] | dict[str, Any]:
-    """Add ``name`` to a service's networks (preserving list/dict shape)."""
+    """Add ``name`` to a service's networks, preserving existing connectivity.
+
+    Crucial: a service with no ``networks:`` key is implicitly on the compose ``default``
+    network (how it reaches sibling services like its DB). Once we add an explicit network we
+    must re-list ``default`` too, or the service silently loses access to its siblings.
+    """
     if isinstance(networks, dict):
         networks.setdefault(name, {})
         return networks
-    items = list(networks) if isinstance(networks, list) else []
+    if isinstance(networks, list) and networks:
+        items = list(networks)
+    else:
+        items = ["default"]
     if name not in items:
         items.append(name)
     return items

@@ -31,7 +31,9 @@ def test_apply_edge_labels_only_the_public_service(monkeypatch):
     assert wp["labels"]["tetra"] == "http://blog.apps.example.com"
     assert wp["labels"]["tetra.reverse_proxy"] == "{{upstreams 80}}"
     net = wp["networks"]
-    assert "tetra-edge" in (net if isinstance(net, list) else net.keys())
+    net_names = net if isinstance(net, list) else list(net.keys())
+    assert "tetra-edge" in net_names
+    assert "default" in net_names  # must keep default-network connectivity to siblings (DB)
     assert doc["networks"]["tetra-edge"] == {"external": True}
 
     # The DB service has no SERVICE_FQDN_ marker, so it must not be exposed.
