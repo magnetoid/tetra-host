@@ -36,3 +36,55 @@ a {
 ::selection {
   background: rgb(124 58 237 / 35%);
 }
+
+/* Left menu — a deliberately non-physical "creative" drop shadow: three colored
+   light sources at once (violet straight, cyan thrown UP, pink thrown DOWN) plus a
+   skewed radial blob that drifts and bleeds into the content. Non-linear, and
+   intentionally "incorrect" (no real light casts shadows three ways). */
+.sidebar-creative {
+  position: relative;
+  box-shadow:
+    18px 0 60px -20px rgb(124 58 237 / 55%),
+    3px 0 0 0 rgb(124 58 237 / 40%),
+    30px -34px 70px -34px rgb(34 211 238 / 42%),
+    26px 42px 74px -38px rgb(244 114 182 / 36%),
+    inset -30px 0 55px -42px rgb(124 58 237 / 50%);
+}
+
+.sidebar-creative::after {
+  content: "";
+  position: absolute;
+  top: 8%;
+  right: -44px;
+  width: 120px;
+  height: 60%;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: 9999px;
+  background: radial-gradient(
+    55% 50% at 35% 40%,
+    rgb(124 58 237 / 45%),
+    rgb(34 211 238 / 20%) 55%,
+    transparent 78%
+  );
+  filter: blur(40px);
+  transform: rotate(-9deg) skewY(-7deg);
+  animation: sidebar-glow-drift 9s ease-in-out infinite alternate;
+}
+
+@keyframes sidebar-glow-drift {
+  from {
+    transform: rotate(-9deg) skewY(-7deg) translateY(-14px);
+    opacity: 0.75;
+  }
+  to {
+    transform: rotate(6deg) skewY(5deg) translateY(26px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-creative::after {
+    animation: none;
+  }
+}
