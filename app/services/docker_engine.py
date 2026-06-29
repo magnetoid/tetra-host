@@ -96,8 +96,10 @@ class DockerEngine:
         except OSError as exc:  # docker binary missing / not reachable
             raise DockerEngineError(message=f"Docker is not available: {exc}", code=503) from exc
         if rc != 0:
-            message = err.strip() or out.strip() or f"docker {args[0] if args else ''} failed"
-            raise DockerEngineError(message=message[:500], code=rc)
+            detail = err.strip() or out.strip() or f"docker {args[0] if args else ''} failed"
+            # 502 (bad gateway): docker ran but failed. NOTE: the subprocess exit code is
+            # NOT an HTTP status — keep it in the message, never in `code`.
+            raise DockerEngineError(message=f"{detail[:500]} (docker exit {rc})", code=502)
         return out
 
     async def is_available(self) -> bool:

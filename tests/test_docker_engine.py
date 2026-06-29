@@ -40,7 +40,7 @@ def test_nonzero_exit_raises_with_stderr():
     with pytest.raises(DockerEngineError) as exc:
         asyncio.run(_engine(runner).version())
     assert "compose explode" in str(exc.value)
-    assert exc.value.code == 1
+    assert exc.value.code == 502  # subprocess exit code goes in the message, not as HTTP status
 
 
 def test_list_stacks_parses_json_array():
