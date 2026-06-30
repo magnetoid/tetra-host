@@ -154,9 +154,26 @@ export interface AdminRecord {
   email: string
   full_name: string
   is_active: boolean
+  role?: string
   tenant_id?: string
   tenant_slug?: string
   tenant_name?: string
+}
+
+export interface Plan {
+  id: string
+  key: string
+  name: string
+  description: string
+  price_cents: number
+  currency: string
+  max_apps: number
+  max_domains: number
+  cpu_millicores: number
+  mem_mb: number
+  disk_mb: number
+  is_archived: boolean
+  sort_order: number
 }
 
 export interface AdminResponse {

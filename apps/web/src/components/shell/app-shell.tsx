@@ -34,7 +34,7 @@ export function AppShell({
           ) : null}
         </div>
 
-        <ConsoleNav />
+        <ConsoleNav adminRole={admin.role} />
       </aside>
 
       <main className="flex-1">

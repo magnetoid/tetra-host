@@ -28,12 +28,16 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   )
 }
 
-export function ConsoleNav() {
+export function ConsoleNav({ adminRole }: { adminRole?: string }) {
   const pathname = usePathname()
+
+  const visibleItems = consoleNavItems.filter(
+    (item) => !item.platformAdminOnly || adminRole === "platform_admin",
+  )
 
   return (
     <nav className="mt-8 space-y-1 text-sm">
-      {consoleNavItems.map((item) => (
+      {visibleItems.map((item) => (
         <SidebarLink
           key={item.href}
           item={item}
