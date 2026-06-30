@@ -1,10 +1,13 @@
 import type { HTMLAttributes } from "react"
+import { cva } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+const cardVariants = cva("rounded-2xl border border-border bg-muted p-6")
+
 /** The one surface panel — consistent radius, border, muted bg, and padding. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-2xl border border-border bg-muted p-6", className)} {...props} />
+  return <div className={cn(cardVariants(), className)} {...props} />
 }
 
 /** Optional standard card header: a title (left) and optional right-aligned slot. */
@@ -22,3 +25,5 @@ export function CardHeader({
     </div>
   )
 }
+
+export { cardVariants }
