@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # (apps still deploy, just not routed). See app/services/edge.py.
     edge_network: str = ""
 
+    # Per-app resource allocation defaults used for plan coherence validation.
+    default_app_cpu_millicores: int = 500
+    default_app_mem_mb: int = 512
+
     deploy_notify_webhook_url: str = ""
     deploy_notify_webhook_bearer_token: str = ""
     deploy_notify_default_channel: Literal["none", "webhook", "sms"] = "none"

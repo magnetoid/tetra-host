@@ -302,3 +302,46 @@ class TenantResourceCreateRequest(BaseModel):
     resource_type: str
     external_id: str
     display_name: str
+
+
+class PlanSummary(BaseModel):
+    id: str
+    key: str
+    name: str
+    description: str
+    price_cents: int
+    currency: str
+    max_apps: int
+    max_domains: int
+    cpu_millicores: int
+    mem_mb: int
+    disk_mb: int
+    is_archived: bool
+    sort_order: int
+
+
+class PlanCreateRequest(BaseModel):
+    key: str
+    name: str
+    description: str = ""
+    price_cents: int = 0
+    currency: str = "usd"
+    max_apps: int
+    max_domains: int
+    cpu_millicores: int
+    mem_mb: int
+    disk_mb: int
+    sort_order: int = 0
+
+
+class PlanUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    price_cents: int | None = None
+    currency: str | None = None
+    max_apps: int | None = None
+    max_domains: int | None = None
+    cpu_millicores: int | None = None
+    mem_mb: int | None = None
+    disk_mb: int | None = None
+    sort_order: int | None = None

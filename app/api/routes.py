@@ -38,6 +38,9 @@ from app.api.contracts import (
     MailboxSummary,
     MailDomainSummary,
     MailResponse,
+    PlanCreateRequest,
+    PlanSummary,
+    PlanUpdateRequest,
     ProviderSummary,
     SiteActionResponse,
     SiteDeploymentSummary,
@@ -56,6 +59,7 @@ from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
+from app.modules.plans.service import PlanService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
@@ -1169,3 +1173,94 @@ async def api_create_tenant_resource(
     await session.flush()
     await session.refresh(resource, attribute_names=["tenant"])
     return _tenant_resource_summary(resource)
+
+
+# ---------------------------------------------------------------------------
+# Plans endpoints  (/api/v1/plans)
+# ---------------------------------------------------------------------------
+
+def _plan_summary(plan) -> PlanSummary:
+    return PlanSummary(
+        id=plan.id,
+        key=plan.key,
+        name=plan.name,
+        description=plan.description,
+        price_cents=plan.price_cents,
+        currency=plan.currency,
+        max_apps=plan.max_apps,
+        max_domains=plan.max_domains,
+        cpu_millicores=plan.cpu_millicores,
+        mem_mb=plan.mem_mb,
+        disk_mb=plan.disk_mb,
+        is_archived=plan.is_archived,
+        sort_order=plan.sort_order,
+    )
+
+
+@router.get("/plans", response_model=list[PlanSummary])
+async def api_list_plans(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> list[PlanSummary]:
+    include_archived = request.query_params.get("include_archived") in {"1", "true", "yes"}
+    service = PlanService(session)
+    plans = await service.list_plans(include_archived=include_archived)
+    return [_plan_summary(p) for p in plans]
+
+
+@router.post("/plans", response_model=PlanSummary)
+async def api_create_plan(
+    payload: PlanCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlanSummary:
+    service = PlanService(session)
+    try:
+        plan = await service.create(
+            key=payload.key,
+            name=payload.name,
+            description=payload.description,
+            price_cents=payload.price_cents,
+            currency=payload.currency,
+            max_apps=payload.max_apps,
+            max_domains=payload.max_domains,
+            cpu_millicores=payload.cpu_millicores,
+            mem_mb=payload.mem_mb,
+            disk_mb=payload.disk_mb,
+            sort_order=payload.sort_order,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return _plan_summary(plan)
+
+
+@router.patch("/plans/{plan_id}", response_model=PlanSummary)
+async def api_update_plan(
+    plan_id: str,
+    payload: PlanUpdateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlanSummary:
+    service = PlanService(session)
+    update_fields = payload.model_dump(exclude_none=True)
+    try:
+        plan = await service.update(plan_id, **update_fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found.")
+    return _plan_summary(plan)
+
+
+@router.post("/plans/{plan_id}/archive", response_model=PlanSummary)
+async def api_archive_plan(
+    plan_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlanSummary:
+    service = PlanService(session)
+    plan = await service.archive(plan_id)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found.")
+    return _plan_summary(plan)
