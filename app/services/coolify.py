@@ -9,6 +9,13 @@ from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import request_json
 
+# Coolify v4 supported database types — validated before interpolating into URL path.
+# Source: POST /api/v1/databases/{type} endpoints confirmed in openapi.json.
+DB_TYPE_ALLOWLIST: frozenset[str] = frozenset({
+    "postgresql", "mysql", "mariadb", "mongodb",
+    "redis", "keydb", "dragonfly", "clickhouse",
+})
+
 
 class CoolifyApplication(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -841,6 +848,80 @@ class CoolifyClient:
             url=f"{self.base_url}/api/v1/databases/{database_uuid}/restart", headers=self.headers(),
         )
         await self.cache.delete("coolify:databases")
+        return payload if isinstance(payload, dict) else {"ok": True}
+
+    async def provision_database(
+        self,
+        db_type: str,
+        server_uuid: str,
+        project_uuid: str,
+        environment_name: str,
+        name: str,
+        **opts: Any,
+    ) -> dict[str, Any]:
+        """Provision a new managed database on Coolify.
+
+        Coolify v4 uses type-specific POST endpoints:
+        POST /api/v1/databases/{postgresql|mysql|mariadb|mongodb|redis|keydb|dragonfly|clickhouse}
+
+        Required fields per v4 spec: server_uuid, project_uuid, environment_name, name.
+        The db_type must be pre-validated against DB_TYPE_ALLOWLIST before calling this method.
+        """
+        if not self.is_configured():
+            return {"ok": False, "message": "Coolify is not configured."}
+        body: dict[str, Any] = {
+            "server_uuid": server_uuid,
+            "project_uuid": project_uuid,
+            "environment_name": environment_name,
+            "name": name,
+            **opts,
+        }
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="POST",
+            url=f"{self.base_url}/api/v1/databases/{db_type}",
+            headers=self.headers(),
+            json_body=body,
+        )
+        await self.cache.delete("coolify:databases")
+        return payload if isinstance(payload, dict) else {"ok": True, "payload": payload}
+
+    async def list_database_backups(self, database_uuid: str) -> list[dict[str, Any]]:
+        """List scheduled backup configs for a database (GET /databases/{uuid}/backups)."""
+        if not self.is_configured():
+            return []
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/databases/{database_uuid}/backups",
+            headers=self.headers(),
+        )
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict):
+            return payload.get("data", [])
+        return []
+
+    async def create_database_backup(self, database_uuid: str, **config: Any) -> dict[str, Any]:
+        """Create a backup config for a database (POST /databases/{uuid}/backups).
+
+        Common config fields per v4 spec:
+        - frequency: cron string (e.g. "0 2 * * *")
+        - retention_days: int
+        - s3_storage_id: str (UUID of pre-configured S3 storage in Coolify)
+        """
+        if not self.is_configured():
+            return {"ok": False, "message": "Coolify is not configured."}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="POST",
+            url=f"{self.base_url}/api/v1/databases/{database_uuid}/backups",
+            headers=self.headers(),
+            json_body=dict(config),
+        )
         return payload if isinstance(payload, dict) else {"ok": True}
 
     # ── Services ──────────────────────────────────────────────────
