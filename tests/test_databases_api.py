@@ -8,8 +8,6 @@ Mirrors tests/test_apps_api.py pattern:
 """
 import asyncio
 
-import pytest
-
 from app.config import get_settings
 from app.db import session_scope
 from app.models import AdminUser, Tenant, TenantResource
