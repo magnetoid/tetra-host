@@ -32,7 +32,7 @@ def test_client_login_sends_credentials_and_keeps_token():
 
 def test_client_deploy_passes_force_and_returns_deployment_id():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/sites/app-1/deploy"
+        assert request.url.path == "/api/v1/projects/app-1/deploy"
         assert request.url.params.get("force") == "1"
         assert request.headers["Authorization"] == "Bearer tok"
         return httpx.Response(200, json={"ok": True, "message": "queued", "deployment_id": "dep-9"})
@@ -159,7 +159,7 @@ def test_client_stream_logs_parses_sse():
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/sites/app-1/deployments/dep-1/logs/stream"
+        assert request.url.path == "/api/v1/projects/app-1/deployments/dep-1/logs/stream"
         return httpx.Response(200, text=sse)
 
     events = list(make_client(handler).stream_logs("app-1", "dep-1"))
@@ -174,7 +174,7 @@ def test_client_stream_logs_parses_sse():
 def test_parser_dispatches_subcommands():
     parser = build_parser()
     args = parser.parse_args(["deploy", "app-1", "--force", "--follow"])
-    assert args.command == "deploy" and args.site == "app-1" and args.force and args.follow
+    assert args.command == "deploy" and args.project == "app-1" and args.force and args.follow
     args = parser.parse_args(["dns", "add", "z1", "A", "app", "1.2.3.4", "--proxied"])
     assert args.func is not None and args.proxied is True
     args = parser.parse_args(["dns", "export", "z1", "-o", "zone.txt"])
@@ -189,14 +189,15 @@ def test_parser_dispatches_subcommands():
     assert args.search == "wp"
 
 
-def test_main_sites_renders_table(monkeypatch, capsys):
+def test_main_projects_renders_table(monkeypatch, capsys):
     def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/projects"
         return httpx.Response(200, json=[
             {"id": "app-1", "name": "App One", "status": "running", "primary_domain": "a.test"},
         ])
 
     monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
-    code = main(["sites"])
+    code = main(["projects"])
     out = capsys.readouterr().out
     assert code == 0
     assert "app-1" in out and "App One" in out
@@ -209,6 +210,7 @@ def test_main_logs_streams_and_reports_failure(monkeypatch, capsys):
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/projects/app-1/deployments/dep-1/logs/stream"
         return httpx.Response(200, text=sse)
 
     monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
@@ -221,7 +223,7 @@ def test_main_logs_streams_and_reports_failure(monkeypatch, capsys):
 def test_main_requires_login(monkeypatch, tmp_path):
     monkeypatch.setenv("TETRA_CONFIG_DIR", str(tmp_path))
     monkeypatch.delenv("TETRA_TOKEN", raising=False)
-    code = main(["sites"])
+    code = main(["projects"])
     assert code == 1  # not logged in
 
 
@@ -369,3 +371,62 @@ def test_main_usage_renders_table(monkeypatch, capsys):
     assert "pro" in out
     assert "2/10" in out
     assert "advisory" in out
+
+
+# ── Databases client ──────────────────────────────────────────────────────
+
+
+def test_client_databases_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/databases"
+        return httpx.Response(200, json=[
+            {"uuid": "db-uuid-1", "name": "mydb", "type": "postgresql", "status": "running"},
+        ])
+
+    result = make_client(handler).databases()
+    assert isinstance(result, list)
+    assert result[0]["uuid"] == "db-uuid-1"
+
+
+def test_client_provision_database_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/databases"
+        body = json.loads(request.content)
+        assert body == {
+            "type": "postgresql",
+            "name": "mydb",
+            "server_uuid": "srv-1",
+            "project_uuid": "proj-1",
+            "environment_name": "production",
+        }
+        return httpx.Response(201, json={"uuid": "db-uuid-1", "name": "mydb", "type": "postgresql"})
+
+    result = make_client(handler).provision_database(
+        "postgresql", "mydb", "srv-1", "proj-1", "production"
+    )
+    assert result["uuid"] == "db-uuid-1"
+
+
+def test_client_database_backups_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/databases/db-uuid-1/backups"
+        return httpx.Response(200, json=[
+            {"uuid": "bk-1", "status": "success", "created_at": "2026-06-28T12:00:00Z"},
+        ])
+
+    result = make_client(handler).database_backups("db-uuid-1")
+    assert isinstance(result, list)
+    assert result[0]["uuid"] == "bk-1"
+
+
+def test_client_create_database_backup_posts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/databases/db-uuid-1/backups"
+        return httpx.Response(200, json={"message": "Backup queued."})
+
+    result = make_client(handler).create_database_backup("db-uuid-1")
+    assert result["message"] == "Backup queued."

@@ -38,7 +38,7 @@ export function LogStream({
     // This component is remounted via `key` when the deployment changes, so
     // state starts fresh on each mount; the effect only owns the connection.
     const source = new EventSource(
-      `/api/stream/sites/${applicationId}/deployments/${deploymentId}/logs/stream`,
+      `/api/stream/projects/${applicationId}/deployments/${deploymentId}/logs/stream`,
     )
 
     source.addEventListener("status", (event) => {

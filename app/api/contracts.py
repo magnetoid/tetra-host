@@ -41,8 +41,8 @@ class ProviderSummary(BaseModel):
 
 
 class DashboardMetrics(BaseModel):
-    sites: int
-    unhealthy_sites: int
+    projects: int
+    unhealthy_projects: int
     mail_domains: int
     dns_zones: int
     admins: int
@@ -55,7 +55,7 @@ class DashboardResponse(BaseModel):
     metrics: DashboardMetrics
 
 
-class SiteSummary(BaseModel):
+class ProjectSummary(BaseModel):
     id: str
     name: str
     status: str
@@ -66,13 +66,13 @@ class SiteSummary(BaseModel):
     healthcheck_enabled: bool
 
 
-class SiteActionResponse(BaseModel):
+class ActionResponse(BaseModel):
     ok: bool = True
     message: str
     deployment_id: str = ""
 
 
-class SiteDeploymentSummary(BaseModel):
+class ProjectDeploymentSummary(BaseModel):
     id: str
     status: str
     created_at: str
@@ -386,3 +386,42 @@ class UsageResponse(BaseModel):
     domains_limit: int
     # Dimensions that are actively enforced (block the action when exceeded).
     enforced: list[str] = ["apps"]
+
+
+class DatabaseSummary(BaseModel):
+    id: str
+    name: str
+    type: str = ""
+    status: str = "unknown"
+    internal_db_url: str = ""
+    image: str = ""
+
+
+class DatabaseProvisionRequest(BaseModel):
+    """Request to provision a new managed database via Coolify.
+
+    db_type must be one of the Coolify-supported database types.
+    No tenant_id, role, or owner fields — tenant is always the caller's tenant.
+    """
+
+    db_type: str = Field(
+        ...,
+        description="One of: postgresql, mysql, mariadb, mongodb, redis, keydb, dragonfly, clickhouse",
+    )
+    name: str = Field(..., min_length=1, max_length=120)
+    server_uuid: str
+    project_uuid: str
+    environment_name: str
+
+
+class BackupConfigSummary(BaseModel):
+    id: str
+    frequency: str = ""
+    retention_days: int = 0
+    s3_storage_id: str = ""
+
+
+class BackupCreateRequest(BaseModel):
+    frequency: str = "0 2 * * *"
+    retention_days: int = 7
+    s3_storage_id: str = ""

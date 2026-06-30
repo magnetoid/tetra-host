@@ -95,6 +95,7 @@ class AuthService:
         email: str,
         password: str,
         org_name: str,
+        signup_ip: str | None = None,
     ) -> AdminUser | None:
         """Create a pending tenant + owner admin.
 
@@ -125,6 +126,7 @@ class AuthService:
             status=TENANT_PENDING,
             is_platform_scope=False,
             plan_id=plan_id,
+            signup_ip=signup_ip,
         )
         self.session.add(tenant)
         await self.session.flush()

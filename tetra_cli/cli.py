@@ -100,31 +100,31 @@ def cmd_whoami(args: argparse.Namespace) -> int:
 def cmd_dashboard(args: argparse.Namespace) -> int:
     data = client_from_config().dashboard()
     m = data.get("metrics", {})
-    print(c("Metrics", "1") + f"  sites={m.get('sites')} unhealthy={m.get('unhealthy_sites')} "
+    print(c("Metrics", "1") + f"  projects={m.get('projects')} unhealthy={m.get('unhealthy_projects')} "
           f"mail_domains={m.get('mail_domains')} dns_zones={m.get('dns_zones')} admins={m.get('admins')}")
     rows = [[p["name"], status_color(p["status"]), p.get("detail", "")] for p in data.get("providers", [])]
     print_table(["PROVIDER", "STATUS", "DETAIL"], rows)
     return 0
 
 
-def cmd_sites(args: argparse.Namespace) -> int:
-    sites = client_from_config().sites()
-    rows = [[s["id"], s["name"], status_color(s["status"]), s.get("primary_domain", "")] for s in sites]
+def cmd_projects(args: argparse.Namespace) -> int:
+    projects = client_from_config().projects()
+    rows = [[s["id"], s["name"], status_color(s["status"]), s.get("primary_domain", "")] for s in projects]
     print_table(["ID", "NAME", "STATUS", "DOMAIN"], rows)
     return 0
 
 
 def cmd_deployments(args: argparse.Namespace) -> int:
-    deps = client_from_config().deployments(args.site)
+    deps = client_from_config().deployments(args.project)
     rows = [[d["id"][:16], status_color(d["status"]), (d.get("commit") or "")[:8],
              d.get("branch", ""), d.get("created_at", "")] for d in deps]
     print_table(["DEPLOYMENT", "STATUS", "COMMIT", "BRANCH", "CREATED"], rows)
     return 0
 
 
-def _follow_logs(client: TetraClient, site: str, deployment_id: str) -> int:
+def _follow_logs(client: TetraClient, project: str, deployment_id: str) -> int:
     final = ""
-    for event, data in client.stream_logs(site, deployment_id):
+    for event, data in client.stream_logs(project, deployment_id):
         if event == "log":
             stream = data.get("type", "stdout")
             text = data.get("output", "")
@@ -140,12 +140,12 @@ def _follow_logs(client: TetraClient, site: str, deployment_id: str) -> int:
 
 
 def cmd_logs(args: argparse.Namespace) -> int:
-    return _follow_logs(client_from_config(), args.site, args.deployment)
+    return _follow_logs(client_from_config(), args.project, args.deployment)
 
 
 def cmd_deploy(args: argparse.Namespace) -> int:
     client = client_from_config()
-    result = client.deploy(args.site, force=args.force)
+    result = client.deploy(args.project, force=args.force)
     print(c("✓", "32") + " " + str(result.get("message", "Deployment queued.")))
     deployment_id = result.get("deployment_id")
     if deployment_id:
@@ -154,7 +154,7 @@ def cmd_deploy(args: argparse.Namespace) -> int:
         if not deployment_id:
             return die("no deployment id returned; cannot follow logs")
         print(c("-- streaming build logs (ctrl-c to stop) --", "90"))
-        return _follow_logs(client, args.site, deployment_id)
+        return _follow_logs(client, args.project, deployment_id)
     return 0
 
 
@@ -267,7 +267,7 @@ def cmd_dns_import(args: argparse.Namespace) -> int:
 
 
 def cmd_env_list(args: argparse.Namespace) -> int:
-    envs = client_from_config().envs(args.site)
+    envs = client_from_config().envs(args.project)
     rows = [[str(e.get("key", "")), "•••" if not args.reveal else str(e.get("value", "")),
              str(e.get("uuid", e.get("id", "")))] for e in envs]
     print_table(["KEY", "VALUE", "UUID"], rows)
@@ -275,13 +275,13 @@ def cmd_env_list(args: argparse.Namespace) -> int:
 
 
 def cmd_env_set(args: argparse.Namespace) -> int:
-    client_from_config().env_set(args.site, args.key, args.value)
+    client_from_config().env_set(args.project, args.key, args.value)
     print(c("✓", "32") + f" {args.key} set")
     return 0
 
 
 def cmd_env_rm(args: argparse.Namespace) -> int:
-    client_from_config().env_rm(args.site, args.uuid)
+    client_from_config().env_rm(args.project, args.uuid)
     print(c("✓", "32") + f" deleted {args.uuid}")
     return 0
 
@@ -464,6 +464,59 @@ def cmd_usage(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_databases_list(args: argparse.Namespace) -> int:
+    dbs = client_from_config().databases()
+    rows = [
+        [
+            d.get("uuid", d.get("id", "")),
+            d.get("name", ""),
+            d.get("type", ""),
+            status_color(d.get("status", "")),
+            d.get("server_name", ""),
+        ]
+        for d in dbs
+    ]
+    print_table(["UUID", "NAME", "TYPE", "STATUS", "SERVER"], rows)
+    return 0
+
+
+def cmd_databases_provision(args: argparse.Namespace) -> int:
+    result = client_from_config().provision_database(
+        args.type,
+        args.name,
+        args.server_uuid,
+        args.project_uuid,
+        args.environment,
+    )
+    uuid = result.get("uuid", result.get("id", "")) if isinstance(result, dict) else ""
+    print(c("✓", "32") + " database provisioned"
+          + (f"  uuid={uuid}" if uuid else "")
+          + (f"  name={args.name}" if args.name else ""))
+    return 0
+
+
+def cmd_databases_backups(args: argparse.Namespace) -> int:
+    backups = client_from_config().database_backups(args.uuid)
+    rows = [
+        [
+            b.get("uuid", b.get("id", "")),
+            status_color(b.get("status", "")),
+            b.get("created_at", ""),
+            b.get("size", ""),
+        ]
+        for b in backups
+    ]
+    print_table(["UUID", "STATUS", "CREATED", "SIZE"], rows)
+    return 0
+
+
+def cmd_databases_backup(args: argparse.Namespace) -> int:
+    result = client_from_config().create_database_backup(args.uuid)
+    msg = result.get("message", "Backup queued.") if isinstance(result, dict) else "Backup queued."
+    print(c("✓", "32") + " " + str(msg))
+    return 0
+
+
 def cmd_deploys_git(args: argparse.Namespace) -> int:
     import time
 
@@ -506,20 +559,20 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
     sub.add_parser("dashboard", help="show platform metrics").set_defaults(func=cmd_dashboard)
     sub.add_parser("usage", help="show quota usage vs plan limits").set_defaults(func=cmd_usage)
-    sub.add_parser("sites", help="list sites").set_defaults(func=cmd_sites)
+    sub.add_parser("projects", help="list projects").set_defaults(func=cmd_projects)
 
     sp = sub.add_parser("deploy", help="trigger a deployment")
-    sp.add_argument("site")
+    sp.add_argument("project")
     sp.add_argument("--force", action="store_true")
     sp.add_argument("-f", "--follow", action="store_true", help="stream build logs after deploying")
     sp.set_defaults(func=cmd_deploy)
 
-    sp = sub.add_parser("deployments", help="list deployments for a site")
-    sp.add_argument("site")
+    sp = sub.add_parser("deployments", help="list deployments for a project")
+    sp.add_argument("project")
     sp.set_defaults(func=cmd_deployments)
 
     sp = sub.add_parser("logs", help="stream build logs for a deployment")
-    sp.add_argument("site")
+    sp.add_argument("project")
     sp.add_argument("deployment")
     sp.set_defaults(func=cmd_logs)
 
@@ -559,20 +612,39 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("file")
     sp.set_defaults(func=cmd_dns_import)
 
-    env = sub.add_parser("env", help="manage site env vars").add_subparsers(dest="env_cmd", required=True)
+    env = sub.add_parser("env", help="manage project env vars").add_subparsers(dest="env_cmd", required=True)
     sp = env.add_parser("list", help="list env vars")
-    sp.add_argument("site")
+    sp.add_argument("project")
     sp.add_argument("--reveal", action="store_true")
     sp.set_defaults(func=cmd_env_list)
     sp = env.add_parser("set", help="create/update an env var")
-    sp.add_argument("site")
+    sp.add_argument("project")
     sp.add_argument("key")
     sp.add_argument("value")
     sp.set_defaults(func=cmd_env_set)
     sp = env.add_parser("rm", help="delete an env var")
-    sp.add_argument("site")
+    sp.add_argument("project")
     sp.add_argument("uuid")
     sp.set_defaults(func=cmd_env_rm)
+
+    _db_types = ["postgresql", "mysql", "mariadb", "mongodb", "redis", "keydb", "dragonfly", "clickhouse"]
+    databases = sub.add_parser("databases", help="manage databases").add_subparsers(
+        dest="databases_cmd", required=True
+    )
+    databases.add_parser("list", help="list databases").set_defaults(func=cmd_databases_list)
+    sp = databases.add_parser("provision", help="provision a new database")
+    sp.add_argument("type", choices=_db_types, help="database type")
+    sp.add_argument("name", help="database name")
+    sp.add_argument("--server-uuid", dest="server_uuid", required=True, help="Coolify server UUID")
+    sp.add_argument("--project-uuid", dest="project_uuid", required=True, help="Coolify project UUID")
+    sp.add_argument("--environment", default="production", help="environment name (default: production)")
+    sp.set_defaults(func=cmd_databases_provision)
+    sp = databases.add_parser("backups", help="list backups for a database")
+    sp.add_argument("uuid", help="database UUID")
+    sp.set_defaults(func=cmd_databases_backups)
+    sp = databases.add_parser("backup", help="create a backup for a database")
+    sp.add_argument("uuid", help="database UUID")
+    sp.set_defaults(func=cmd_databases_backup)
 
     cf = sub.add_parser("cf", help="Cloudflare zone tools").add_subparsers(dest="cf_cmd", required=True)
     sp = cf.add_parser("settings", help="show zone settings")

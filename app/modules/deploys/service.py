@@ -23,6 +23,8 @@ from app.models.deployment import (
     STATUS_READY,
     Deployment,
 )
+from app.models import TenantResource
+from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
@@ -81,6 +83,18 @@ class DeploysService:
             disk_mb=settings.default_app_disk_mb,
         )
         async with session_scope() as session:
+            # Reject if a TenantResource with this project name already exists for the tenant.
+            existing = await session.scalar(
+                select(TenantResource).where(
+                    TenantResource.tenant_id == (tenant_id or ""),
+                    TenantResource.provider == PROVIDER_DOCKER,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                    TenantResource.external_id == project,
+                )
+            )
+            if existing is not None:
+                raise DockerEngineError(message=f"App '{project}' is already deployed.", code=409)
+
             # Atomically check quota and reserve BEFORE the build is scheduled.
             # QuotaExceeded is not caught here — it rolls back and propagates.
             quota = QuotaService(session, tenant_id or "")

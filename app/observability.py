@@ -8,7 +8,7 @@ from starlette.responses import Response
 
 from app.config import Settings
 
-SENSITIVE_PATH_PREFIXES = ("/auth", "/dashboard", "/sites", "/mail", "/dns", "/admin")
+SENSITIVE_PATH_PREFIXES = ("/auth", "/dashboard", "/projects", "/mail", "/dns", "/admin")
 
 
 def configure_logging(settings: Settings) -> None:

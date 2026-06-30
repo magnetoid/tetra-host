@@ -214,3 +214,53 @@ def test_signup_org_name_too_long_422(client, monkeypatch):
         json={"email": "long@c.test", "password": "longenough1", "org_name": long_name},
     )
     assert r.status_code == 422, f"oversized org_name must be 422, got {r.status_code}: {r.text}"
+
+
+def test_signup_per_ip_pending_cap(client, monkeypatch):
+    """A single source IP can only hold max_pending_tenants_per_ip pending tenants at once.
+
+    Global cap is set high (100) so it cannot be what trips the 429.
+    Per-IP cap is set to 1: first signup → 200, second from same IP → 429.
+    """
+    settings = get_settings()
+    monkeypatch.setattr(settings, "signup_rate_per_hour", 100)
+    monkeypatch.setattr(settings, "max_pending_tenants", 100)
+    monkeypatch.setattr(settings, "max_pending_tenants_per_ip", 1)
+    client.app.state.rate_limiter._buckets.clear()
+
+    r1 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "iplock1@c.test", "password": "longenough1", "org_name": "IpOrg1"},
+    )
+    assert r1.status_code == 200, f"first signup should succeed, got {r1.status_code}: {r1.text}"
+
+    r2 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "iplock2@c.test", "password": "longenough1", "org_name": "IpOrg2"},
+    )
+    assert r2.status_code == 429, (
+        f"second signup from same IP must be 429 (per-IP cap), got {r2.status_code}: {r2.text}"
+    )
+    assert "temporarily unavailable" in r2.json()["detail"].lower() or "signup" in r2.json()["detail"].lower()
+
+
+def test_signup_global_pending_cap_still_works(client, monkeypatch):
+    """The existing global pending-tenant cap still fires (regression guard)."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "signup_rate_per_hour", 100)
+    monkeypatch.setattr(settings, "max_pending_tenants", 1)
+    # Per-IP cap is high so it isn't what trips.
+    monkeypatch.setattr(settings, "max_pending_tenants_per_ip", 100)
+    client.app.state.rate_limiter._buckets.clear()
+
+    r1 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "globalcap1@c.test", "password": "longenough1", "org_name": "GlobalOrg1"},
+    )
+    assert r1.status_code == 200, f"first signup should succeed, got {r1.status_code}"
+
+    r2 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "globalcap2@c.test", "password": "longenough1", "org_name": "GlobalOrg2"},
+    )
+    assert r2.status_code == 429, f"global cap exceeded must be 429, got {r2.status_code}: {r2.text}"

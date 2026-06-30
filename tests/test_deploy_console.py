@@ -172,7 +172,7 @@ def test_api_deploy_returns_deployment_id(client, monkeypatch):
     monkeypatch.setattr("app.services.coolify.CoolifyClient.deploy_application", fake_deploy_application)
 
     token = _login(client)
-    response = client.post("/api/v1/sites/app-console/deploy", headers=_auth(token))
+    response = client.post("/api/v1/projects/app-console/deploy", headers=_auth(token))
     assert response.status_code == 200
     assert response.json()["deployment_id"] == "dep-xyz"
 
@@ -192,7 +192,7 @@ def test_api_deployment_detail_returns_parsed_log(client, monkeypatch):
     monkeypatch.setattr("app.services.coolify.CoolifyClient.get_deployment", fake_get_deployment)
 
     token = _login(client)
-    response = client.get("/api/v1/sites/app-console/deployments/dep-1", headers=_auth(token))
+    response = client.get("/api/v1/projects/app-console/deployments/dep-1", headers=_auth(token))
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "finished"
@@ -203,7 +203,7 @@ def test_api_deployment_detail_returns_parsed_log(client, monkeypatch):
 def test_api_deployment_detail_denies_other_tenant(client):
     asyncio.run(_seed_console_tenant())
     token = _login(client)
-    response = client.get("/api/v1/sites/app-foreign/deployments/dep-1", headers=_auth(token))
+    response = client.get("/api/v1/projects/app-foreign/deployments/dep-1", headers=_auth(token))
     assert response.status_code == 403
 
 
@@ -211,11 +211,11 @@ def test_api_deployment_stream_denies_other_tenant(client):
     asyncio.run(_seed_console_tenant())
     token = _login(client)
     response = client.get(
-        "/api/v1/sites/app-foreign/deployments/dep-1/logs/stream", headers=_auth(token)
+        "/api/v1/projects/app-foreign/deployments/dep-1/logs/stream", headers=_auth(token)
     )
     assert response.status_code == 403
 
 
 def test_api_deployment_stream_requires_auth(client):
-    response = client.get("/api/v1/sites/app-console/deployments/dep-1/logs/stream")
+    response = client.get("/api/v1/projects/app-console/deployments/dep-1/logs/stream")
     assert response.status_code == 401

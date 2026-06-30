@@ -10,12 +10,12 @@ describe("BarList", () => {
     render(
       <BarList
         data={[
-          { name: "Sites", value: 5 },
+          { name: "Projects", value: 5 },
           { name: "DNS zones", value: 36 },
         ]}
       />,
     )
-    expect(screen.getByText("Sites")).toBeInTheDocument()
+    expect(screen.getByText("Projects")).toBeInTheDocument()
     expect(screen.getByText("5")).toBeInTheDocument()
     expect(screen.getByText("DNS zones")).toBeInTheDocument()
     expect(screen.getByText("36")).toBeInTheDocument()

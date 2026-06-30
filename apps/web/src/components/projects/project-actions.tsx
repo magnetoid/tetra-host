@@ -5,7 +5,7 @@ import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 
-export function SiteActions({ applicationId }: { applicationId: string }) {
+export function ProjectActions({ applicationId }: { applicationId: string }) {
   const router = useRouter()
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +17,7 @@ export function SiteActions({ applicationId }: { applicationId: string }) {
     setError(null)
 
     try {
-      const response = await fetch(`/api/proxy/sites/${applicationId}/${action}`, {
+      const response = await fetch(`/api/proxy/projects/${applicationId}/${action}`, {
         method: "POST",
       })
       const payload = (await response.json()) as { message?: string; detail?: string; error?: string }

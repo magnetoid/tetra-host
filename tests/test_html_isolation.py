@@ -182,7 +182,7 @@ def test_dashboard_platform_admin_sees_all(authenticated_client, monkeypatch):
         return [zone], [], "zone-platform"
 
     monkeypatch.setattr(
-        "app.modules.sites.service.SitesService.list_sites_for_tenant",
+        "app.modules.projects.service.ProjectsService.list_sites_for_tenant",
         fake_list_sites,
     )
     monkeypatch.setattr(
@@ -220,7 +220,7 @@ def test_dashboard_non_platform_admin_sees_only_own_resources(client, monkeypatc
         return [], [], ""
 
     monkeypatch.setattr(
-        "app.modules.sites.service.SitesService.list_sites_for_tenant",
+        "app.modules.projects.service.ProjectsService.list_sites_for_tenant",
         fake_list_sites_for_tenant,
     )
     monkeypatch.setattr(

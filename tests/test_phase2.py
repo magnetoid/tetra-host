@@ -39,8 +39,8 @@ def test_coolify_resource_normalization_supports_common_shapes():
     assert app_item.healthcheck_enabled is True
 
 
-def test_sites_page_requires_auth(client):
-    response = client.get("/sites", follow_redirects=False)
+def test_projects_page_requires_auth(client):
+    response = client.get("/projects", follow_redirects=False)
     assert response.status_code == 303
 
 
@@ -86,7 +86,7 @@ async def _seed_site_tenant() -> None:
         )
 
 
-def test_sites_deploy_action_is_tenant_scoped(client, monkeypatch):
+def test_projects_deploy_action_is_tenant_scoped(client, monkeypatch):
     asyncio.run(_seed_site_tenant())
     monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
 
@@ -106,40 +106,40 @@ def test_sites_deploy_action_is_tenant_scoped(client, monkeypatch):
             "email": "owner@acme.test",
             "password": "acme-password",
             "csrf_token": csrf_token,
-            "next_url": "/sites",
+            "next_url": "/projects",
         },
         follow_redirects=False,
     )
     assert login_response.status_code == 303
 
-    sites_page = client.get("/sites")
-    page_csrf = extract_csrf_token(sites_page.text)
+    projects_page = client.get("/projects")
+    page_csrf = extract_csrf_token(projects_page.text)
 
     allowed_response = client.post(
-        "/sites/app-acme/deploy",
+        "/projects/app-acme/deploy",
         data={"csrf_token": page_csrf},
         follow_redirects=False,
     )
     assert allowed_response.status_code == 303
     assert allowed_response.headers["location"].endswith(
-        "/sites/app-acme?tab=deployments&deploy=Deployment%20queued%20for%20app-acme"
+        "/projects/app-acme?tab=deployments&deploy=Deployment%20queued%20for%20app-acme"
     )
 
     denied_response = client.post(
-        "/sites/app-other/deploy",
+        "/projects/app-other/deploy",
         data={"csrf_token": page_csrf},
         follow_redirects=False,
     )
     assert denied_response.status_code == 303
     assert denied_response.headers["location"].endswith(
-        "/sites/app-other?tab=deployments&deploy_error=Application%20is%20not%20assigned%20to%20this%20tenant."
+        "/projects/app-other?tab=deployments&deploy_error=Application%20is%20not%20assigned%20to%20this%20tenant."
     )
 
     assert deploy_calls == ["app-acme"]
 
 
 
-def test_sites_start_restart_and_deployments_are_tenant_scoped(client, monkeypatch):
+def test_projects_start_restart_and_deployments_are_tenant_scoped(client, monkeypatch):
     asyncio.run(_seed_site_tenant())
     monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
 
@@ -172,33 +172,33 @@ def test_sites_start_restart_and_deployments_are_tenant_scoped(client, monkeypat
             "email": "owner@acme.test",
             "password": "acme-password",
             "csrf_token": csrf_token,
-            "next_url": "/sites",
+            "next_url": "/projects",
         },
         follow_redirects=False,
     )
     assert login_response.status_code == 303
 
-    sites_page = client.get("/sites")
-    page_csrf = extract_csrf_token(sites_page.text)
+    projects_page = client.get("/projects")
+    page_csrf = extract_csrf_token(projects_page.text)
 
-    start_response = client.post("/sites/app-acme/start", data={"csrf_token": page_csrf}, follow_redirects=False)
-    restart_response = client.post("/sites/app-acme/restart", data={"csrf_token": page_csrf}, follow_redirects=False)
+    start_response = client.post("/projects/app-acme/start", data={"csrf_token": page_csrf}, follow_redirects=False)
+    restart_response = client.post("/projects/app-acme/restart", data={"csrf_token": page_csrf}, follow_redirects=False)
     assert start_response.status_code == 303
     assert restart_response.status_code == 303
-    assert start_response.headers["location"].endswith("/sites/app-acme?start=Start%20requested%20for%20app-acme")
-    assert restart_response.headers["location"].endswith("/sites/app-acme?restart=Restart%20requested%20for%20app-acme")
+    assert start_response.headers["location"].endswith("/projects/app-acme?start=Start%20requested%20for%20app-acme")
+    assert restart_response.headers["location"].endswith("/projects/app-acme?restart=Restart%20requested%20for%20app-acme")
 
-    denied_start = client.post("/sites/app-other/start", data={"csrf_token": page_csrf}, follow_redirects=False)
-    denied_restart = client.post("/sites/app-other/restart", data={"csrf_token": page_csrf}, follow_redirects=False)
-    assert denied_start.headers["location"].endswith("/sites/app-other?start_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
-    assert denied_restart.headers["location"].endswith("/sites/app-other?restart_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
+    denied_start = client.post("/projects/app-other/start", data={"csrf_token": page_csrf}, follow_redirects=False)
+    denied_restart = client.post("/projects/app-other/restart", data={"csrf_token": page_csrf}, follow_redirects=False)
+    assert denied_start.headers["location"].endswith("/projects/app-other?start_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
+    assert denied_restart.headers["location"].endswith("/projects/app-other?restart_error=Application%20is%20not%20assigned%20to%20this%20tenant.")
 
-    deployments_page = client.get("/sites?app=app-acme")
+    deployments_page = client.get("/projects?app=app-acme")
     assert deployments_page.status_code == 200
     assert "Recent deployments" in deployments_page.text
     assert "dep-1" in deployments_page.text
 
-    denied_deployments_page = client.get("/sites?app=app-other")
+    denied_deployments_page = client.get("/projects?app=app-other")
     assert denied_deployments_page.status_code == 200
     assert "Application is not assigned to this tenant." in denied_deployments_page.text
 

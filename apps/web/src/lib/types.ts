@@ -31,15 +31,15 @@ export interface ProviderSummary {
 export interface DashboardResponse {
   providers: ProviderSummary[]
   metrics: {
-    sites: number
-    unhealthy_sites: number
+    projects: number
+    unhealthy_projects: number
     mail_domains: number
     dns_zones: number
     admins: number
   }
 }
 
-export interface SiteRecord {
+export interface ProjectRecord {
   id: string
   name: string
   status: string
@@ -182,7 +182,7 @@ export interface AdminResponse {
   providers: ProviderSummary[]
 }
 
-export interface SiteDeploymentRecord {
+export interface ProjectDeploymentRecord {
   id: string
   status: string
   created_at: string
@@ -216,7 +216,7 @@ export interface TenantRecord {
   plan_key?: string
 }
 
-export interface SiteActionResponse {
+export interface ProjectActionResponse {
   ok: boolean
   message: string
   deployment_id?: string

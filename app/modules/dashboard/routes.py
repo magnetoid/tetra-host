@@ -6,7 +6,7 @@ from app.db import get_db_session
 from app.models import AdminUser
 from app.modules.dns.service import DnsService
 from app.modules.mail.service import MailService
-from app.modules.sites.service import SitesService
+from app.modules.projects.service import ProjectsService
 from app.routes import require_admin
 from app.services.http import ProviderAPIError
 from app.templating import build_templates
@@ -23,7 +23,7 @@ async def index(
     current_admin: AdminUser = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
-    sites_service = SitesService(request)
+    sites_service = ProjectsService(request)
     mail_service = MailService(request)
     dns_service = DnsService(request)
 
@@ -66,7 +66,7 @@ async def index(
         select(func.count()).select_from(AdminUser).where(AdminUser.tenant_id == current_admin.tenant_id)
     ) or 0
     stats = [
-        {"label": "Sites", "value": str(len(sites)), "hint": "Coolify application inventory"},
+        {"label": "Projects", "value": str(len(sites)), "hint": "Coolify application inventory"},
         {"label": "Mailboxes", "value": str(len(mailboxes)), "hint": "Mailcow mailbox count"},
         {"label": "DNS zones", "value": str(len(zones)), "hint": "Cloudflare zone inventory"},
         {"label": "Admins", "value": str(admin_count), "hint": "Authenticated platform operators"},

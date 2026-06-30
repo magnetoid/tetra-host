@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db_session
 from app.models import AdminUser
-from app.modules.sites.service import SitesService
+from app.modules.projects.service import ProjectsService
 from app.routes import require_admin
 from app.routes.deps import verify_csrf_token
 from app.services.deploy_notifications import DeploymentNotifier
@@ -15,7 +15,7 @@ from app.services.http import ProviderAPIError
 from app.templating import build_templates
 
 templates = build_templates()
-router = APIRouter(prefix="/sites", tags=["sites"])
+router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _redirect(path: str) -> RedirectResponse:
@@ -51,14 +51,14 @@ async def _notify(
 
 
 @router.get("")
-async def list_sites(
+async def list_projects(
     request: Request,
     current_admin: AdminUser = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     refresh = request.query_params.get("refresh") == "1"
     selected_app = request.query_params.get("app", "")
-    service = SitesService(request)
+    service = ProjectsService(request)
     sites = []
     deployments = []
     error = None
@@ -83,13 +83,13 @@ async def list_sites(
 
 
 @router.get("/{application_id}")
-async def site_detail(
+async def project_detail(
     request: Request,
     application_id: str,
     current_admin: AdminUser = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
-    service = SitesService(request)
+    service = ProjectsService(request)
     site = None
     deployments = []
     envs = []
@@ -145,7 +145,7 @@ async def site_detail(
 
 
 @router.post("/{application_id}/deploy")
-async def deploy_site(
+async def deploy_project(
     request: Request,
     application_id: str,
     csrf_token: str = Form(...),
@@ -158,8 +158,8 @@ async def deploy_site(
 ):
     verify_csrf_token(request, csrf_token)
     if not request.state.settings.enable_provider_actions:
-        return _redirect(f"/sites/{application_id}?tab=deployments&deploy_error=Actions+disabled")
-    service = SitesService(request)
+        return _redirect(f"/projects/{application_id}?tab=deployments&deploy_error=Actions+disabled")
+    service = ProjectsService(request)
     try:
         site = await service.get_site_for_tenant(session, current_admin.tenant_id, application_id)
         result = await service.deploy_for_tenant(session, current_admin.tenant_id, application_id, force=force, tag=tag)
@@ -173,7 +173,7 @@ async def deploy_site(
             status_text="requested",
             details={"force": force, "tag": tag, "result": result},
         )
-        return _redirect(f"/sites/{application_id}?tab=deployments&deploy={quote(str(result.get('message', 'Deployment queued.')))}")
+        return _redirect(f"/projects/{application_id}?tab=deployments&deploy={quote(str(result.get('message', 'Deployment queued.')))}")
     except ProviderAPIError as exc:
         await _notify(
             request,
@@ -185,11 +185,11 @@ async def deploy_site(
             status_text="request_failed",
             details={"error": str(exc), "force": force, "tag": tag},
         )
-        return _redirect(f"/sites/{application_id}?tab=deployments&deploy_error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=deployments&deploy_error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/start")
-async def start_site(
+async def start_project(
     request: Request,
     application_id: str,
     csrf_token: str = Form(...),
@@ -197,16 +197,16 @@ async def start_site(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         result = await service.start_for_tenant(session, current_admin.tenant_id, application_id)
-        return _redirect(f"/sites/{application_id}?start={quote(str(result.get('message', 'Application start requested.')))}")
+        return _redirect(f"/projects/{application_id}?start={quote(str(result.get('message', 'Application start requested.')))}")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?start_error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?start_error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/restart")
-async def restart_site(
+async def restart_project(
     request: Request,
     application_id: str,
     csrf_token: str = Form(...),
@@ -214,16 +214,16 @@ async def restart_site(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         result = await service.restart_for_tenant(session, current_admin.tenant_id, application_id)
-        return _redirect(f"/sites/{application_id}?restart={quote(str(result.get('message', 'Application restart requested.')))}")
+        return _redirect(f"/projects/{application_id}?restart={quote(str(result.get('message', 'Application restart requested.')))}")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?restart_error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?restart_error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/stop")
-async def stop_site(
+async def stop_project(
     request: Request,
     application_id: str,
     csrf_token: str = Form(...),
@@ -231,22 +231,22 @@ async def stop_site(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         result = await service.stop_for_tenant(session, current_admin.tenant_id, application_id)
-        return _redirect(f"/sites/{application_id}?stop={quote(str(result.get('message', 'Application stop requested.')))}")
+        return _redirect(f"/projects/{application_id}?stop={quote(str(result.get('message', 'Application stop requested.')))}")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?stop_error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?stop_error={quote(str(exc))}")
 
 
 @router.get("/{application_id}/logs")
-async def site_logs_partial(
+async def project_logs_partial(
     request: Request,
     application_id: str,
     current_admin: AdminUser = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         logs = await service.get_logs_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError:
@@ -264,12 +264,12 @@ async def cancel_deployment(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         await service.cancel_deployment_for_tenant(session, current_admin.tenant_id, application_id, deployment_id)
-        return _redirect(f"/sites/{application_id}?tab=deployments&cancel=Deployment+cancelled")
+        return _redirect(f"/projects/{application_id}?tab=deployments&cancel=Deployment+cancelled")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=deployments&cancel_error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=deployments&cancel_error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/settings")
@@ -293,7 +293,7 @@ async def update_settings(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     data: dict = {}
     for key, value in {
         "description": description,
@@ -313,9 +313,9 @@ async def update_settings(
             data[key] = value
     try:
         await service.update_site_for_tenant(session, current_admin.tenant_id, application_id, data)
-        return _redirect(f"/sites/{application_id}?tab=settings&msg=Settings+saved")
+        return _redirect(f"/projects/{application_id}?tab=settings&msg=Settings+saved")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=settings&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=settings&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/execute")
@@ -328,12 +328,12 @@ async def execute_command(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         output = await service.execute_command_for_tenant(session, current_admin.tenant_id, application_id, command)
-        return _redirect(f"/sites/{application_id}?tab=execute&msg=Command+executed&output={quote(str(output))}")
+        return _redirect(f"/projects/{application_id}?tab=execute&msg=Command+executed&output={quote(str(output))}")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=execute&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=execute&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/envs/create")
@@ -349,12 +349,12 @@ async def create_env(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         await service.create_env_for_tenant(session, current_admin.tenant_id, application_id, key, value, is_preview, is_build_time)
-        return _redirect(f"/sites/{application_id}?tab=envs&msg=Variable+created")
+        return _redirect(f"/projects/{application_id}?tab=envs&msg=Variable+created")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=envs&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=envs&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/envs/{env_uuid}/delete")
@@ -367,12 +367,12 @@ async def delete_env(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         await service.delete_env_for_tenant(session, current_admin.tenant_id, application_id, env_uuid)
-        return _redirect(f"/sites/{application_id}?tab=envs&msg=Variable+deleted")
+        return _redirect(f"/projects/{application_id}?tab=envs&msg=Variable+deleted")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=envs&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=envs&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/storages/create")
@@ -385,13 +385,13 @@ async def create_storage(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         payload = json.loads(payload_json)
         await service.create_storage_for_tenant(session, current_admin.tenant_id, application_id, payload)
-        return _redirect(f"/sites/{application_id}?tab=storages&msg=Storage+created")
+        return _redirect(f"/projects/{application_id}?tab=storages&msg=Storage+created")
     except (ProviderAPIError, json.JSONDecodeError) as exc:
-        return _redirect(f"/sites/{application_id}?tab=storages&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=storages&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/storages/update")
@@ -404,13 +404,13 @@ async def update_storage(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         payload = json.loads(payload_json)
         await service.update_storage_for_tenant(session, current_admin.tenant_id, application_id, payload)
-        return _redirect(f"/sites/{application_id}?tab=storages&msg=Storage+updated")
+        return _redirect(f"/projects/{application_id}?tab=storages&msg=Storage+updated")
     except (ProviderAPIError, json.JSONDecodeError) as exc:
-        return _redirect(f"/sites/{application_id}?tab=storages&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=storages&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/storages/{storage_uuid}/delete")
@@ -423,12 +423,12 @@ async def delete_storage(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         await service.delete_storage_for_tenant(session, current_admin.tenant_id, application_id, storage_uuid)
-        return _redirect(f"/sites/{application_id}?tab=storages&msg=Storage+deleted")
+        return _redirect(f"/projects/{application_id}?tab=storages&msg=Storage+deleted")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=storages&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=storages&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/tasks/create")
@@ -441,13 +441,13 @@ async def create_task(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         payload = json.loads(payload_json)
         await service.create_scheduled_task_for_tenant(session, current_admin.tenant_id, application_id, payload)
-        return _redirect(f"/sites/{application_id}?tab=tasks&msg=Scheduled+task+created")
+        return _redirect(f"/projects/{application_id}?tab=tasks&msg=Scheduled+task+created")
     except (ProviderAPIError, json.JSONDecodeError) as exc:
-        return _redirect(f"/sites/{application_id}?tab=tasks&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=tasks&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/tasks/{task_uuid}/update")
@@ -461,13 +461,13 @@ async def update_task(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         payload = json.loads(payload_json)
         await service.update_scheduled_task_for_tenant(session, current_admin.tenant_id, application_id, task_uuid, payload)
-        return _redirect(f"/sites/{application_id}?tab=tasks&msg=Scheduled+task+updated")
+        return _redirect(f"/projects/{application_id}?tab=tasks&msg=Scheduled+task+updated")
     except (ProviderAPIError, json.JSONDecodeError) as exc:
-        return _redirect(f"/sites/{application_id}?tab=tasks&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=tasks&error={quote(str(exc))}")
 
 
 @router.post("/{application_id}/tasks/{task_uuid}/delete")
@@ -480,9 +480,9 @@ async def delete_task(
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         await service.delete_scheduled_task_for_tenant(session, current_admin.tenant_id, application_id, task_uuid)
-        return _redirect(f"/sites/{application_id}?tab=tasks&msg=Scheduled+task+deleted")
+        return _redirect(f"/projects/{application_id}?tab=tasks&msg=Scheduled+task+deleted")
     except ProviderAPIError as exc:
-        return _redirect(f"/sites/{application_id}?tab=tasks&error={quote(str(exc))}")
+        return _redirect(f"/projects/{application_id}?tab=tasks&error={quote(str(exc))}")

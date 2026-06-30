@@ -9,7 +9,7 @@ from app.modules.maintenance.plugin import MaintenancePlugin
 from app.modules.plans.plugin import PlansPlugin
 from app.modules.public.plugin import PublicPlugin
 from app.modules.servers.plugin import ServersPlugin
-from app.modules.sites.plugin import SitesPlugin
+from app.modules.projects.plugin import ProjectsPlugin
 
 
 def load_plugins() -> None:
@@ -17,7 +17,7 @@ def load_plugins() -> None:
     registry.add(PublicPlugin())
     registry.add(AuthPlugin())
     registry.add(DashboardPlugin())
-    registry.add(SitesPlugin())
+    registry.add(ProjectsPlugin())
     registry.add(DatabasesPlugin())
     registry.add(ServersPlugin())
     registry.add(MailPlugin())
