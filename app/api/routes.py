@@ -13,28 +13,27 @@ from app.api.contracts import (
     AppInstallRequest,
     AppTemplateSummary,
     AuthResponse,
-    DeploymentStatus,
-    DeployStartResponse,
-    GitDeployRequest,
-    InstalledAppSummary,
+    BackupConfigSummary,
+    BackupCreateRequest,
+    CachePurgeRequest,
+    DatabaseProvisionRequest,
+    DatabaseSummary,
     DashboardMetrics,
     DashboardResponse,
     DeploymentDetail,
     DeploymentLogLine,
+    DeploymentStatus,
+    DeployStartResponse,
     DNSRecordCreateRequest,
     DNSRecordSummary,
     DNSResponse,
     DNSZoneSummary,
     DnsExportResponse,
     DnsImportRequest,
-    EnvVarCreateRequest,
-    CachePurgeRequest,
     DnssecUpdateRequest,
-    ZoneAnalytics,
-    ZoneAnalyticsPoint,
-    ZoneAnalyticsTotals,
-    ZoneSettings,
-    ZoneSettingUpdateRequest,
+    EnvVarCreateRequest,
+    GitDeployRequest,
+    InstalledAppSummary,
     MailboxSummary,
     MailDomainSummary,
     MailResponse,
@@ -52,6 +51,11 @@ from app.api.contracts import (
     TenantResourceSummary,
     TenantSummary,
     UsageResponse,
+    ZoneAnalytics,
+    ZoneAnalyticsPoint,
+    ZoneAnalyticsTotals,
+    ZoneSettings,
+    ZoneSettingUpdateRequest,
 )
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
@@ -61,6 +65,7 @@ from app.models.audit import AuditEvent
 from app.models.plan import Plan
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
+from app.modules.databases.service import DatabasesService
 from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
 from app.modules.plans.service import PlanService
@@ -1563,4 +1568,122 @@ async def api_usage(
         domains_used=domains_used,
         domains_limit=domains_limit,
         enforced=["apps"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Databases endpoints  (/api/v1/databases)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/databases", response_model=list[DatabaseSummary])
+async def api_list_databases(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[DatabaseSummary]:
+    """List Coolify databases assigned to the caller's tenant."""
+    service = DatabasesService(request)
+    databases = await service.list_databases_for_tenant(
+        session,
+        current_admin.tenant_id,
+        refresh=request.query_params.get("refresh") == "1",
+    )
+    return [
+        DatabaseSummary(
+            id=db.id,
+            name=db.name,
+            type=db.type,
+            status=db.status,
+            internal_db_url=db.internal_db_url,
+            image=db.image,
+        )
+        for db in databases
+    ]
+
+
+@router.post("/databases", response_model=SiteActionResponse)
+async def api_provision_database(
+    payload: DatabaseProvisionRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    """Provision a new managed database via Coolify (tenant-scoped).
+
+    Gated by ENABLE_PROVIDER_ACTIONS. db_type must be in the supported allow-list.
+    """
+    service = DatabasesService(request)
+    try:
+        result = await service.provision_for_tenant(
+            session,
+            current_admin.tenant_id,
+            db_type=payload.db_type,
+            name=payload.name,
+            server_uuid=payload.server_uuid,
+            project_uuid=payload.project_uuid,
+            environment_name=payload.environment_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except ProviderAPIError as exc:
+        _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
+    return SiteActionResponse(
+        ok=bool(result.get("ok", True)),
+        message=str(result.get("message", "Database provisioned.")),
+    )
+
+
+@router.get("/databases/{db_uuid}/backups", response_model=list[BackupConfigSummary])
+async def api_list_database_backups(
+    db_uuid: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[BackupConfigSummary]:
+    """List backup configs for a tenant-owned database."""
+    service = DatabasesService(request)
+    try:
+        backups = await service.backups_for_tenant(session, current_admin.tenant_id, db_uuid)
+    except ProviderAPIError as exc:
+        _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
+    return [
+        BackupConfigSummary(
+            id=str(b.get("uuid") or b.get("id") or ""),
+            frequency=str(b.get("frequency") or ""),
+            retention_days=int(b.get("retention_days") or b.get("retention") or 0),
+            s3_storage_id=str(b.get("s3_storage_id") or ""),
+        )
+        for b in backups
+    ]
+
+
+@router.post("/databases/{db_uuid}/backups", response_model=SiteActionResponse)
+async def api_create_database_backup(
+    db_uuid: str,
+    payload: BackupCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> SiteActionResponse:
+    """Create a backup config for a tenant-owned database. Gated by ENABLE_PROVIDER_ACTIONS."""
+    service = DatabasesService(request)
+    config: dict[str, object] = {
+        "frequency": payload.frequency,
+        "retention_days": payload.retention_days,
+    }
+    if payload.s3_storage_id:
+        config["s3_storage_id"] = payload.s3_storage_id
+    try:
+        result = await service.create_backup_for_tenant(
+            session, current_admin.tenant_id, db_uuid, **config
+        )
+    except ProviderAPIError as exc:
+        _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
+    return SiteActionResponse(
+        ok=bool(result.get("ok", True)),
+        message=str(result.get("message", "Backup config created.")),
     )
