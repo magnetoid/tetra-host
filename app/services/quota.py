@@ -59,6 +59,7 @@ class QuotaExceeded(Exception):
     error: str = "quota_exceeded"
 
     def __init__(self, *, reason: str, limit: int, used: int) -> None:
+        self.error = "quota_exceeded"
         self.reason = reason
         self.limit = limit
         self.used = used

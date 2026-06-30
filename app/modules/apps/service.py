@@ -160,8 +160,10 @@ class AppsService:
 
         try:
             await self.engine.deploy_stack(project, compose, env)
-        except DockerEngineError:
+        except Exception:
             # Release the reservation so a failed install leaves no orphan slot.
+            # Catch ALL exceptions (not just DockerEngineError) to prevent quota leaks
+            # from network errors, TimeoutError, OSError, etc.
             await quota.release(project)
             raise
 

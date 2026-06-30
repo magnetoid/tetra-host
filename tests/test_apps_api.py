@@ -223,7 +223,7 @@ def test_install_over_quota_returns_402(client, monkeypatch):
 
 
 def test_install_failure_releases_reservation(client, monkeypatch):
-    """If engine.deploy_stack fails, the quota reservation is released (no orphan)."""
+    """If engine.deploy_stack raises DockerEngineError, the quota reservation is released (no orphan)."""
     asyncio.run(_seed_quota_tenant(max_apps=2, already_installed=0))
     monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
 
@@ -247,18 +247,80 @@ def test_install_failure_releases_reservation(client, monkeypatch):
     # Engine failure → 500 (mapped from DockerEngineError code=500)
     assert response.status_code in (500, 503), response.text
 
-    # Check that the reservation was released: usage should be 0.
-    async def check_usage():
-        from app.services.quota import QuotaService
+    # Tightened assertion: directly count TenantResource rows (resource_type=app) for
+    # this tenant — avoids masking a silently-failed release via the usage() composite count.
+    async def check_resource_rows():
+        from sqlalchemy import func, select
         async with session_scope() as session:
             from app.models import Tenant
-            from sqlalchemy import select
             tenant = (await session.scalars(select(Tenant).where(Tenant.slug == "quota-t"))).first()
-            svc = QuotaService(session, tenant.id)
-            return await svc.usage()
+            count = await session.scalar(
+                select(func.count()).where(
+                    TenantResource.tenant_id == tenant.id,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                )
+            )
+            return count or 0
 
-    usage = asyncio.run(check_usage())
-    assert usage["apps"] == 0, f"Expected 0 apps after failure, got {usage['apps']}"
+    row_count = asyncio.run(check_resource_rows())
+    assert row_count == 0, f"Expected 0 TenantResource app rows after failure, got {row_count}"
+
+
+def test_install_non_docker_error_releases_reservation(client, monkeypatch):
+    """If engine.deploy_stack raises a NON-DockerEngineError (e.g. RuntimeError, TimeoutError),
+    the quota reservation must still be released — no orphan quota slot.
+
+    RED before Fix 1 (narrow except DockerEngineError): RuntimeError propagates without release,
+    TenantResource count stays 1.
+    GREEN after Fix 1 (broad except Exception): reservation released, count back to 0.
+
+    The RuntimeError propagates through the FastAPI route (which catches only DockerEngineError)
+    and is re-raised by TestClient. We catch it here and then verify the row count.
+    """
+    import pytest
+
+    asyncio.run(_seed_quota_tenant(max_apps=2, already_installed=0))
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    compose_b64 = base64.b64encode(b"services:\n  web:\n    image: nginx\n").decode()
+
+    async def fake_get_template(self, slug):
+        return AppTemplate(slug=slug, name="Test App", compose_b64=compose_b64)
+
+    async def crashing_deploy(self, project, compose_yaml, env=None):
+        raise RuntimeError("boom — unexpected non-engine error")
+
+    monkeypatch.setattr("app.services.app_catalog.AppCatalog.get_template", fake_get_template)
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.deploy_stack", crashing_deploy)
+
+    headers = _login_quota(client)
+
+    # The RuntimeError is not caught by the route handler, so TestClient re-raises it.
+    # This proves (a) the install fails — it does not silently swallow the error.
+    with pytest.raises(RuntimeError, match="boom"):
+        client.post(
+            "/api/v1/apps/install", headers=headers, json={"slug": "test-app", "name": "crash-app"}
+        )
+
+    # (b) Direct TenantResource row count must be 0 — reservation released despite non-DockerEngineError.
+    async def check_resource_rows():
+        from sqlalchemy import func, select
+        async with session_scope() as session:
+            from app.models import Tenant
+            tenant = (await session.scalars(select(Tenant).where(Tenant.slug == "quota-t"))).first()
+            count = await session.scalar(
+                select(func.count()).where(
+                    TenantResource.tenant_id == tenant.id,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                )
+            )
+            return count or 0
+
+    row_count = asyncio.run(check_resource_rows())
+    assert row_count == 0, (
+        f"Expected 0 TenantResource app rows after RuntimeError, got {row_count} — "
+        "reservation leaked (Fix 1 not applied)"
+    )
 
 
 def test_pending_tenant_gets_403_not_402(client, monkeypatch):
