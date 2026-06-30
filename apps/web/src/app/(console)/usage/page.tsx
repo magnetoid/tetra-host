@@ -16,7 +16,7 @@ export default async function UsagePage() {
       <PageHeader
         eyebrow="Your plan"
         title="Usage"
-        description="Quota consumption for your tenant against plan limits. Only apps is currently enforced; resource meters are advisory."
+        description="Quota consumption for your tenant against plan limits. Each meter shows whether that limit is enforced or advisory."
       />
       <UsageMeters usage={usage} />
     </div>
