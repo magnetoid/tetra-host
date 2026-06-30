@@ -545,12 +545,15 @@ async def api_stop_project(
 async def api_project_logs(
     application_id: str,
     request: Request,
+    lines: int = 200,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> dict[str, str]:
     service = ProjectsService(request)
     try:
-        logs = await service.get_logs_for_tenant(session, current_admin.tenant_id, application_id)
+        logs = await service.get_logs_for_tenant(
+            session, current_admin.tenant_id, application_id, lines=max(1, min(lines, 1000))
+        )
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc

@@ -82,6 +82,9 @@ class TetraClient:
     def deployments(self, project_id: str) -> list[dict]:
         return self._request("GET", f"/projects/{project_id}/deployments")
 
+    def project_runtime_logs(self, project_id: str, lines: int = 200) -> Any:
+        return self._request("GET", f"/projects/{project_id}/logs", params={"lines": str(lines)})
+
     def stream_logs(self, project_id: str, deployment_id: str) -> Iterator[tuple[str, dict]]:
         """Yield (event, data) tuples from the SSE build-log stream until done."""
         url = f"{self.api}/projects/{project_id}/deployments/{deployment_id}/logs/stream"

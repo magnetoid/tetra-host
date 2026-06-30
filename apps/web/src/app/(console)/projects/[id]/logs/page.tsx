@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { DeployConsole } from "@/components/projects/deploy-console"
+import { RuntimeLogs } from "@/components/projects/runtime-logs"
 import { PageHeader } from "@/components/ui/page-header"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
@@ -27,13 +28,28 @@ export default async function LogsPage({ params }: LogsPageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
-        eyebrow="Build output"
+        eyebrow="Observability"
         title="Logs"
-        description="Select a deployment to stream its build logs."
+        description="Live runtime output from the running container, plus per-deployment build logs."
       />
-      <DeployConsole applicationId={id} initialDeployments={deployments} />
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Runtime</h2>
+          <p className="text-sm text-zinc-500">Live output from the running container.</p>
+        </div>
+        <RuntimeLogs projectId={id} />
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Build logs</h2>
+          <p className="text-sm text-zinc-500">Select a deployment to stream its build output.</p>
+        </div>
+        <DeployConsole applicationId={id} initialDeployments={deployments} />
+      </section>
     </div>
   )
 }

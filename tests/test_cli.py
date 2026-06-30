@@ -461,6 +461,22 @@ def test_parser_admin_overview_dispatches():
     assert args.func is not None
 
 
+def test_client_project_runtime_logs_passes_lines():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/projects/app-1/logs"
+        assert request.url.params.get("lines") == "300"
+        return httpx.Response(200, json={"logs": "line a\nline b"})
+
+    result = make_client(handler).project_runtime_logs("app-1", lines=300)
+    assert result["logs"] == "line a\nline b"
+
+
+def test_parser_runtime_logs_dispatches():
+    args = build_parser().parse_args(["runtime-logs", "app-1", "--lines", "500"])
+    assert args.command == "runtime-logs" and args.project == "app-1" and args.lines == 500
+
+
 def test_main_admin_overview_renders(monkeypatch, capsys):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/admin/overview"

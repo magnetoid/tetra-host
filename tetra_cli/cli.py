@@ -143,6 +143,13 @@ def cmd_logs(args: argparse.Namespace) -> int:
     return _follow_logs(client_from_config(), args.project, args.deployment)
 
 
+def cmd_runtime_logs(args: argparse.Namespace) -> int:
+    data = client_from_config().project_runtime_logs(args.project, lines=args.lines)
+    logs = data.get("logs", "") if isinstance(data, dict) else str(data)
+    print(logs if logs.strip() else c("(no runtime logs)", "90"))
+    return 0
+
+
 def cmd_deploy(args: argparse.Namespace) -> int:
     client = client_from_config()
     result = client.deploy(args.project, force=args.force)
@@ -617,6 +624,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("deployment")
     sp.set_defaults(func=cmd_logs)
+
+    sp = sub.add_parser("runtime-logs", help="show a project's live container (runtime) logs")
+    sp.add_argument("project")
+    sp.add_argument("--lines", type=int, default=200)
+    sp.set_defaults(func=cmd_runtime_logs)
 
     dns = sub.add_parser("dns", help="manage DNS").add_subparsers(dest="dns_cmd", required=True)
     dns.add_parser("zones", help="list zones").set_defaults(func=cmd_dns_zones)
