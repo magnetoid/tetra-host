@@ -241,6 +241,18 @@ def _backfill_task14(connection) -> None:
             )
         )
 
+    # Mark every platform admin's tenant as platform-scope. The legacy/platform tenant
+    # (which owns all pre-multi-tenancy global resources) must fall open in the
+    # fail-closed isolation filter, or its admin would see an empty panel. This covers
+    # production tenants whose slug isn't 'default' (e.g. 'cloud-industry'). Runs AFTER
+    # the role backfill so the platform_admin rows are set. Idempotent.
+    connection.execute(
+        text(
+            "UPDATE tenants SET is_platform_scope=1 "
+            "WHERE id IN (SELECT DISTINCT tenant_id FROM admin_users WHERE role='platform_admin')"
+        )
+    )
+
 
 def _backfill_task31(connection) -> None:
     """Backfill cpu_millicores/mem_mb/disk_mb on app-type tenant_resources (idempotent: NULL-only)."""

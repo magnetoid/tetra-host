@@ -4,7 +4,7 @@ from sqlalchemy import select, text
 
 from app.config import get_settings
 from app.db import init_db, session_scope
-from app.models import AdminUser, Plan
+from app.models import AdminUser, Plan, Tenant
 from app.models.tenant_resource import RESOURCE_TYPE_APP, RESOURCE_TYPE_DNS_ZONE, TenantResource
 
 
@@ -125,5 +125,49 @@ def test_allocation_columns_backfilled_for_app_resources():
         assert dns_row.cpu_millicores is None, "non-app rows must not get allocation backfill"
         assert dns_row.mem_mb is None
         assert dns_row.disk_mb is None
+
+    asyncio.run(go())
+
+
+def test_platform_admin_tenant_marked_platform_scope():
+    """A platform admin's tenant becomes is_platform_scope on migration even when its
+    slug isn't 'default' (e.g. the production 'cloud-industry' tenant). Otherwise
+    fail-closed isolation (Task 2.1) would hide all platform-global resources from its
+    admin, leaving them with an empty panel."""
+
+    async def go():
+        await init_db()  # create tables
+
+        tenant_id = "t-legacy-co-001"
+        async with session_scope() as s:
+            # Legacy platform tenant: non-'default' slug, is_platform_scope=0.
+            await s.execute(
+                text(
+                    "INSERT INTO tenants "
+                    "(id, name, slug, status, is_platform_scope, created_at, updated_at) "
+                    "VALUES (:id, 'Legacy Co', 'legacy-co', 'active', 0, "
+                    "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                ),
+                {"id": tenant_id},
+            )
+            await s.execute(
+                text(
+                    "INSERT INTO admin_users "
+                    "(id, tenant_id, email, full_name, password_hash, is_active, role, "
+                    "created_at, updated_at) "
+                    "VALUES (:id, :tid, 'ops@legacy.test', 'Ops', 'x', 1, 'platform_admin', "
+                    "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                ),
+                {"id": "a-legacy-001", "tid": tenant_id},
+            )
+
+        await init_db()  # re-run the migration backfill
+
+        async with session_scope() as s:
+            row = (await s.scalars(select(Tenant).where(Tenant.slug == "legacy-co"))).first()
+        assert row is not None
+        assert row.is_platform_scope is True, (
+            "a platform admin's tenant must be marked platform-scope by the migration"
+        )
 
     asyncio.run(go())
