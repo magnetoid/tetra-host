@@ -1019,7 +1019,7 @@ async def api_deploy_status(
 async def api_admin(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
+    current_admin: AdminUser = Depends(require_platform_admin),
 ) -> AdminResponse:
     admins = list(
         (

@@ -141,3 +141,22 @@ def test_me_includes_role_for_owner(client):
     resp = client.get("/api/v1/auth/me", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["role"] == ROLE_OWNER
+
+
+# ---------------------------------------------------------------------------
+# Tests — GET /api/v1/admin must be platform-admin-only (Task 1.5 fix)
+# ---------------------------------------------------------------------------
+
+def test_owner_cannot_get_admin_summary(client):
+    """Owner tenant admin must get 403 on GET /api/v1/admin."""
+    asyncio.run(_seed_owner_tenant())
+    headers = _login_as(client, "owner@x.test", "owner-pw")
+    resp = client.get("/api/v1/admin", headers=headers)
+    assert resp.status_code == 403
+
+
+def test_platform_admin_can_get_admin_summary(client):
+    """Bootstrap platform_admin must be allowed through GET /api/v1/admin."""
+    headers = _login_as(client, "admin@example.com", "supersecurepassword")
+    resp = client.get("/api/v1/admin", headers=headers)
+    assert resp.status_code == 200
