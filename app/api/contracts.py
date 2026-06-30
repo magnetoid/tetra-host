@@ -41,8 +41,8 @@ class ProviderSummary(BaseModel):
 
 
 class DashboardMetrics(BaseModel):
-    sites: int
-    unhealthy_sites: int
+    projects: int
+    unhealthy_projects: int
     mail_domains: int
     dns_zones: int
     admins: int
@@ -55,7 +55,7 @@ class DashboardResponse(BaseModel):
     metrics: DashboardMetrics
 
 
-class SiteSummary(BaseModel):
+class ProjectSummary(BaseModel):
     id: str
     name: str
     status: str
@@ -66,13 +66,13 @@ class SiteSummary(BaseModel):
     healthcheck_enabled: bool
 
 
-class SiteActionResponse(BaseModel):
+class ActionResponse(BaseModel):
     ok: bool = True
     message: str
     deployment_id: str = ""
 
 
-class SiteDeploymentSummary(BaseModel):
+class ProjectDeploymentSummary(BaseModel):
     id: str
     status: str
     created_at: str

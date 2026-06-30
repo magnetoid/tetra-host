@@ -182,11 +182,11 @@ def test_api_deploy_is_limited_to_tenant_resources(client, monkeypatch):
     token = login_response.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    allowed_response = client.post("/api/v1/sites/app-acme/deploy", headers=headers)
+    allowed_response = client.post("/api/v1/projects/app-acme/deploy", headers=headers)
     assert allowed_response.status_code == 200
     assert allowed_response.json()["message"] == "Deployment queued for app-acme"
 
-    denied_response = client.post("/api/v1/sites/app-other/deploy", headers=headers)
+    denied_response = client.post("/api/v1/projects/app-other/deploy", headers=headers)
     assert denied_response.status_code == 403
     assert denied_response.json()["detail"] == "Application is not assigned to this tenant."
 
@@ -242,21 +242,21 @@ def test_api_site_actions_and_deployments_are_tenant_scoped(client, monkeypatch)
     token = login_response.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    start_response = client.post("/api/v1/sites/app-acme/start", headers=headers)
+    start_response = client.post("/api/v1/projects/app-acme/start", headers=headers)
     assert start_response.status_code == 200
     assert start_response.json()["message"] == "Start requested for app-acme"
 
-    restart_response = client.post("/api/v1/sites/app-acme/restart", headers=headers)
+    restart_response = client.post("/api/v1/projects/app-acme/restart", headers=headers)
     assert restart_response.status_code == 200
     assert restart_response.json()["message"] == "Restart requested for app-acme"
 
-    deployments_response = client.get("/api/v1/sites/app-acme/deployments", headers=headers)
+    deployments_response = client.get("/api/v1/projects/app-acme/deployments", headers=headers)
     assert deployments_response.status_code == 200
     assert deployments_response.json()[0]["id"] == "dep-1"
 
-    denied_start = client.post("/api/v1/sites/app-other/start", headers=headers)
-    denied_restart = client.post("/api/v1/sites/app-other/restart", headers=headers)
-    denied_deployments = client.get("/api/v1/sites/app-other/deployments", headers=headers)
+    denied_start = client.post("/api/v1/projects/app-other/start", headers=headers)
+    denied_restart = client.post("/api/v1/projects/app-other/restart", headers=headers)
+    denied_deployments = client.get("/api/v1/projects/app-other/deployments", headers=headers)
     assert denied_start.status_code == 403
     assert denied_restart.status_code == 403
     assert denied_deployments.status_code == 403
@@ -421,7 +421,7 @@ def test_api_provider_data_is_filtered_by_tenant(client, monkeypatch):
     token = login_response.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    sites_response = client.get("/api/v1/sites", headers=headers)
+    sites_response = client.get("/api/v1/projects", headers=headers)
     assert sites_response.status_code == 200
     assert [site["id"] for site in sites_response.json()] == ["app-acme"]
 
@@ -440,6 +440,6 @@ def test_api_provider_data_is_filtered_by_tenant(client, monkeypatch):
     dashboard_response = client.get("/api/v1/dashboard", headers=headers)
     assert dashboard_response.status_code == 200
     metrics = dashboard_response.json()["metrics"]
-    assert metrics["sites"] == 1
+    assert metrics["projects"] == 1
     assert metrics["mail_domains"] == 1
     assert metrics["dns_zones"] == 1

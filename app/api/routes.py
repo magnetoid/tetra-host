@@ -42,9 +42,9 @@ from app.api.contracts import (
     PlanUpdateRequest,
     ProviderSummary,
     SignupRequest,
-    SiteActionResponse,
-    SiteDeploymentSummary,
-    SiteSummary,
+    ActionResponse,
+    ProjectDeploymentSummary,
+    ProjectSummary,
     TenantAdminCreateRequest,
     TenantCreateRequest,
     TenantResourceCreateRequest,
@@ -72,7 +72,7 @@ from app.modules.plans.service import PlanService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
-from app.modules.sites.service import SitesService
+from app.modules.projects.service import ProjectsService
 from app.services.cloudflare import count_bind_records
 from app.services.coolify import parse_deployment_log_lines
 from app.models.admin import ROLE_PLATFORM_ADMIN
@@ -370,7 +370,7 @@ async def api_dashboard(
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> DashboardResponse:
-    sites_service = SitesService(request)
+    projects_service = ProjectsService(request)
     mail_service = MailService(request)
     dns_service = DnsService(request)
 
@@ -381,11 +381,11 @@ async def api_dashboard(
     providers: list[ProviderSummary] = []
 
     try:
-        sites = await sites_service.list_sites_for_tenant(session, current_admin.tenant_id)
+        sites = await projects_service.list_sites_for_tenant(session, current_admin.tenant_id)
         detail = "Credentials missing"
-        if sites_service.client.is_configured():
+        if projects_service.client.is_configured():
             detail = f"{len(sites)} applications"
-        providers.append(_provider_summary("Coolify", sites_service.client.is_configured(), detail))
+        providers.append(_provider_summary("Coolify", projects_service.client.is_configured(), detail))
     except ProviderAPIError as exc:
         providers.append(ProviderSummary(name="Coolify", status="degraded", detail=str(exc)))
 
@@ -414,8 +414,8 @@ async def api_dashboard(
     return DashboardResponse(
         providers=providers,
         metrics=DashboardMetrics(
-            sites=len(sites),
-            unhealthy_sites=unhealthy_sites,
+            projects=len(sites),
+            unhealthy_projects=unhealthy_sites,
             mail_domains=len(domains),
             dns_zones=len(zones),
             admins=int(admin_count),
@@ -423,29 +423,29 @@ async def api_dashboard(
     )
 
 
-@router.get("/sites", response_model=list[SiteSummary])
-async def api_sites(
+@router.get("/projects", response_model=list[ProjectSummary])
+async def api_projects(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[SiteSummary]:
-    service = SitesService(request)
+) -> list[ProjectSummary]:
+    service = ProjectsService(request)
     sites = await service.list_sites_for_tenant(
         session,
         current_admin.tenant_id,
         refresh=request.query_params.get("refresh") == "1",
     )
-    return [SiteSummary(**site.model_dump()) for site in sites]
+    return [ProjectSummary(**site.model_dump()) for site in sites]
 
 
-@router.post("/sites/{application_id}/deploy", response_model=SiteActionResponse)
-async def api_deploy_site(
+@router.post("/projects/{application_id}/deploy", response_model=ActionResponse)
+async def api_deploy_project(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     force = request.query_params.get("force") in {"1", "true", "yes"}
     try:
         result = await service.deploy_for_tenant(
@@ -454,85 +454,85 @@ async def api_deploy_site(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(
+    return ActionResponse(
         ok=bool(result.get("ok", True)),
         message=str(result.get("message", "Deployment queued.")),
         deployment_id=str(result.get("deployment_id", "")),
     )
 
 
-@router.post("/sites/{application_id}/start", response_model=SiteActionResponse)
-async def api_start_site(
+@router.post("/projects/{application_id}/start", response_model=ActionResponse)
+async def api_start_project(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     try:
         result = await service.start_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application start requested.")))
+    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application start requested.")))
 
 
-@router.post("/sites/{application_id}/restart", response_model=SiteActionResponse)
-async def api_restart_site(
+@router.post("/projects/{application_id}/restart", response_model=ActionResponse)
+async def api_restart_project(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     try:
         result = await service.restart_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application restart requested.")))
+    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application restart requested.")))
 
 
-@router.get("/sites/{application_id}/deployments", response_model=list[SiteDeploymentSummary])
-async def api_site_deployments(
+@router.get("/projects/{application_id}/deployments", response_model=list[ProjectDeploymentSummary])
+async def api_project_deployments(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[SiteDeploymentSummary]:
-    service = SitesService(request)
+) -> list[ProjectDeploymentSummary]:
+    service = ProjectsService(request)
     try:
         deployments = await service.list_deployments_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return [SiteDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
+    return [ProjectDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
 
 
-@router.post("/sites/{application_id}/stop", response_model=SiteActionResponse)
-async def api_stop_site(
+@router.post("/projects/{application_id}/stop", response_model=ActionResponse)
+async def api_stop_project(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     try:
         result = await service.stop_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application stop requested.")))
+    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application stop requested.")))
 
 
-@router.get("/sites/{application_id}/logs")
-async def api_site_logs(
+@router.get("/projects/{application_id}/logs")
+async def api_project_logs(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> dict[str, str]:
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         logs = await service.get_logs_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
@@ -541,14 +541,14 @@ async def api_site_logs(
     return {"logs": logs}
 
 
-@router.get("/sites/{application_id}/envs")
-async def api_site_envs(
+@router.get("/projects/{application_id}/envs")
+async def api_project_envs(
     application_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[dict[str, object]]:
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         envs = await service.get_envs_for_tenant(session, current_admin.tenant_id, application_id)
     except ProviderAPIError as exc:
@@ -557,15 +557,15 @@ async def api_site_envs(
     return envs
 
 
-@router.post("/sites/{application_id}/envs", response_model=SiteActionResponse)
+@router.post("/projects/{application_id}/envs", response_model=ActionResponse)
 async def api_create_env(
     application_id: str,
     payload: EnvVarCreateRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     try:
         await service.create_env_for_tenant(
             session,
@@ -579,27 +579,27 @@ async def api_create_env(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="Environment variable saved.")
+    return ActionResponse(message="Environment variable saved.")
 
 
-@router.delete("/sites/{application_id}/envs/{env_uuid}", response_model=SiteActionResponse)
+@router.delete("/projects/{application_id}/envs/{env_uuid}", response_model=ActionResponse)
 async def api_delete_env(
     application_id: str,
     env_uuid: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     try:
         await service.delete_env_for_tenant(session, current_admin.tenant_id, application_id, env_uuid)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="Environment variable deleted.")
+    return ActionResponse(message="Environment variable deleted.")
 
 
-@router.get("/sites/{application_id}/deployments/{deployment_id}", response_model=DeploymentDetail)
+@router.get("/projects/{application_id}/deployments/{deployment_id}", response_model=DeploymentDetail)
 async def api_deployment_detail(
     application_id: str,
     deployment_id: str,
@@ -607,7 +607,7 @@ async def api_deployment_detail(
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> DeploymentDetail:
-    service = SitesService(request)
+    service = ProjectsService(request)
     try:
         deployment = await service.get_deployment_for_tenant(
             session, current_admin.tenant_id, application_id, deployment_id
@@ -628,7 +628,7 @@ async def api_deployment_detail(
     )
 
 
-@router.get("/sites/{application_id}/deployments/{deployment_id}/logs/stream")
+@router.get("/projects/{application_id}/deployments/{deployment_id}/logs/stream")
 async def api_stream_deployment_logs(
     application_id: str,
     deployment_id: str,
@@ -636,7 +636,7 @@ async def api_stream_deployment_logs(
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> StreamingResponse:
-    service = SitesService(request)
+    service = ProjectsService(request)
     # Validate tenant access once, up front: the request DB session is not
     # safely usable inside the long-lived streaming generator below.
     try:
@@ -655,21 +655,21 @@ async def api_stream_deployment_logs(
     )
 
 
-@router.post("/sites/{application_id}/deployments/{deployment_id}/cancel", response_model=SiteActionResponse)
+@router.post("/projects/{application_id}/deployments/{deployment_id}/cancel", response_model=ActionResponse)
 async def api_cancel_deployment(
     application_id: str,
     deployment_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
-    service = SitesService(request)
+) -> ActionResponse:
+    service = ProjectsService(request)
     try:
         result = await service.cancel_deployment_for_tenant(session, current_admin.tenant_id, application_id, deployment_id)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Deployment cancelled.")))
+    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Deployment cancelled.")))
 
 
 @router.get("/mail", response_model=MailResponse)
@@ -737,14 +737,14 @@ async def api_dns(
     )
 
 
-@router.post("/dns/zones/{zone_id}/records", response_model=SiteActionResponse)
+@router.post("/dns/zones/{zone_id}/records", response_model=ActionResponse)
 async def api_create_dns_record(
     zone_id: str,
     payload: DNSRecordCreateRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     try:
         await service.create_record_for_tenant(
@@ -761,10 +761,10 @@ async def api_create_dns_record(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="DNS record created.")
+    return ActionResponse(message="DNS record created.")
 
 
-@router.put("/dns/zones/{zone_id}/records/{record_id}", response_model=SiteActionResponse)
+@router.put("/dns/zones/{zone_id}/records/{record_id}", response_model=ActionResponse)
 async def api_update_dns_record(
     zone_id: str,
     record_id: str,
@@ -772,7 +772,7 @@ async def api_update_dns_record(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     try:
         await service.update_record_for_tenant(
@@ -790,24 +790,24 @@ async def api_update_dns_record(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="DNS record updated.")
+    return ActionResponse(message="DNS record updated.")
 
 
-@router.delete("/dns/zones/{zone_id}/records/{record_id}", response_model=SiteActionResponse)
+@router.delete("/dns/zones/{zone_id}/records/{record_id}", response_model=ActionResponse)
 async def api_delete_dns_record(
     zone_id: str,
     record_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     try:
         await service.delete_record_for_tenant(session, current_admin.tenant_id, zone_id, record_id)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="DNS record deleted.")
+    return ActionResponse(message="DNS record deleted.")
 
 
 @router.get("/dns/zones/{zone_id}/settings", response_model=ZoneSettings)
@@ -832,14 +832,14 @@ async def api_zone_settings(
     )
 
 
-@router.patch("/dns/zones/{zone_id}/settings", response_model=SiteActionResponse)
+@router.patch("/dns/zones/{zone_id}/settings", response_model=ActionResponse)
 async def api_update_zone_setting(
     zone_id: str,
     payload: ZoneSettingUpdateRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     try:
         await service.update_zone_setting_for_tenant(
@@ -848,34 +848,34 @@ async def api_update_zone_setting(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message=f"{payload.setting} updated.")
+    return ActionResponse(message=f"{payload.setting} updated.")
 
 
-@router.patch("/dns/zones/{zone_id}/dnssec", response_model=SiteActionResponse)
+@router.patch("/dns/zones/{zone_id}/dnssec", response_model=ActionResponse)
 async def api_update_dnssec(
     zone_id: str,
     payload: DnssecUpdateRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     try:
         await service.update_dnssec_for_tenant(session, current_admin.tenant_id, zone_id, payload.status)
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="DNSSEC updated.")
+    return ActionResponse(message="DNSSEC updated.")
 
 
-@router.post("/dns/zones/{zone_id}/purge", response_model=SiteActionResponse)
+@router.post("/dns/zones/{zone_id}/purge", response_model=ActionResponse)
 async def api_purge_cache(
     zone_id: str,
     payload: CachePurgeRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     try:
         await service.purge_cache_for_tenant(
@@ -884,7 +884,7 @@ async def api_purge_cache(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return SiteActionResponse(message="Cache purge requested.")
+    return ActionResponse(message="Cache purge requested.")
 
 
 @router.get("/dns/zones/{zone_id}/analytics", response_model=ZoneAnalytics)
@@ -931,14 +931,14 @@ async def api_export_dns_records(
     return DnsExportResponse(zone_id=zone_id, bind=bind, record_count=count_bind_records(bind))
 
 
-@router.post("/dns/zones/{zone_id}/import", response_model=SiteActionResponse)
+@router.post("/dns/zones/{zone_id}/import", response_model=ActionResponse)
 async def api_import_dns_records(
     zone_id: str,
     payload: DnsImportRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     service = DnsService(request)
     if not payload.bind.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No zone file provided.")
@@ -951,7 +951,7 @@ async def api_import_dns_records(
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     recs_added = ((result.get("result") or {}).get("recs_added")) if isinstance(result, dict) else None
     message = f"Imported {recs_added} records." if recs_added is not None else "DNS records imported."
-    return SiteActionResponse(message=message)
+    return ActionResponse(message=message)
 
 
 def _engine_exc_to_http(exc: Exception) -> HTTPException:
@@ -1602,13 +1602,13 @@ async def api_list_databases(
     ]
 
 
-@router.post("/databases", response_model=SiteActionResponse)
+@router.post("/databases", response_model=ActionResponse)
 async def api_provision_database(
     payload: DatabaseProvisionRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     """Provision a new managed database via Coolify (tenant-scoped).
 
     Gated by ENABLE_PROVIDER_ACTIONS. db_type must be in the supported allow-list.
@@ -1629,7 +1629,7 @@ async def api_provision_database(
     except ProviderAPIError as exc:
         _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
-    return SiteActionResponse(
+    return ActionResponse(
         ok=bool(result.get("ok", True)),
         message=str(result.get("message", "Database provisioned.")),
     )
@@ -1660,14 +1660,14 @@ async def api_list_database_backups(
     ]
 
 
-@router.post("/databases/{db_uuid}/backups", response_model=SiteActionResponse)
+@router.post("/databases/{db_uuid}/backups", response_model=ActionResponse)
 async def api_create_database_backup(
     db_uuid: str,
     payload: BackupCreateRequest,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
-) -> SiteActionResponse:
+) -> ActionResponse:
     """Create a backup config for a tenant-owned database. Gated by ENABLE_PROVIDER_ACTIONS."""
     service = DatabasesService(request)
     config: dict[str, object] = {
@@ -1683,7 +1683,7 @@ async def api_create_database_backup(
     except ProviderAPIError as exc:
         _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
-    return SiteActionResponse(
+    return ActionResponse(
         ok=bool(result.get("ok", True)),
         message=str(result.get("message", "Backup config created.")),
     )

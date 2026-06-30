@@ -15,7 +15,7 @@ from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
 
 
-class SitesService:
+class ProjectsService:
     def __init__(self, request: Request) -> None:
         self.request = request
         self.client = CoolifyClient.from_settings(

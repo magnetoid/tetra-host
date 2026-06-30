@@ -272,10 +272,10 @@ def test_create_env_is_tenant_scoped(client, monkeypatch):
     headers = _login(client)
     body = {"key": "API_KEY", "value": "secret"}
 
-    allowed = client.post("/api/v1/sites/app-writer/envs", headers=headers, json=body)
+    allowed = client.post("/api/v1/projects/app-writer/envs", headers=headers, json=body)
     assert allowed.status_code == 200
 
-    denied = client.post("/api/v1/sites/app-foreign/envs", headers=headers, json=body)
+    denied = client.post("/api/v1/projects/app-foreign/envs", headers=headers, json=body)
     assert denied.status_code == 403
 
     assert created == [("app-writer", "API_KEY")]
@@ -294,10 +294,10 @@ def test_delete_env_is_tenant_scoped(client, monkeypatch):
 
     headers = _login(client)
 
-    allowed = client.delete("/api/v1/sites/app-writer/envs/env-1", headers=headers)
+    allowed = client.delete("/api/v1/projects/app-writer/envs/env-1", headers=headers)
     assert allowed.status_code == 200
 
-    denied = client.delete("/api/v1/sites/app-foreign/envs/env-1", headers=headers)
+    denied = client.delete("/api/v1/projects/app-foreign/envs/env-1", headers=headers)
     assert denied.status_code == 403
 
     assert deleted == [("app-writer", "env-1")]
