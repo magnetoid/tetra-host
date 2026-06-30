@@ -72,19 +72,19 @@ class TetraClient:
     def dashboard(self) -> Any:
         return self._request("GET", "/dashboard")
 
-    # ── Sites / deploys ───────────────────────────────────────────────────
-    def sites(self) -> list[dict]:
-        return self._request("GET", "/sites")
+    # ── Projects / deploys ────────────────────────────────────────────────
+    def projects(self) -> list[dict]:
+        return self._request("GET", "/projects")
 
-    def deploy(self, site_id: str, force: bool = False) -> Any:
-        return self._request("POST", f"/sites/{site_id}/deploy", params={"force": "1"} if force else None)
+    def deploy(self, project_id: str, force: bool = False) -> Any:
+        return self._request("POST", f"/projects/{project_id}/deploy", params={"force": "1"} if force else None)
 
-    def deployments(self, site_id: str) -> list[dict]:
-        return self._request("GET", f"/sites/{site_id}/deployments")
+    def deployments(self, project_id: str) -> list[dict]:
+        return self._request("GET", f"/projects/{project_id}/deployments")
 
-    def stream_logs(self, site_id: str, deployment_id: str) -> Iterator[tuple[str, dict]]:
+    def stream_logs(self, project_id: str, deployment_id: str) -> Iterator[tuple[str, dict]]:
         """Yield (event, data) tuples from the SSE build-log stream until done."""
-        url = f"{self.api}/sites/{site_id}/deployments/{deployment_id}/logs/stream"
+        url = f"{self.api}/projects/{project_id}/deployments/{deployment_id}/logs/stream"
         with self._client() as client, client.stream("GET", url, headers=self._headers()) as response:
             if response.status_code >= 400:
                 raise TetraError(f"log stream failed ({response.status_code})", response.status_code)
@@ -168,14 +168,14 @@ class TetraClient:
         return self._request("POST", f"/dns/zones/{zone_id}/import", json_body={"bind": bind})
 
     # ── Env vars ──────────────────────────────────────────────────────────
-    def envs(self, site_id: str) -> list[dict]:
-        return self._request("GET", f"/sites/{site_id}/envs")
+    def envs(self, project_id: str) -> list[dict]:
+        return self._request("GET", f"/projects/{project_id}/envs")
 
-    def env_set(self, site_id: str, key: str, value: str) -> Any:
-        return self._request("POST", f"/sites/{site_id}/envs", json_body={"key": key, "value": value})
+    def env_set(self, project_id: str, key: str, value: str) -> Any:
+        return self._request("POST", f"/projects/{project_id}/envs", json_body={"key": key, "value": value})
 
-    def env_rm(self, site_id: str, env_uuid: str) -> Any:
-        return self._request("DELETE", f"/sites/{site_id}/envs/{env_uuid}")
+    def env_rm(self, project_id: str, env_uuid: str) -> Any:
+        return self._request("DELETE", f"/projects/{project_id}/envs/{env_uuid}")
 
     # ── Apps (Tetra Engine — pre-defined Docker containers) ───────────────
     def apps_catalog(self, search: str | None = None, category: str | None = None) -> Any:
@@ -238,6 +238,36 @@ class TetraClient:
 
     def tenant_action(self, slug: str, action: str) -> Any:
         return self._request("POST", f"/tenants/{slug}/{action}")
+
+    # ── Databases ─────────────────────────────────────────────────────────
+    def databases(self) -> list[dict]:
+        return self._request("GET", "/databases")
+
+    def provision_database(
+        self,
+        db_type: str,
+        name: str,
+        server_uuid: str,
+        project_uuid: str,
+        environment_name: str,
+    ) -> Any:
+        return self._request(
+            "POST",
+            "/databases",
+            json_body={
+                "type": db_type,
+                "name": name,
+                "server_uuid": server_uuid,
+                "project_uuid": project_uuid,
+                "environment_name": environment_name,
+            },
+        )
+
+    def database_backups(self, uuid: str) -> list[dict]:
+        return self._request("GET", f"/databases/{uuid}/backups")
+
+    def create_database_backup(self, uuid: str, **config: Any) -> Any:
+        return self._request("POST", f"/databases/{uuid}/backups", json_body=config or None)
 
     # ── Usage ─────────────────────────────────────────────────────────────
     def usage(self) -> Any:
