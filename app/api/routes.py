@@ -62,6 +62,7 @@ from app.modules.mail.service import MailService
 from app.modules.sites.service import SitesService
 from app.services.cloudflare import count_bind_records
 from app.services.coolify import parse_deployment_log_lines
+from app.models.admin import ROLE_PLATFORM_ADMIN
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
 
@@ -145,6 +146,7 @@ def _admin_summary(admin: AdminUser) -> AdminSummary:
         tenant_id=admin.tenant_id,
         tenant_slug=admin.tenant.slug if admin.tenant else "",
         tenant_name=admin.tenant.name if admin.tenant else "",
+        role=admin.role,
     )
 
 
@@ -193,6 +195,12 @@ async def get_current_api_admin(
     if admin is None or not admin.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin session is no longer valid.")
     return admin
+
+
+async def require_platform_admin(current_admin: AdminUser = Depends(get_current_api_admin)) -> AdminUser:
+    if current_admin.role != ROLE_PLATFORM_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin only.")
+    return current_admin
 
 
 @router.get("/health")
@@ -1046,7 +1054,7 @@ async def api_admin(
 async def api_create_tenant(
     payload: TenantCreateRequest,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantSummary:
     auth_service = AuthService(session)
     normalized_slug = auth_service.normalize_slug(payload.slug)
@@ -1063,7 +1071,7 @@ async def api_create_tenant(
 @router.get("/tenants", response_model=list[TenantSummary])
 async def api_list_tenants(
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> list[TenantSummary]:
     tenants = list((await session.scalars(select(Tenant).order_by(Tenant.created_at))).all())
     return [_tenant_summary(tenant) for tenant in tenants]
@@ -1073,7 +1081,7 @@ async def api_list_tenants(
 async def api_activate_tenant(
     tenant_slug: str,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(tenant_slug)
@@ -1088,7 +1096,7 @@ async def api_activate_tenant(
 async def api_deactivate_tenant(
     tenant_slug: str,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(tenant_slug)
@@ -1103,7 +1111,7 @@ async def api_deactivate_tenant(
 async def api_create_tenant_admin(
     payload: TenantAdminCreateRequest,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> AdminSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)
@@ -1133,7 +1141,7 @@ async def api_create_tenant_admin(
 async def api_create_tenant_resource(
     payload: TenantResourceCreateRequest,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantResourceSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)

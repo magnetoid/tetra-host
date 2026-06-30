@@ -9,6 +9,7 @@ class AdminSummary(BaseModel):
     tenant_id: str
     tenant_slug: str
     tenant_name: str
+    role: str = ""
 
 
 class AuthResponse(BaseModel):

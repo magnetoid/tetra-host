@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db_session
 from app.models import AdminUser
+from app.models.admin import ROLE_PLATFORM_ADMIN
 from app.modules.auth.service import AuthService
 
 
@@ -61,6 +62,18 @@ async def require_admin(
     raise HTTPException(
         status_code=status.HTTP_303_SEE_OTHER,
         headers={"Location": f"/auth/login?next={destination}"},
+    )
+
+
+async def require_platform_admin(
+    request: Request,
+    current_admin: AdminUser = Depends(require_admin),
+) -> AdminUser:
+    if current_admin.role == ROLE_PLATFORM_ADMIN:
+        return current_admin
+    raise HTTPException(
+        status_code=status.HTTP_303_SEE_OTHER,
+        headers={"Location": "/dashboard"},
     )
 
 
