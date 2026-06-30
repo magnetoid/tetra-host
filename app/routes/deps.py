@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db_session
 from app.models import AdminUser
+from app.models.admin import ROLE_PLATFORM_ADMIN
+from app.models.tenant import TENANT_ACTIVE
 from app.modules.auth.service import AuthService
 
 
@@ -45,6 +47,12 @@ async def get_current_admin(
     request.state.current_tenant_slug = admin.tenant.slug if admin.tenant else None
     request.state.current_tenant_name = admin.tenant.name if admin.tenant else None
     request.state.csrf_token = ensure_csrf_token(request)
+    if (
+        admin.role != ROLE_PLATFORM_ADMIN
+        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and not (admin.tenant is not None and admin.tenant.status == TENANT_ACTIVE)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is not active.")
     return admin
 
 
@@ -61,6 +69,18 @@ async def require_admin(
     raise HTTPException(
         status_code=status.HTTP_303_SEE_OTHER,
         headers={"Location": f"/auth/login?next={destination}"},
+    )
+
+
+async def require_platform_admin(
+    request: Request,
+    current_admin: AdminUser = Depends(require_admin),
+) -> AdminUser:
+    if current_admin.role == ROLE_PLATFORM_ADMIN:
+        return current_admin
+    raise HTTPException(
+        status_code=status.HTTP_303_SEE_OTHER,
+        headers={"Location": "/dashboard"},
     )
 
 

@@ -1,4 +1,20 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class SignupRequest(BaseModel):
+    """Public signup payload — ONLY these three fields are accepted.
+
+    Role, plan_id, status, tenant_id, and is_platform_scope are NEVER accepted
+    from the client; the service sets them server-side.
+
+    Field max_lengths turn oversized payloads into 422s (Pydantic) instead of
+    DB-layer 500s. The password lower bound (>= 10 chars) is enforced server-side
+    by validate_password; the Field bound here is only an upper cap.
+    """
+
+    email: str = Field(..., max_length=254)
+    password: str = Field(..., max_length=200)
+    org_name: str = Field(..., min_length=1, max_length=120)
 
 
 class AdminSummary(BaseModel):
@@ -9,6 +25,8 @@ class AdminSummary(BaseModel):
     tenant_id: str
     tenant_slug: str
     tenant_name: str
+    role: str = ""
+    tenant_status: str = ""
 
 
 class AuthResponse(BaseModel):
@@ -270,6 +288,8 @@ class TenantSummary(BaseModel):
     name: str
     slug: str
     is_active: bool
+    status: str = ""
+    plan_key: str = ""
 
 
 class TenantCreateRequest(BaseModel):
@@ -301,3 +321,68 @@ class TenantResourceCreateRequest(BaseModel):
     resource_type: str
     external_id: str
     display_name: str
+
+
+class PlanSummary(BaseModel):
+    id: str
+    key: str
+    name: str
+    description: str = ""
+    price_cents: int
+    currency: str
+    max_apps: int
+    max_domains: int
+    cpu_millicores: int
+    mem_mb: int
+    disk_mb: int
+    is_archived: bool
+    sort_order: int
+
+
+class PlanCreateRequest(BaseModel):
+    key: str
+    name: str
+    description: str = ""
+    price_cents: int = 0
+    currency: str = "usd"
+    max_apps: int
+    max_domains: int
+    cpu_millicores: int
+    mem_mb: int
+    disk_mb: int
+    sort_order: int = 0
+
+
+class PlanUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    price_cents: int | None = None
+    currency: str | None = None
+    max_apps: int | None = None
+    max_domains: int | None = None
+    cpu_millicores: int | None = None
+    mem_mb: int | None = None
+    disk_mb: int | None = None
+    sort_order: int | None = None
+
+
+class UsageResponse(BaseModel):
+    """Per-tenant quota usage vs plan limits.
+
+    Only ``apps`` is enforced (quota_exceeded raised on install).
+    cpu/mem/disk/domains are advisory — surfaced for visibility but not blocked.
+    """
+
+    plan_key: str = ""
+    apps_used: int
+    apps_limit: int
+    cpu_millicores_used: int
+    cpu_millicores_limit: int
+    mem_mb_used: int
+    mem_mb_limit: int
+    disk_mb_used: int
+    disk_mb_limit: int
+    domains_used: int
+    domains_limit: int
+    # Dimensions that are actively enforced (block the action when exceeded).
+    enforced: list[str] = ["apps"]

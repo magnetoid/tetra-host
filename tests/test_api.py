@@ -269,7 +269,7 @@ def test_api_site_actions_and_deployments_are_tenant_scoped(client, monkeypatch)
 async def _seed_tenant_resources() -> None:
     async with session_scope() as session:
         auth_service = AuthService(session)
-        tenant = Tenant(name="Acme Tenant", slug="acme", is_active=True)
+        tenant = Tenant(name="Acme Tenant", slug="acme", status="active")
         session.add(tenant)
         await session.flush()
 

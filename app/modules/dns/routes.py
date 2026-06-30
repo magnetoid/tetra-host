@@ -79,7 +79,9 @@ async def create_dns_record(
         return _redirect(zone_id, error="Provider actions are disabled")
     service = DnsService(request)
     try:
-        await service.create_record(
+        await service.create_record_for_tenant(
+            session,
+            current_admin.tenant_id,
             zone_id,
             record_type=record_type,
             name=name,
@@ -111,7 +113,9 @@ async def edit_dns_record(
         return _redirect(zone_id, error="Provider actions are disabled")
     service = DnsService(request)
     try:
-        await service.update_record(
+        await service.update_record_for_tenant(
+            session,
+            current_admin.tenant_id,
             zone_id,
             record_id,
             record_type=record_type,
@@ -139,7 +143,7 @@ async def delete_dns_record(
         return _redirect(zone_id, error="Provider actions are disabled")
     service = DnsService(request)
     try:
-        await service.delete_record(zone_id, record_id)
+        await service.delete_record_for_tenant(session, current_admin.tenant_id, zone_id, record_id)
         return _redirect(zone_id, success="Record deleted")
     except ProviderAPIError as exc:
         return _redirect(zone_id, error=str(exc))

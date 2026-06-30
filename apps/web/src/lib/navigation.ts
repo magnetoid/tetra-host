@@ -1,11 +1,23 @@
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 
-import { faBox, faEnvelope, faGaugeHigh, faGlobe, faServer, faUserShield } from "@/lib/icons"
+import {
+  faBox,
+  faChartBar,
+  faEnvelope,
+  faGaugeHigh,
+  faGlobe,
+  faLayerGroup,
+  faServer,
+  faUsers,
+  faUserShield,
+} from "@/lib/icons"
 
 export type NavItem = {
   href: string
   label: string
   icon?: IconDefinition
+  /** When true, only visible to admins with role === "platform_admin". */
+  platformAdminOnly?: boolean
 }
 
 export const consoleNavItems: NavItem[] = [
@@ -15,6 +27,19 @@ export const consoleNavItems: NavItem[] = [
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/admin", label: "Admin", icon: faUserShield },
+  { href: "/usage", label: "Usage", icon: faChartBar },
+  {
+    href: "/plans",
+    label: "Plans",
+    icon: faLayerGroup,
+    platformAdminOnly: true,
+  },
+  {
+    href: "/tenants",
+    label: "Tenants",
+    icon: faUsers,
+    platformAdminOnly: true,
+  },
 ]
 
 export const publicNavItems: NavItem[] = [

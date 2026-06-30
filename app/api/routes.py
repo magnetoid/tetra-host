@@ -38,7 +38,11 @@ from app.api.contracts import (
     MailboxSummary,
     MailDomainSummary,
     MailResponse,
+    PlanCreateRequest,
+    PlanSummary,
+    PlanUpdateRequest,
     ProviderSummary,
+    SignupRequest,
     SiteActionResponse,
     SiteDeploymentSummary,
     SiteSummary,
@@ -47,22 +51,30 @@ from app.api.contracts import (
     TenantResourceCreateRequest,
     TenantResourceSummary,
     TenantSummary,
+    UsageResponse,
 )
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
+from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
+from app.models.audit import AuditEvent
+from app.models.plan import Plan
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
+from app.modules.plans.service import PlanService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
 from app.modules.sites.service import SitesService
 from app.services.cloudflare import count_bind_records
 from app.services.coolify import parse_deployment_log_lines
+from app.models.admin import ROLE_PLATFORM_ADMIN
+from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
+from app.services.quota import QuotaService
 
 # Coolify deployment statuses that mean the build has stopped (terminal).
 _TERMINAL_DEPLOYMENT_STATES = {
@@ -144,15 +156,19 @@ def _admin_summary(admin: AdminUser) -> AdminSummary:
         tenant_id=admin.tenant_id,
         tenant_slug=admin.tenant.slug if admin.tenant else "",
         tenant_name=admin.tenant.name if admin.tenant else "",
+        role=admin.role,
+        tenant_status=admin.tenant.status if admin.tenant else "",
     )
 
 
-def _tenant_summary(tenant: Tenant) -> TenantSummary:
+def _tenant_summary(tenant: Tenant, plan_key: str = "") -> TenantSummary:
     return TenantSummary(
         id=tenant.id,
         name=tenant.name,
         slug=tenant.slug,
         is_active=tenant.is_active,
+        status=tenant.status,
+        plan_key=plan_key,
     )
 
 
@@ -191,7 +207,19 @@ async def get_current_api_admin(
     admin = await auth_service.get_admin_by_id(admin_id)
     if admin is None or not admin.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin session is no longer valid.")
+    if (
+        admin.role != ROLE_PLATFORM_ADMIN
+        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and not (admin.tenant is not None and admin.tenant.status == TENANT_ACTIVE)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is not active.")
     return admin
+
+
+async def require_platform_admin(current_admin: AdminUser = Depends(get_current_api_admin)) -> AdminUser:
+    if current_admin.role != ROLE_PLATFORM_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin only.")
+    return current_admin
 
 
 @router.get("/health")
@@ -234,6 +262,81 @@ async def api_login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
     await auth_service.touch_last_login(admin)
     token = create_api_token(request.state.settings, admin)
+    return AuthResponse(token=token, admin=_admin_summary(admin))
+
+
+@router.post("/auth/signup", response_model=AuthResponse)
+async def api_signup(
+    request: Request,
+    payload: SignupRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> AuthResponse:
+    """Public self-serve signup — unauthenticated.
+
+    Security invariants enforced here:
+    1. `SignupRequest` accepts ONLY email/password/org_name — privilege fields are never in the body.
+    2. Rate-limited per client IP (signup_rate_per_hour in a 1-hour window).
+    3. Capped by max_pending_tenants (anti-abuse).
+    4. Duplicate email → non-distinguishing 200 with empty/non-authenticating token.
+    5. The new admin is created with role=owner, status=pending by the service (never from input).
+    """
+    settings = request.state.settings
+    client_host = request.client.host if request.client else "unknown"
+
+    # --- Rate limit: signup_rate_per_hour requests per IP per hour ---
+    limiter = request.app.state.rate_limiter
+    decision = await limiter.check(
+        f"signup:{client_host}",
+        limit=settings.signup_rate_per_hour,
+        window_seconds=3600,
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many signup attempts. Try again in {decision.retry_after_seconds}s.",
+        )
+
+    # --- Pending-tenant cap: anti-abuse guard ---
+    pending_count = await session.scalar(
+        select(func.count()).select_from(Tenant).where(Tenant.status == TENANT_PENDING)
+    ) or 0
+    if pending_count >= settings.max_pending_tenants:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Signup is temporarily unavailable. Please try again later.",
+        )
+
+    auth_service = AuthService(session)
+
+    try:
+        admin = await auth_service.signup(
+            email=payload.email,
+            password=payload.password,
+            org_name=payload.org_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    if admin is None:
+        # Duplicate email — non-distinguishing 200 with empty/non-authenticating token.
+        return AuthResponse(
+            token="",
+            admin=AdminSummary(
+                id="",
+                email="",
+                full_name="",
+                is_active=False,
+                tenant_id="",
+                tenant_slug="",
+                tenant_name="",
+                role="",
+            ),
+        )
+
+    token = create_api_token(settings, admin)
     return AuthResponse(token=token, admin=_admin_summary(admin))
 
 
@@ -1010,7 +1113,7 @@ async def api_deploy_status(
 async def api_admin(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
+    current_admin: AdminUser = Depends(require_platform_admin),
 ) -> AdminResponse:
     admins = list(
         (
@@ -1045,7 +1148,7 @@ async def api_admin(
 async def api_create_tenant(
     payload: TenantCreateRequest,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantSummary:
     auth_service = AuthService(session)
     normalized_slug = auth_service.normalize_slug(payload.slug)
@@ -1053,7 +1156,7 @@ async def api_create_tenant(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant slug already exists.")
 
-    tenant = Tenant(name=payload.name.strip(), slug=normalized_slug, is_active=True)
+    tenant = Tenant(name=payload.name.strip(), slug=normalized_slug, status=TENANT_ACTIVE)
     session.add(tenant)
     await session.flush()
     return _tenant_summary(tenant)
@@ -1062,23 +1165,29 @@ async def api_create_tenant(
 @router.get("/tenants", response_model=list[TenantSummary])
 async def api_list_tenants(
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> list[TenantSummary]:
     tenants = list((await session.scalars(select(Tenant).order_by(Tenant.created_at))).all())
-    return [_tenant_summary(tenant) for tenant in tenants]
+    # Build a plan_id → plan_key map for all tenants in one query
+    plan_ids = {t.plan_id for t in tenants if t.plan_id}
+    plan_key_map: dict[str, str] = {}
+    if plan_ids:
+        plans = list((await session.scalars(select(Plan).where(Plan.id.in_(plan_ids)))).all())
+        plan_key_map = {p.id: p.key for p in plans}
+    return [_tenant_summary(t, plan_key_map.get(t.plan_id, "") if t.plan_id else "") for t in tenants]
 
 
 @router.post("/tenants/{tenant_slug}/activate", response_model=TenantSummary)
 async def api_activate_tenant(
     tenant_slug: str,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(tenant_slug)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
-    tenant.is_active = True
+    tenant.status = TENANT_ACTIVE
     await session.flush()
     return _tenant_summary(tenant)
 
@@ -1087,22 +1196,137 @@ async def api_activate_tenant(
 async def api_deactivate_tenant(
     tenant_slug: str,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(tenant_slug)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
-    tenant.is_active = False
+    tenant.status = TENANT_SUSPENDED
     await session.flush()
     return _tenant_summary(tenant)
+
+
+async def _resolve_plan_key(session: AsyncSession, plan_id: str | None) -> str:
+    if not plan_id:
+        return ""
+    plan = await session.get(Plan, plan_id)
+    return plan.key if plan else ""
+
+
+@router.post("/tenants/{tenant_slug}/approve", response_model=TenantSummary)
+async def api_approve_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot approve a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_ACTIVE
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.approve",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
+
+
+@router.post("/tenants/{tenant_slug}/reject", response_model=TenantSummary)
+async def api_reject_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot reject a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_REJECTED
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.reject",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
+
+
+@router.post("/tenants/{tenant_slug}/suspend", response_model=TenantSummary)
+async def api_suspend_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot suspend a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_SUSPENDED
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.suspend",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
+
+
+@router.post("/tenants/{tenant_slug}/reactivate", response_model=TenantSummary)
+async def api_reactivate_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_SUSPENDED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot reactivate a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_ACTIVE
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.reactivate",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
 
 
 @router.post("/tenant-admins", response_model=AdminSummary)
 async def api_create_tenant_admin(
     payload: TenantAdminCreateRequest,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> AdminSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)
@@ -1132,7 +1356,7 @@ async def api_create_tenant_admin(
 async def api_create_tenant_resource(
     payload: TenantResourceCreateRequest,
     session: AsyncSession = Depends(get_db_session),
-    _: AdminUser = Depends(get_current_api_admin),
+    _: AdminUser = Depends(require_platform_admin),
 ) -> TenantResourceSummary:
     auth_service = AuthService(session)
     tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)
@@ -1160,3 +1384,169 @@ async def api_create_tenant_resource(
     await session.flush()
     await session.refresh(resource, attribute_names=["tenant"])
     return _tenant_resource_summary(resource)
+
+
+# ---------------------------------------------------------------------------
+# Plans endpoints  (/api/v1/plans)
+# ---------------------------------------------------------------------------
+
+def _plan_summary(plan) -> PlanSummary:
+    return PlanSummary(
+        id=plan.id,
+        key=plan.key,
+        name=plan.name,
+        description=plan.description,
+        price_cents=plan.price_cents,
+        currency=plan.currency,
+        max_apps=plan.max_apps,
+        max_domains=plan.max_domains,
+        cpu_millicores=plan.cpu_millicores,
+        mem_mb=plan.mem_mb,
+        disk_mb=plan.disk_mb,
+        is_archived=plan.is_archived,
+        sort_order=plan.sort_order,
+    )
+
+
+@router.get("/plans", response_model=list[PlanSummary])
+async def api_list_plans(
+    include_archived: bool = False,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> list[PlanSummary]:
+    service = PlanService(session)
+    plans = await service.list_plans(include_archived=include_archived)
+    return [_plan_summary(p) for p in plans]
+
+
+@router.post("/plans", response_model=PlanSummary)
+async def api_create_plan(
+    payload: PlanCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlanSummary:
+    service = PlanService(session)
+    try:
+        plan = await service.create(
+            key=payload.key,
+            name=payload.name,
+            description=payload.description,
+            price_cents=payload.price_cents,
+            currency=payload.currency,
+            max_apps=payload.max_apps,
+            max_domains=payload.max_domains,
+            cpu_millicores=payload.cpu_millicores,
+            mem_mb=payload.mem_mb,
+            disk_mb=payload.disk_mb,
+            sort_order=payload.sort_order,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return _plan_summary(plan)
+
+
+@router.patch("/plans/{plan_id}", response_model=PlanSummary)
+async def api_update_plan(
+    plan_id: str,
+    payload: PlanUpdateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlanSummary:
+    service = PlanService(session)
+    update_fields = payload.model_dump(exclude_none=True)
+    try:
+        plan = await service.update(plan_id, **update_fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found.")
+    return _plan_summary(plan)
+
+
+@router.post("/plans/{plan_id}/archive", response_model=PlanSummary)
+async def api_archive_plan(
+    plan_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlanSummary:
+    service = PlanService(session)
+    plan = await service.archive(plan_id)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found.")
+    return _plan_summary(plan)
+
+
+# ---------------------------------------------------------------------------
+# Usage endpoint  (/api/v1/usage)
+# ---------------------------------------------------------------------------
+
+async def _resolve_plan_for_tenant(session: AsyncSession, tenant_id: str) -> Plan | None:
+    """Return the Plan for the tenant, falling back to the free plan, then None."""
+    tenant = await session.get(Tenant, tenant_id)
+    plan: Plan | None = None
+    if tenant and tenant.plan_id:
+        plan = await session.get(Plan, tenant.plan_id)
+    if plan is None:
+        plan = await session.scalar(select(Plan).where(Plan.key == "free"))
+    return plan
+
+
+@router.get("/usage", response_model=UsageResponse)
+async def api_usage(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> UsageResponse:
+    """Return the calling tenant's quota usage versus their plan limits.
+
+    Accessible by any authenticated admin for their own tenant — not gated to
+    platform-admin.  Only ``apps`` is enforced; cpu/mem/disk/domains are advisory.
+    """
+    tenant_id = current_admin.tenant_id
+
+    # --- usage from QuotaService ---
+    quota_svc = QuotaService(session, tenant_id)
+    used = await quota_svc.usage()
+
+    # --- plan limits ---
+    plan = await _resolve_plan_for_tenant(session, tenant_id)
+    if plan is not None:
+        plan_key = plan.key
+        apps_limit = plan.max_apps
+        cpu_limit = plan.cpu_millicores
+        mem_limit = plan.mem_mb
+        disk_limit = plan.disk_mb
+        domains_limit = plan.max_domains
+    else:
+        # Absolute fallback — no plan row at all.
+        from app.services.quota import DEFAULT_FREE_MAX_APPS
+        plan_key = ""
+        apps_limit = DEFAULT_FREE_MAX_APPS
+        cpu_limit = 0
+        mem_limit = 0
+        disk_limit = 0
+        domains_limit = 0
+
+    # --- domains used: count DNS-zone TenantResource rows ---
+    domains_used: int = (
+        await session.scalar(
+            select(func.count()).select_from(TenantResource).where(
+                TenantResource.tenant_id == tenant_id,
+                TenantResource.resource_type == RESOURCE_TYPE_DNS_ZONE,
+            )
+        )
+    ) or 0
+
+    return UsageResponse(
+        plan_key=plan_key,
+        apps_used=used["apps"],
+        apps_limit=apps_limit,
+        cpu_millicores_used=used["cpu_millicores"],
+        cpu_millicores_limit=cpu_limit,
+        mem_mb_used=used["mem_mb"],
+        mem_mb_limit=mem_limit,
+        disk_mb_used=used["disk_mb"],
+        disk_mb_limit=disk_limit,
+        domains_used=domains_used,
+        domains_limit=domains_limit,
+        enforced=["apps"],
+    )

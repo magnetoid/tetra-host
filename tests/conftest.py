@@ -29,15 +29,29 @@ def extract_csrf_token(html: str) -> str:
     return match.group(1)
 
 
-@pytest.fixture
-def client() -> TestClient:
+@pytest.fixture(autouse=True)
+def _isolate_test_db():
+    """Give every test (not only those using ``client``) a fresh DB file AND a fresh async
+    engine. Resetting the cached engine per test prevents the module-level engine from binding
+    to one test's (now-closed) event loop and erroring in a later test's ``asyncio.run``."""
+    import app.db.session as _dbsession
+
     Path("data").mkdir(exist_ok=True)
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
-    with TestClient(app) as test_client:
-        yield test_client
+    _dbsession._engine = None
+    _dbsession._session_factory = None
+    yield
+    _dbsession._engine = None
+    _dbsession._session_factory = None
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
+
+
+@pytest.fixture
+def client() -> TestClient:
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture

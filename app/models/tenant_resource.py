@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -45,6 +45,9 @@ class TenantResource(Base):
     resource_type: Mapped[str] = mapped_column(String(50), index=True)
     external_id: Mapped[str] = mapped_column(String(255), index=True)
     display_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    cpu_millicores: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    mem_mb: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    disk_mb: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

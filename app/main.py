@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -22,6 +23,7 @@ from app.observability import (
 )
 from app.plugins import registry
 from app.rate_limit import InMemoryRateLimiter
+from app.services.quota import QuotaExceeded
 from app.templating import build_templates
 
 
@@ -70,6 +72,19 @@ def create_app() -> FastAPI:
 
     templates: Jinja2Templates = build_templates()
     app.state.templates = templates
+
+    async def _quota_exceeded_handler(request: Request, exc: QuotaExceeded) -> JSONResponse:
+        return JSONResponse(
+            status_code=402,
+            content={
+                "error": exc.error,
+                "reason": exc.reason,
+                "limit": exc.limit,
+                "used": exc.used,
+            },
+        )
+
+    app.add_exception_handler(QuotaExceeded, _quota_exceeded_handler)
 
     load_plugins()
     registry.register_all(app)

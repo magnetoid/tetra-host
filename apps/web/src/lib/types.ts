@@ -154,9 +154,27 @@ export interface AdminRecord {
   email: string
   full_name: string
   is_active: boolean
+  role?: string
   tenant_id?: string
   tenant_slug?: string
   tenant_name?: string
+  tenant_status?: string
+}
+
+export interface Plan {
+  id: string
+  key: string
+  name: string
+  description: string
+  price_cents: number
+  currency: string
+  max_apps: number
+  max_domains: number
+  cpu_millicores: number
+  mem_mb: number
+  disk_mb: number
+  is_archived: boolean
+  sort_order: number
 }
 
 export interface AdminResponse {
@@ -194,6 +212,8 @@ export interface TenantRecord {
   name: string
   slug: string
   is_active: boolean
+  status?: string
+  plan_key?: string
 }
 
 export interface SiteActionResponse {
@@ -214,4 +234,19 @@ export interface DocEntry {
     heading: string
     body: string[]
   }>
+}
+
+export interface Usage {
+  plan_key: string
+  apps_used: number
+  apps_limit: number
+  cpu_millicores_used: number
+  cpu_millicores_limit: number
+  mem_mb_used: number
+  mem_mb_limit: number
+  disk_mb_used: number
+  disk_mb_limit: number
+  domains_used: number
+  domains_limit: number
+  enforced: string[]
 }

@@ -218,3 +218,27 @@ class TetraClient:
 
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
+
+    # ── Plans ─────────────────────────────────────────────────────────────
+    def plans(self, include_archived: bool = False) -> list[dict]:
+        return self._request("GET", "/plans", params={"include_archived": str(include_archived).lower()})
+
+    def plan_create(self, **fields: Any) -> Any:
+        return self._request("POST", "/plans", json_body=fields)
+
+    def plan_update(self, plan_id: int | str, **fields: Any) -> Any:
+        return self._request("PATCH", f"/plans/{plan_id}", json_body=fields)
+
+    def plan_archive(self, plan_id: int | str) -> Any:
+        return self._request("POST", f"/plans/{plan_id}/archive")
+
+    # ── Tenants ───────────────────────────────────────────────────────────
+    def tenants(self) -> list[dict]:
+        return self._request("GET", "/tenants")
+
+    def tenant_action(self, slug: str, action: str) -> Any:
+        return self._request("POST", f"/tenants/{slug}/{action}")
+
+    # ── Usage ─────────────────────────────────────────────────────────────
+    def usage(self) -> Any:
+        return self._request("GET", "/usage")

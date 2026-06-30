@@ -61,7 +61,7 @@ def extract_csrf_token(html: str) -> str:
 async def _seed_site_tenant() -> None:
     async with session_scope() as session:
         auth_service = AuthService(session)
-        tenant = Tenant(name="Acme Tenant", slug="acme", is_active=True)
+        tenant = Tenant(name="Acme Tenant", slug="acme", status="active")
         session.add(tenant)
         await session.flush()
 

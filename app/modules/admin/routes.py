@@ -6,9 +6,9 @@ from sqlalchemy.orm import selectinload
 
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
+from app.models.tenant import TENANT_ACTIVE, TENANT_SUSPENDED
 from app.modules.auth.service import AuthService
-from app.routes import require_admin
-from app.routes.deps import verify_csrf_token
+from app.routes.deps import require_platform_admin, verify_csrf_token
 from app.templating import build_templates
 
 templates = build_templates()
@@ -78,7 +78,7 @@ async def _load_admin_page_data(request: Request, session: AsyncSession, current
 @router.get("")
 async def admin_index(
     request: Request,
-    current_admin: AdminUser = Depends(require_admin),
+    current_admin: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     payload = await _load_admin_page_data(request, session, current_admin)
@@ -91,7 +91,7 @@ async def create_tenant(
     name: str = Form(...),
     slug: str = Form(...),
     csrf_token: str = Form(...),
-    _: AdminUser = Depends(require_admin),
+    _: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
@@ -101,7 +101,7 @@ async def create_tenant(
     if existing is not None:
         return _redirect("/admin?error=Tenant+slug+already+exists")
 
-    tenant = Tenant(name=name.strip(), slug=normalized_slug, is_active=True)
+    tenant = Tenant(name=name.strip(), slug=normalized_slug, status=TENANT_ACTIVE)
     session.add(tenant)
     await session.flush()
     return _redirect("/admin?success=Tenant+created")
@@ -112,14 +112,14 @@ async def activate_tenant(
     request: Request,
     tenant_slug: str,
     csrf_token: str = Form(...),
-    _: AdminUser = Depends(require_admin),
+    _: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
     tenant = await _load_tenant_by_slug(session, tenant_slug)
     if tenant is None:
         return _redirect("/admin?error=Tenant+not+found")
-    tenant.is_active = True
+    tenant.status = TENANT_ACTIVE
     await session.flush()
     return _redirect("/admin?success=Tenant+activated")
 
@@ -129,14 +129,14 @@ async def deactivate_tenant(
     request: Request,
     tenant_slug: str,
     csrf_token: str = Form(...),
-    _: AdminUser = Depends(require_admin),
+    _: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
     tenant = await _load_tenant_by_slug(session, tenant_slug)
     if tenant is None:
         return _redirect("/admin?error=Tenant+not+found")
-    tenant.is_active = False
+    tenant.status = TENANT_SUSPENDED
     await session.flush()
     return _redirect("/admin?success=Tenant+deactivated")
 
@@ -149,7 +149,7 @@ async def create_tenant_admin(
     full_name: str = Form(...),
     password: str = Form(...),
     csrf_token: str = Form(...),
-    _: AdminUser = Depends(require_admin),
+    _: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
@@ -184,7 +184,7 @@ async def create_tenant_resource(
     external_id: str = Form(...),
     display_name: str = Form(...),
     csrf_token: str = Form(...),
-    _: AdminUser = Depends(require_admin),
+    _: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
@@ -222,7 +222,7 @@ async def delete_tenant_resource(
     request: Request,
     resource_id: str,
     csrf_token: str = Form(...),
-    _: AdminUser = Depends(require_admin),
+    _: AdminUser = Depends(require_platform_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
     verify_csrf_token(request, csrf_token)
