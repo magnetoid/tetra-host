@@ -45,6 +45,7 @@ from app.api.contracts import (
     PlatformResourceUsage,
     PlatformTotals,
     ProjectAnalytics,
+    ProjectErrors,
     ProviderSummary,
     SignupRequest,
     ActionResponse,
@@ -76,6 +77,7 @@ from app.modules.auth.service import AuthService
 from app.modules.databases.service import DatabasesService
 from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
+from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
@@ -579,6 +581,24 @@ async def api_project_analytics(
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return ProjectAnalytics(**data)
+
+
+@router.get("/projects/{application_id}/errors", response_model=ProjectErrors)
+async def api_project_errors(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ProjectErrors:
+    service = ErrorsService(request)
+    try:
+        data = await service.get_errors_for_project(
+            session, current_admin.tenant_id, application_id
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return ProjectErrors(**data)
 
 
 @router.get("/projects/{application_id}/envs")

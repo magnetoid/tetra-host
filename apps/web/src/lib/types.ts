@@ -286,6 +286,27 @@ export interface ProjectAnalytics {
   top_referrers: AnalyticsMetric[]
 }
 
+export interface ErrorIssue {
+  id: string
+  title: string
+  culprit: string
+  level: string
+  count: number
+  user_count: number
+  last_seen: string
+  status: string
+  permalink: string
+}
+
+export interface ProjectErrors {
+  configured: boolean
+  ready: boolean
+  reason?: string
+  project_slug?: string
+  dsn?: string
+  issues: ErrorIssue[]
+}
+
 export interface ProjectActionResponse {
   ok: boolean
   message: string

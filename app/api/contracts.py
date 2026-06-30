@@ -475,6 +475,31 @@ class ProjectAnalytics(BaseModel):
     top_referrers: list[AnalyticsMetric] = []
 
 
+class ErrorIssue(BaseModel):
+    id: str
+    title: str
+    culprit: str = ""
+    level: str = "error"
+    count: int = 0
+    user_count: int = 0
+    last_seen: str = ""
+    status: str = "unresolved"
+    permalink: str = ""
+
+
+class ProjectErrors(BaseModel):
+    """Per-project error tracking (GlitchTip). ``configured`` reflects whether the
+    platform has GlitchTip wired; ``ready`` whether this project's GlitchTip project
+    is resolvable. ``dsn`` is the Sentry-SDK endpoint to add to the app."""
+
+    configured: bool = False
+    ready: bool = False
+    reason: str = ""
+    project_slug: str = ""
+    dsn: str = ""
+    issues: list[ErrorIssue] = []
+
+
 class DatabaseSummary(BaseModel):
     id: str
     name: str

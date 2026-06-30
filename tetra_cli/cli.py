@@ -181,6 +181,32 @@ def cmd_analytics(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_errors(args: argparse.Namespace) -> int:
+    data = client_from_config().project_errors(args.project)
+    if not data.get("configured"):
+        return die("error tracking is not configured on this platform (set GLITCHTIP_URL).")
+    if not data.get("ready"):
+        print(c(data.get("reason", "Error tracking is not ready for this project."), "33"))
+        return 0
+    issues = data.get("issues", [])
+    if not issues:
+        print(c("No unresolved issues 🎉", "32"))
+    else:
+        rows = [
+            [
+                (i.get("level", "") or "")[:7],
+                str(i.get("count", 0)),
+                (i.get("title", "") or "")[:60],
+            ]
+            for i in issues
+        ]
+        print_table(["LEVEL", "COUNT", "TITLE"], rows)
+    dsn = data.get("dsn", "")
+    if dsn:
+        print(c("\nDSN:", "90") + f" {dsn}")
+    return 0
+
+
 def cmd_deploy(args: argparse.Namespace) -> int:
     client = client_from_config()
     result = client.deploy(args.project, force=args.force)
@@ -665,6 +691,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("--period", default="7d", choices=["24h", "7d", "30d", "90d"])
     sp.set_defaults(func=cmd_analytics)
+
+    sp = sub.add_parser("errors", help="show a project's unresolved errors (GlitchTip)")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_errors)
 
     dns = sub.add_parser("dns", help="manage DNS").add_subparsers(dest="dns_cmd", required=True)
     dns.add_parser("zones", help="list zones").set_defaults(func=cmd_dns_zones)

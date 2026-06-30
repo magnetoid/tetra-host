@@ -88,6 +88,9 @@ class TetraClient:
     def project_analytics(self, project_id: str, period: str = "7d") -> Any:
         return self._request("GET", f"/projects/{project_id}/analytics", params={"period": period})
 
+    def project_errors(self, project_id: str) -> Any:
+        return self._request("GET", f"/projects/{project_id}/errors")
+
     def stream_logs(self, project_id: str, deployment_id: str) -> Iterator[tuple[str, dict]]:
         """Yield (event, data) tuples from the SSE build-log stream until done."""
         url = f"{self.api}/projects/{project_id}/deployments/{deployment_id}/logs/stream"

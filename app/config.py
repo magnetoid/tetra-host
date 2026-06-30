@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     umami_username: str = ""
     umami_password: str = ""
 
+    # GlitchTip error tracking (Sentry-API-compatible). Empty url = errors disabled
+    # (the Errors tab shows a "connect error tracking" state). Auth token + org slug.
+    glitchtip_url: str = ""
+    glitchtip_token: str = ""
+    glitchtip_org: str = ""
+
     # Tetra Engine — independent Docker-native deployment (see docs/architecture/tetra-engine.md).
     docker_bin: str = "docker"
     nixpacks_bin: str = "nixpacks"

@@ -505,6 +505,31 @@ def test_main_analytics_renders(monkeypatch, capsys):
     assert "visitors=12" in out and "google.com" in out
 
 
+def test_client_project_errors_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/projects/app-1/errors"
+        return httpx.Response(200, json={"configured": True, "ready": True, "issues": []})
+
+    result = make_client(handler).project_errors("app-1")
+    assert result["ready"] is True
+
+
+def test_main_errors_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "configured": True, "ready": True, "project_slug": "web",
+            "dsn": "https://abc@gt.test/1",
+            "issues": [{"level": "error", "count": 7, "title": "TypeError: boom"}],
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["errors", "app-1"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "TypeError: boom" in out and "gt.test" in out
+
+
 def test_main_admin_overview_renders(monkeypatch, capsys):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/admin/overview"
