@@ -52,7 +52,12 @@ async def get_current_admin(
         and request.method in {"POST", "PUT", "PATCH", "DELETE"}
         and not (admin.tenant is not None and admin.tenant.status == TENANT_ACTIVE)
     ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is not active.")
+        # Panel (session-cookie) path: redirect to dashboard instead of returning raw JSON 403.
+        # This mirrors how require_admin redirects unauthenticated requests (303 with Location).
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            headers={"Location": "/dashboard"},
+        )
     return admin
 
 

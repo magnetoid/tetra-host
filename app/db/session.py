@@ -79,6 +79,11 @@ def _upgrade_existing_schema(connection) -> None:
     if "plan_id" not in tenant_columns:
         connection.execute(text("ALTER TABLE tenants ADD COLUMN plan_id VARCHAR(36)"))
 
+    # --- signup_ip column on tenants (per-IP pending-cap anti-abuse) ---
+    tenant_columns = get_columns("tenants")
+    if "signup_ip" not in tenant_columns:
+        connection.execute(text("ALTER TABLE tenants ADD COLUMN signup_ip VARCHAR(64)"))
+
     # --- Task 1.4: role column on admin_users ---
     admin_columns = get_columns("admin_users")
     if "role" not in admin_columns:

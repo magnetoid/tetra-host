@@ -296,11 +296,24 @@ async def api_signup(
             detail=f"Too many signup attempts. Try again in {decision.retry_after_seconds}s.",
         )
 
-    # --- Pending-tenant cap: anti-abuse guard ---
+    # --- Pending-tenant cap: global anti-abuse guard ---
     pending_count = await session.scalar(
         select(func.count()).select_from(Tenant).where(Tenant.status == TENANT_PENDING)
     ) or 0
     if pending_count >= settings.max_pending_tenants:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Signup is temporarily unavailable. Please try again later.",
+        )
+
+    # --- Per-IP pending-tenant cap: prevent a single source from filling the global cap ---
+    pending_from_ip = await session.scalar(
+        select(func.count()).select_from(Tenant).where(
+            Tenant.status == TENANT_PENDING,
+            Tenant.signup_ip == client_host,
+        )
+    ) or 0
+    if pending_from_ip >= settings.max_pending_tenants_per_ip:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Signup is temporarily unavailable. Please try again later.",
@@ -313,6 +326,7 @@ async def api_signup(
             email=payload.email,
             password=payload.password,
             org_name=payload.org_name,
+            signup_ip=client_host,
         )
     except ValueError as exc:
         raise HTTPException(

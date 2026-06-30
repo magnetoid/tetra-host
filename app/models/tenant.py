@@ -25,6 +25,7 @@ class Tenant(Base):
     status: Mapped[str] = mapped_column(String(20), default=TENANT_ACTIVE, nullable=False)
     plan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("plans.id"), nullable=True)
     is_platform_scope: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    signup_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
