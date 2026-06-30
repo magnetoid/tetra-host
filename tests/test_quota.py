@@ -189,7 +189,7 @@ class TestQuotaUsage:
             async with session_scope() as session:
                 svc = QuotaService(session, self.tenant_id)
                 u = await svc.usage()
-                assert u["apps"] >= 1
+                assert u["apps"] == 1
 
         asyncio.run(run())
 
@@ -201,7 +201,7 @@ class TestQuotaUsage:
             async with session_scope() as session:
                 svc = QuotaService(session, self.tenant_id)
                 u = await svc.usage()
-                assert u["apps"] >= 1
+                assert u["apps"] == 1
 
         asyncio.run(run())
 
@@ -236,10 +236,10 @@ class TestQuotaUsage:
         asyncio.run(run())
 
     def test_usage_combined_resources_and_inflight(self):
-        """usage() adds TenantResource app count + in-flight Deployment count."""
+        """usage() adds TenantResource app count + in-flight Deployment count (distinct projects)."""
 
         async def run():
-            # Seed 1 TenantResource app and 1 in-flight deployment.
+            # Seed 1 TenantResource app and 1 in-flight deployment for a DIFFERENT project.
             async with session_scope() as session:
                 session.add(
                     TenantResource(
@@ -260,5 +260,95 @@ class TestQuotaUsage:
                 svc = QuotaService(session, self.tenant_id)
                 u = await svc.usage()
                 assert u["apps"] == 2
+
+        asyncio.run(run())
+
+
+async def _seed_max2() -> tuple[str, str]:
+    """Seed a plan with max_apps=2 and a tenant assigned to it."""
+    await init_db()
+    async with session_scope() as session:
+        plan = Plan(
+            key="quota_test_plan_2",
+            name="Quota Test 2",
+            max_apps=2,
+            max_domains=0,
+            cpu_millicores=500,
+            mem_mb=512,
+            disk_mb=2048,
+        )
+        session.add(plan)
+        await session.flush()
+
+        tenant = Tenant(name="Quota Tenant 2", slug="quota-tenant-2", status="active", plan_id=plan.id)
+        session.add(tenant)
+        await session.flush()
+
+        return tenant.id, plan.id
+
+
+class TestQuotaDedup:
+    """De-duplication: a project with both a TenantResource reservation AND an in-flight
+    Deployment must be counted ONCE, not twice."""
+
+    def setup_method(self):
+        self.tenant_id, self.plan_id = asyncio.run(_seed_max2())
+
+    def test_reserved_app_with_inflight_deploy_counts_once(self):
+        """An app that has a TenantResource reservation AND an in-flight Deployment
+        for the same project must not be double-counted in usage()."""
+
+        async def run():
+            # Reserve "app1" (creates TenantResource with external_id="app1").
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                alloc = Allocation(cpu_millicores=500, mem_mb=512, disk_mb=1024)
+                await svc.check_and_reserve("app1", alloc, "App One")
+
+            # Seed an in-flight Deployment for the SAME project "app1".
+            await _seed_deployment(self.tenant_id, "app1", STATUS_BUILDING)
+
+            # Must count as 1 (not 2) — reservation is authoritative.
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                u = await svc.usage()
+                assert u["apps"] == 1, f"Expected 1 (de-duped), got {u['apps']}"
+
+        asyncio.run(run())
+
+    def test_reserved_app_with_inflight_does_not_block_second_reserve(self):
+        """With max_apps=2: reserving app1 + an in-flight deploy for app1 must NOT
+        prevent reserving a distinct app2 (the first slot must not be double-counted)."""
+
+        async def run():
+            # Reserve "app1".
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                alloc = Allocation(cpu_millicores=500, mem_mb=512, disk_mb=1024)
+                await svc.check_and_reserve("app1", alloc, "App One")
+
+            # Seed an in-flight Deployment for the SAME project "app1".
+            await _seed_deployment(self.tenant_id, "app1", STATUS_BUILDING)
+
+            # Reserving "app2" must succeed — only 1 slot used (not 2).
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                alloc = Allocation(cpu_millicores=500, mem_mb=512, disk_mb=1024)
+                await svc.check_and_reserve("app2", alloc, "App Two")
+
+        asyncio.run(run())
+
+    def test_inflight_deploy_without_reservation_still_counts(self):
+        """An in-flight Deployment for a project with NO TenantResource reservation
+        must still be counted (safety-net path preserved)."""
+
+        async def run():
+            # Only a Deployment, no TenantResource.
+            await _seed_deployment(self.tenant_id, "new-app", STATUS_QUEUED)
+
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                u = await svc.usage()
+                assert u["apps"] == 1, f"Expected 1 (unresered in-flight), got {u['apps']}"
 
         asyncio.run(run())

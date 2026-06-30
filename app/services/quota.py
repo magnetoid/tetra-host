@@ -31,6 +31,10 @@ from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 # The set of Deployment statuses that represent an in-flight (slot-consuming) build.
 _INFLIGHT_STATUSES = (STATUS_QUEUED, STATUS_BUILDING)
 
+# Fallback max_apps when neither the tenant's plan nor the "free" plan row exists.
+# Must match the seeded Free plan's max_apps column default (Plan.max_apps default=1).
+DEFAULT_FREE_MAX_APPS: int = 1
+
 
 @dataclass
 class Allocation:
@@ -73,20 +77,32 @@ class QuotaService:
     # ------------------------------------------------------------------
 
     async def _count_apps(self) -> int:
-        """Return current app-slot consumption = TenantResource apps + in-flight Deployments."""
-        # Count committed TenantResource rows of type "app" for this tenant.
-        resource_count_stmt = select(func.count()).where(
+        """Return current app-slot consumption, counting each distinct project once.
+
+        TenantResource app rows are the authoritative set.  An in-flight Deployment
+        is counted ONLY when its ``project`` is NOT already covered by a TenantResource
+        reservation for this tenant, so a redeploy (reservation + active build for the
+        same project) is never double-counted.
+        """
+        # Step 1: collect the set of project identifiers already reserved.
+        reserved_ids_stmt = select(TenantResource.external_id).where(
             TenantResource.tenant_id == self._tenant_id,
             TenantResource.resource_type == RESOURCE_TYPE_APP,
         )
-        resource_count: int = (await self._session.scalar(resource_count_stmt)) or 0
+        reserved_rows = (await self._session.execute(reserved_ids_stmt)).scalars().all()
+        reserved_ids: list[str] = list(reserved_rows)
+        resource_count: int = len(reserved_ids)
 
-        # Count in-flight Deployment rows (queued / building).
-        deployment_count_stmt = select(func.count()).where(
+        # Step 2: count in-flight Deployments whose project is NOT already reserved.
+        deployment_stmt = select(func.count()).where(
             Deployment.tenant_id == self._tenant_id,
             Deployment.status.in_(_INFLIGHT_STATUSES),
         )
-        deployment_count: int = (await self._session.scalar(deployment_count_stmt)) or 0
+        if reserved_ids:
+            deployment_stmt = deployment_stmt.where(
+                Deployment.project.not_in(reserved_ids)
+            )
+        deployment_count: int = (await self._session.scalar(deployment_stmt)) or 0
 
         return resource_count + deployment_count
 
@@ -104,8 +120,8 @@ class QuotaService:
             plan = await self._session.scalar(select(Plan).where(Plan.key == "free"))
 
         if plan is None:
-            # Absolute last resort: the default ORM value.
-            return Plan.max_apps.default.arg  # type: ignore[attr-defined]
+            # Absolute last resort: use the module-level constant (matches the seeded Free plan).
+            return DEFAULT_FREE_MAX_APPS
 
         return plan.max_apps
 
