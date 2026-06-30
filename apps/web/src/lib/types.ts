@@ -158,6 +158,7 @@ export interface AdminRecord {
   tenant_id?: string
   tenant_slug?: string
   tenant_name?: string
+  tenant_status?: string
 }
 
 export interface Plan {
@@ -211,6 +212,8 @@ export interface TenantRecord {
   name: string
   slug: string
   is_active: boolean
+  status?: string
+  plan_key?: string
 }
 
 export interface SiteActionResponse {

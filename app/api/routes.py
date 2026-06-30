@@ -154,6 +154,7 @@ def _admin_summary(admin: AdminUser) -> AdminSummary:
         tenant_slug=admin.tenant.slug if admin.tenant else "",
         tenant_name=admin.tenant.name if admin.tenant else "",
         role=admin.role,
+        tenant_status=admin.tenant.status if admin.tenant else "",
     )
 
 

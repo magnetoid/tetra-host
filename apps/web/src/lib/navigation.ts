@@ -7,6 +7,7 @@ import {
   faGlobe,
   faLayerGroup,
   faServer,
+  faUsers,
   faUserShield,
 } from "@/lib/icons"
 
@@ -29,6 +30,12 @@ export const consoleNavItems: NavItem[] = [
     href: "/plans",
     label: "Plans",
     icon: faLayerGroup,
+    platformAdminOnly: true,
+  },
+  {
+    href: "/tenants",
+    label: "Tenants",
+    icon: faUsers,
     platformAdminOnly: true,
   },
 ]

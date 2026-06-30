@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { ConsoleNav } from "@/components/shell/console-nav"
+import { PendingGate } from "@/components/shell/pending-gate"
 import { APP_ENV, APP_NAME } from "@/lib/env"
 import type { AdminRecord } from "@/lib/types"
 
@@ -11,6 +12,12 @@ export function AppShell({
   admin: AdminRecord
   children: React.ReactNode
 }) {
+  // Pending owners (role === "owner" with a non-active tenant) see the gate.
+  // Platform admins and active owners see the normal console.
+  if (admin.role === "owner" && admin.tenant_status !== "active") {
+    return <PendingGate admin={admin} />
+  }
+
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-72 border-r border-border bg-muted/40 p-6 lg:block">
