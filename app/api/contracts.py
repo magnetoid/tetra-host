@@ -388,6 +388,57 @@ class UsageResponse(BaseModel):
     enforced: list[str] = ["apps"]
 
 
+class TenantStatusCounts(BaseModel):
+    """Tenant counts bucketed by lifecycle status, plus the grand total."""
+
+    active: int = 0
+    pending: int = 0
+    suspended: int = 0
+    rejected: int = 0
+    total: int = 0
+
+
+class PlatformTotals(BaseModel):
+    """Cross-tenant headline counts for the platform operator."""
+
+    tenants: int = 0
+    admins: int = 0
+    apps: int = 0
+    databases: int = 0
+    plans: int = 0
+
+
+class PlatformResourceUsage(BaseModel):
+    """Sum of committed resource allocations across every tenant resource."""
+
+    cpu_millicores: int = 0
+    mem_mb: int = 0
+    disk_mb: int = 0
+
+
+class AuditEventSummary(BaseModel):
+    actor_email: str
+    action: str
+    target: str
+    details: str = ""
+    created_at: str = ""
+
+
+class PlatformOverview(BaseModel):
+    """Aggregate platform state for the super-admin command center.
+
+    Platform-admin only. Composes counts, committed resource allocation, the
+    pending-approval queue, and the most recent audit events into one payload so
+    the console renders without fanning out N requests.
+    """
+
+    tenant_status: TenantStatusCounts
+    totals: PlatformTotals
+    committed_resources: PlatformResourceUsage
+    pending_tenants: list[TenantSummary] = []
+    recent_events: list[AuditEventSummary] = []
+
+
 class DatabaseSummary(BaseModel):
     id: str
     name: str

@@ -449,6 +449,48 @@ def cmd_tenants_reactivate(args: argparse.Namespace) -> int:
     return _cmd_tenant_action("reactivate", args)
 
 
+def cmd_admin_overview(args: argparse.Namespace) -> int:
+    data = client_from_config().admin_overview()
+    ts = data.get("tenant_status", {})
+    tot = data.get("totals", {})
+    res = data.get("committed_resources", {})
+    print(
+        c("Tenants", "1")
+        + f"  total={ts.get('total')}  active={ts.get('active')}  pending={ts.get('pending')}"
+        f"  suspended={ts.get('suspended')}  rejected={ts.get('rejected')}"
+    )
+    print(
+        c("Totals", "1")
+        + f"  admins={tot.get('admins')}  apps={tot.get('apps')}"
+        f"  databases={tot.get('databases')}  plans={tot.get('plans')}"
+    )
+    print(
+        c("Committed", "1")
+        + f"  cpu={res.get('cpu_millicores')}m  mem={res.get('mem_mb')}MB  disk={res.get('disk_mb')}MB"
+    )
+
+    pending = data.get("pending_tenants", [])
+    if pending:
+        print(c("\nPending approval", "33"))
+        rows = [[t.get("slug", ""), t.get("name", ""), t.get("plan_key", "") or ""] for t in pending]
+        print_table(["SLUG", "NAME", "PLAN"], rows)
+
+    events = data.get("recent_events", [])
+    if events:
+        print(c("\nRecent activity", "1"))
+        rows = [
+            [
+                (e.get("created_at", "") or "")[:19],
+                e.get("action", ""),
+                e.get("actor_email", ""),
+                e.get("target", ""),
+            ]
+            for e in events
+        ]
+        print_table(["WHEN", "ACTION", "ACTOR", "TARGET"], rows)
+    return 0
+
+
 def cmd_usage(args: argparse.Namespace) -> int:
     data = client_from_config().usage()
     plan = data.get("plan_key", "") or "free"
@@ -754,6 +796,13 @@ def build_parser() -> argparse.ArgumentParser:
         _sp = tenants.add_parser(_action, help=_help)
         _sp.add_argument("slug", help="tenant slug")
         _sp.set_defaults(func=globals()[f"cmd_tenants_{_action}"])
+
+    admin = sub.add_parser("admin", help="platform operator tools (platform-admin)").add_subparsers(
+        dest="admin_cmd", required=True
+    )
+    admin.add_parser(
+        "overview", help="platform command center: counts, pending approvals, recent activity"
+    ).set_defaults(func=cmd_admin_overview)
 
     return p
 

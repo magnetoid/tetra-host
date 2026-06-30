@@ -216,6 +216,44 @@ export interface TenantRecord {
   plan_key?: string
 }
 
+export interface TenantStatusCounts {
+  active: number
+  pending: number
+  suspended: number
+  rejected: number
+  total: number
+}
+
+export interface PlatformTotals {
+  tenants: number
+  admins: number
+  apps: number
+  databases: number
+  plans: number
+}
+
+export interface PlatformResourceUsage {
+  cpu_millicores: number
+  mem_mb: number
+  disk_mb: number
+}
+
+export interface AuditEventRecord {
+  actor_email: string
+  action: string
+  target: string
+  details: string
+  created_at: string
+}
+
+export interface PlatformOverview {
+  tenant_status: TenantStatusCounts
+  totals: PlatformTotals
+  committed_resources: PlatformResourceUsage
+  pending_tenants: TenantRecord[]
+  recent_events: AuditEventRecord[]
+}
+
 export interface ProjectActionResponse {
   ok: boolean
   message: string

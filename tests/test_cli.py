@@ -430,3 +430,55 @@ def test_client_create_database_backup_posts():
 
     result = make_client(handler).create_database_backup("db-uuid-1")
     assert result["message"] == "Backup queued."
+
+
+# ── Admin overview (super-admin command center) ───────────────────────────
+
+
+def test_client_admin_overview_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/admin/overview"
+        return httpx.Response(200, json={
+            "tenant_status": {"active": 3, "pending": 1, "suspended": 0, "rejected": 0, "total": 4},
+            "totals": {"tenants": 4, "admins": 5, "apps": 2, "databases": 1, "plans": 3},
+            "committed_resources": {"cpu_millicores": 1500, "mem_mb": 1536, "disk_mb": 6144},
+            "pending_tenants": [{"slug": "newco", "name": "New Co", "plan_key": ""}],
+            "recent_events": [
+                {"actor_email": "admin@x", "action": "tenant.approve", "target": "acme",
+                 "details": "", "created_at": "2026-06-30T10:00:00+00:00"},
+            ],
+        })
+
+    result = make_client(handler).admin_overview()
+    assert result["tenant_status"]["total"] == 4
+    assert result["pending_tenants"][0]["slug"] == "newco"
+
+
+def test_parser_admin_overview_dispatches():
+    args = build_parser().parse_args(["admin", "overview"])
+    assert args.command == "admin" and args.admin_cmd == "overview"
+    assert args.func is not None
+
+
+def test_main_admin_overview_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/admin/overview"
+        return httpx.Response(200, json={
+            "tenant_status": {"active": 3, "pending": 1, "suspended": 0, "rejected": 0, "total": 4},
+            "totals": {"tenants": 4, "admins": 5, "apps": 2, "databases": 1, "plans": 3},
+            "committed_resources": {"cpu_millicores": 1500, "mem_mb": 1536, "disk_mb": 6144},
+            "pending_tenants": [{"slug": "newco", "name": "New Co", "plan_key": ""}],
+            "recent_events": [
+                {"actor_email": "admin@x", "action": "tenant.approve", "target": "acme",
+                 "details": "", "created_at": "2026-06-30T10:00:00+00:00"},
+            ],
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["admin", "overview"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "total=4" in out
+    assert "newco" in out          # pending queue rendered
+    assert "tenant.approve" in out  # recent activity rendered

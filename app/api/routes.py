@@ -12,6 +12,7 @@ from app.api.contracts import (
     AppActionResponse,
     AppInstallRequest,
     AppTemplateSummary,
+    AuditEventSummary,
     AuthResponse,
     BackupConfigSummary,
     BackupCreateRequest,
@@ -40,6 +41,9 @@ from app.api.contracts import (
     PlanCreateRequest,
     PlanSummary,
     PlanUpdateRequest,
+    PlatformOverview,
+    PlatformResourceUsage,
+    PlatformTotals,
     ProviderSummary,
     SignupRequest,
     ActionResponse,
@@ -49,6 +53,7 @@ from app.api.contracts import (
     TenantCreateRequest,
     TenantResourceCreateRequest,
     TenantResourceSummary,
+    TenantStatusCounts,
     TenantSummary,
     UsageResponse,
     ZoneAnalytics,
@@ -61,6 +66,7 @@ from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
+from app.models.tenant_resource import RESOURCE_TYPE_APP, RESOURCE_TYPE_DATABASE
 from app.models.audit import AuditEvent
 from app.models.plan import Plan
 from app.modules.apps.service import AppsService
@@ -187,6 +193,16 @@ def _tenant_resource_summary(resource: TenantResource) -> TenantResourceSummary:
         resource_type=resource.resource_type,
         external_id=resource.external_id,
         display_name=resource.display_name,
+    )
+
+
+def _audit_event_summary(event: AuditEvent) -> AuditEventSummary:
+    return AuditEventSummary(
+        actor_email=event.actor_email,
+        action=event.action,
+        target=event.target,
+        details=event.details,
+        created_at=event.created_at.isoformat() if event.created_at else "",
     )
 
 
@@ -1126,6 +1142,106 @@ async def api_deploy_status(
     if deployment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
     return _deployment_status(deployment)
+
+
+@router.get("/admin/overview", response_model=PlatformOverview)
+async def api_admin_overview(
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PlatformOverview:
+    """Aggregate platform state for the super-admin command center.
+
+    Platform-admin only. Composes tenant status counts, headline totals, committed
+    resource allocation, the pending-approval queue, and recent audit events into a
+    single payload so the console renders the command center without fan-out.
+    """
+    # Tenant counts bucketed by lifecycle status (single grouped query).
+    status_rows = (
+        await session.execute(select(Tenant.status, func.count()).group_by(Tenant.status))
+    ).all()
+    status_map: dict[str, int] = {row[0]: row[1] for row in status_rows}
+    tenant_status = TenantStatusCounts(
+        active=status_map.get(TENANT_ACTIVE, 0),
+        pending=status_map.get(TENANT_PENDING, 0),
+        suspended=status_map.get(TENANT_SUSPENDED, 0),
+        rejected=status_map.get(TENANT_REJECTED, 0),
+        total=sum(status_map.values()),
+    )
+
+    # Resource counts bucketed by resource_type.
+    resource_rows = (
+        await session.execute(
+            select(TenantResource.resource_type, func.count()).group_by(
+                TenantResource.resource_type
+            )
+        )
+    ).all()
+    resource_map: dict[str, int] = {row[0]: row[1] for row in resource_rows}
+
+    admins_total = await session.scalar(select(func.count()).select_from(AdminUser)) or 0
+    plans_total = (
+        await session.scalar(
+            select(func.count()).select_from(Plan).where(Plan.is_archived.is_(False))
+        )
+        or 0
+    )
+    totals = PlatformTotals(
+        tenants=tenant_status.total,
+        admins=admins_total,
+        apps=resource_map.get(RESOURCE_TYPE_APP, 0),
+        databases=resource_map.get(RESOURCE_TYPE_DATABASE, 0),
+        plans=plans_total,
+    )
+
+    # Committed resource allocation summed across every tenant resource.
+    alloc = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(TenantResource.cpu_millicores), 0),
+                func.coalesce(func.sum(TenantResource.mem_mb), 0),
+                func.coalesce(func.sum(TenantResource.disk_mb), 0),
+            )
+        )
+    ).one()
+    committed = PlatformResourceUsage(
+        cpu_millicores=int(alloc[0] or 0),
+        mem_mb=int(alloc[1] or 0),
+        disk_mb=int(alloc[2] or 0),
+    )
+
+    # Pending-approval queue (oldest first), plan keys resolved in one extra query.
+    pending = list(
+        (
+            await session.scalars(
+                select(Tenant).where(Tenant.status == TENANT_PENDING).order_by(Tenant.created_at)
+            )
+        ).all()
+    )
+    plan_ids = {t.plan_id for t in pending if t.plan_id}
+    plan_key_map: dict[str, str] = {}
+    if plan_ids:
+        plan_rows = list((await session.scalars(select(Plan).where(Plan.id.in_(plan_ids)))).all())
+        plan_key_map = {p.id: p.key for p in plan_rows}
+    pending_tenants = [
+        _tenant_summary(t, plan_key_map.get(t.plan_id, "") if t.plan_id else "") for t in pending
+    ]
+
+    # Most recent audit events across the whole platform.
+    events = list(
+        (
+            await session.scalars(
+                select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(20)
+            )
+        ).all()
+    )
+
+    return PlatformOverview(
+        tenant_status=tenant_status,
+        totals=totals,
+        committed_resources=committed,
+        pending_tenants=pending_tenants,
+        recent_events=[_audit_event_summary(e) for e in events],
+    )
 
 
 @router.get("/admin", response_model=AdminResponse)

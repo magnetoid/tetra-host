@@ -239,6 +239,10 @@ class TetraClient:
     def tenant_action(self, slug: str, action: str) -> Any:
         return self._request("POST", f"/tenants/{slug}/{action}")
 
+    # ── Platform admin ────────────────────────────────────────────────────
+    def admin_overview(self) -> Any:
+        return self._request("GET", "/admin/overview")
+
     # ── Databases ─────────────────────────────────────────────────────────
     def databases(self) -> list[dict]:
         return self._request("GET", "/databases")

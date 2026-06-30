@@ -3,6 +3,7 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 import {
   faBox,
   faChartBar,
+  faCrown,
   faEnvelope,
   faGaugeHigh,
   faGlobe,
@@ -28,6 +29,12 @@ export const consoleNavItems: NavItem[] = [
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/admin", label: "Admin", icon: faUserShield },
   { href: "/usage", label: "Usage", icon: faChartBar },
+  {
+    href: "/super-admin",
+    label: "Super Admin",
+    icon: faCrown,
+    platformAdminOnly: true,
+  },
   {
     href: "/plans",
     label: "Plans",
