@@ -22,7 +22,7 @@ export type NavItem = {
 
 export const consoleNavItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: faGaugeHigh },
-  { href: "/sites", label: "Sites", icon: faServer },
+  { href: "/projects", label: "Projects", icon: faServer },
   { href: "/apps", label: "Apps", icon: faBox },
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },

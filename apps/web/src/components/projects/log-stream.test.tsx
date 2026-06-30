@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 
-import { LogStream } from "@/components/sites/log-stream"
+import { LogStream } from "@/components/projects/log-stream"
 
 type Listener = (event: MessageEvent) => void
 
@@ -47,7 +47,7 @@ describe("LogStream", () => {
     render(<LogStream applicationId="app-1" deploymentId="dep-1" />)
 
     const source = MockEventSource.instances[0]
-    expect(source.url).toContain("/api/stream/sites/app-1/deployments/dep-1/logs/stream")
+    expect(source.url).toContain("/api/stream/projects/app-1/deployments/dep-1/logs/stream")
 
     act(() => {
       source.emit("status", { status: "in_progress" })

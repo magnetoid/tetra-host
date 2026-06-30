@@ -14,15 +14,15 @@ import type {
   DashboardResponse,
   DNSResponse,
   MailResponse,
-  SiteRecord,
+  ProjectRecord,
   ZoneAnalytics,
 } from "@/lib/types"
 
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
   const dashboard = await fetchBackend<DashboardResponse>("/dashboard", { token: session.token })
-  const [sites, mail, dns] = await Promise.all([
-    fetchBackend<SiteRecord[]>("/sites", { token: session.token }).catch(() => []),
+  const [projects, mail, dns] = await Promise.all([
+    fetchBackend<ProjectRecord[]>("/projects", { token: session.token }).catch(() => []),
     fetchBackend<MailResponse>("/mail", { token: session.token }).catch(() => ({
       providers: [],
       domains: [],
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
   ]
 
   const resources = [
-    { name: "Sites", value: m.sites, color: "bg-violet-500/40" },
+    { name: "Projects", value: m.projects, color: "bg-violet-500/40" },
     { name: "Mail domains", value: m.mail_domains, color: "bg-emerald-500/40" },
     { name: "DNS zones", value: m.dns_zones, color: "bg-amber-500/40" },
     { name: "Admins", value: m.admins, color: "bg-sky-500/40" },
@@ -83,8 +83,8 @@ export default async function DashboardPage() {
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={faServer} label="Sites" value={m.sites} hint={`${m.unhealthy_sites} need attention`} accent="text-violet-400" />
-        <StatCard icon={faTriangleExclamation} label="Unhealthy" value={m.unhealthy_sites} hint="Degraded apps" accent="text-red-400" />
+        <StatCard icon={faServer} label="Projects" value={m.projects} hint={`${m.unhealthy_projects} need attention`} accent="text-violet-400" />
+        <StatCard icon={faTriangleExclamation} label="Unhealthy" value={m.unhealthy_projects} hint="Degraded apps" accent="text-red-400" />
         <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-emerald-400" />
         <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-amber-400" />
         <StatCard icon={faUsers} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-sky-400" />
@@ -142,9 +142,9 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <PreviewPanel title="Recent sites" href="/sites" empty="No Coolify applications available yet.">
-          {sites.slice(0, 3).map((site) => (
-            <PreviewItem key={site.id} title={site.name} subtitle={site.primary_domain} />
+        <PreviewPanel title="Recent projects" href="/projects" empty="No Coolify applications available yet.">
+          {projects.slice(0, 3).map((project) => (
+            <PreviewItem key={project.id} title={project.name} subtitle={project.primary_domain} />
           ))}
         </PreviewPanel>
         <PreviewPanel title="Mail domains" href="/mail" empty="Mailcow returned no domains.">

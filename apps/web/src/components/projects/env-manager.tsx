@@ -38,7 +38,7 @@ export function EnvManager({
     setPending("add")
     setError(null)
     try {
-      const response = await fetch(`/api/proxy/sites/${applicationId}/envs`, {
+      const response = await fetch(`/api/proxy/projects/${applicationId}/envs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key, value }),
@@ -64,7 +64,7 @@ export function EnvManager({
     }
     setPending(id)
     try {
-      await fetch(`/api/proxy/sites/${applicationId}/envs/${id}`, { method: "DELETE" })
+      await fetch(`/api/proxy/projects/${applicationId}/envs/${id}`, { method: "DELETE" })
       router.refresh()
     } finally {
       setPending(null)

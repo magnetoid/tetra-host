@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-import { LogStream } from "@/components/sites/log-stream"
+import { LogStream } from "@/components/projects/log-stream"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { StatusBadge } from "@/components/ui/status-badge"
-import type { SiteActionResponse, SiteDeploymentRecord } from "@/lib/types"
+import type { ProjectActionResponse, ProjectDeploymentRecord } from "@/lib/types"
 import { cn, formatRelativeLabel } from "@/lib/utils"
 
 function isInProgress(status: string): boolean {
@@ -18,7 +18,7 @@ export function DeployConsole({
   initialDeployments,
 }: {
   applicationId: string
-  initialDeployments: SiteDeploymentRecord[]
+  initialDeployments: ProjectDeploymentRecord[]
 }) {
   const router = useRouter()
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -28,13 +28,13 @@ export function DeployConsole({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function postAction(path: string, label: string): Promise<SiteActionResponse | null> {
+  async function postAction(path: string, label: string): Promise<ProjectActionResponse | null> {
     setPending(label)
     setMessage(null)
     setError(null)
     try {
       const response = await fetch(`/api/proxy/${path}`, { method: "POST" })
-      const payload = (await response.json()) as SiteActionResponse & { detail?: string }
+      const payload = (await response.json()) as ProjectActionResponse & { detail?: string }
       if (!response.ok) {
         setError(payload.detail ?? "Action failed.")
         return null
@@ -51,7 +51,7 @@ export function DeployConsole({
 
   async function triggerDeploy(force: boolean) {
     const query = force ? "?force=1" : ""
-    const result = await postAction(`sites/${applicationId}/deploy${query}`, force ? "redeploy" : "deploy")
+    const result = await postAction(`projects/${applicationId}/deploy${query}`, force ? "redeploy" : "deploy")
     if (result?.deployment_id) {
       setSelectedId(result.deployment_id)
     }
@@ -59,7 +59,7 @@ export function DeployConsole({
   }
 
   async function cancelDeployment(deploymentId: string) {
-    await postAction(`sites/${applicationId}/deployments/${deploymentId}/cancel`, `cancel:${deploymentId}`)
+    await postAction(`projects/${applicationId}/deployments/${deploymentId}/cancel`, `cancel:${deploymentId}`)
     router.refresh()
   }
 

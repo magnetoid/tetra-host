@@ -9,7 +9,7 @@ describe("utils", () => {
   })
 
   it("normalizes next paths", () => {
-    expect(safeNextPath("/sites")).toBe("/sites")
+    expect(safeNextPath("/projects")).toBe("/projects")
     expect(safeNextPath("https://evil.test")).toBe("/dashboard")
   })
 
