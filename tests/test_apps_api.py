@@ -323,6 +323,50 @@ def test_install_non_docker_error_releases_reservation(client, monkeypatch):
     )
 
 
+def test_git_deploy_duplicate_name_returns_409(client, monkeypatch):
+    """POST /api/v1/deploys/git with a name matching an existing TenantResource → 409.
+
+    D4: start_deploy_for_tenant must pre-check for an existing app with the same
+    project name (external_id) for the tenant before reserving quota or starting
+    a build. This prevents two TenantResource rows for the same project.
+    """
+    asyncio.run(_seed_apps_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    # app-writer is already seeded as a TenantResource in _seed_apps_tenant().
+    async def fake_build(self, git_url, ref, *, project):
+        raise AssertionError("build should not be reached when duplicate is detected")
+
+    async def fake_deploy(self, project, compose_yaml, env=None):
+        raise AssertionError("deploy should not be reached when duplicate is detected")
+
+    monkeypatch.setattr("app.services.builder.Builder.build_from_git", fake_build)
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.deploy_stack", fake_deploy)
+
+    headers = _login(client)
+    response = client.post(
+        "/api/v1/deploys/git",
+        headers=headers,
+        json={"git_url": "https://github.com/example/repo.git", "ref": "main", "name": "app-writer", "port": 3000},
+    )
+    assert response.status_code == 409, response.text
+
+    # Confirm no extra TenantResource row was created.
+    async def count_rows():
+        from sqlalchemy import func, select as sa_select
+        async with session_scope() as session:
+            from app.models import Tenant
+            tenant = (await session.scalars(sa_select(Tenant).where(Tenant.slug == "appst"))).first()
+            return await session.scalar(
+                sa_select(func.count()).where(
+                    TenantResource.tenant_id == tenant.id,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                )
+            ) or 0
+
+    assert asyncio.run(count_rows()) == 1, "Expected exactly 1 TenantResource row (no duplicate created)"
+
+
 def test_pending_tenant_gets_403_not_402(client, monkeypatch):
     """A pending (non-active) tenant hitting install must get 403 from the status gate,
     NOT 402 from quota enforcement — gate precedence is locked."""

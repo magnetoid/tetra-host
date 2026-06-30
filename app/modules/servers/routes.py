@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db_session
 from app.models import AdminUser
 from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_SERVER
+from app.modules.servers.service import ServersService
 from app.routes.deps import require_admin, verify_csrf_token
 from app.services.coolify import CoolifyClient
 from app.services.http import ProviderAPIError
@@ -34,13 +35,12 @@ async def _ensure_server_access(session: AsyncSession, tenant_id: str | None, se
 
 @router.get("")
 async def list_servers(request: Request, current_admin: AdminUser = Depends(require_admin), session: AsyncSession = Depends(get_db_session)):
-    client = _get_client(request)
+    service = ServersService(request)
     servers = []
     error = None
     query = request.query_params.get("q", "").strip().lower()
     try:
-        servers = await client.list_servers()
-        servers = await TenantResourceFilter(session, current_admin.tenant_id).filter_servers(servers)
+        servers = await service.list_servers_for_tenant(session, current_admin.tenant_id)
         if query:
             servers = [s for s in servers if query in s.name.lower() or query in s.ip.lower() or query in s.description.lower()]
     except ProviderAPIError as exc:

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db_session
 from app.models import AdminUser
 from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_DATABASE
+from app.modules.databases.service import DatabasesService
 from app.routes.deps import require_admin, verify_csrf_token
 from app.services.coolify import CoolifyClient
 from app.services.http import ProviderAPIError
@@ -36,13 +37,13 @@ async def list_databases(
     current_admin: AdminUser = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ):
+    service = DatabasesService(request)
     client = _get_client(request)
     databases = []
     error = None
     query = request.query_params.get("q", "").strip().lower()
     try:
-        databases = await client.list_databases()
-        databases = await TenantResourceFilter(session, current_admin.tenant_id).filter_databases(databases)
+        databases = await service.list_databases_for_tenant(session, current_admin.tenant_id)
         if query:
             databases = [d for d in databases if query in d.name.lower() or query in d.type.lower() or query in d.status.lower()]
     except ProviderAPIError as exc:

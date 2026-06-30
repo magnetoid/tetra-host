@@ -8,6 +8,7 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import get_settings
 from app.db import session_scope
 from app.db.session import init_db
 from app.models import AdminUser, Deployment, Plan, Tenant, TenantResource
@@ -442,3 +443,93 @@ class TestUsageEndpoint:
         asyncio.run(_seed_usage_tenant(max_apps=3))
         response = client.get("/api/v1/usage")
         assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# D1: git-deploy over-quota → 402
+# ---------------------------------------------------------------------------
+
+
+async def _seed_git_deploy_quota_tenant() -> None:
+    """Seed a plan with max_apps=1, a tenant, admin, and one already-reserved app."""
+    from app.db.session import init_db
+
+    await init_db()
+    async with session_scope() as session:
+        auth_service = AuthService(session)
+        plan = Plan(
+            key="git_deploy_quota_plan",
+            name="Git Deploy Quota Plan",
+            max_apps=1,
+            max_domains=0,
+            cpu_millicores=500,
+            mem_mb=512,
+            disk_mb=2048,
+        )
+        session.add(plan)
+        await session.flush()
+
+        tenant = Tenant(name="Git Deploy Tenant", slug="git-deploy-t", status="active", plan_id=plan.id)
+        session.add(tenant)
+        await session.flush()
+
+        session.add(
+            AdminUser(
+                tenant_id=tenant.id,
+                email="owner@gitdeploy.test",
+                full_name="Git Deploy Owner",
+                password_hash=auth_service.hash_password("gitdeploy-pass"),
+                is_active=True,
+            )
+        )
+        # Already occupies the single slot.
+        session.add(
+            TenantResource(
+                tenant_id=tenant.id,
+                provider=PROVIDER_DOCKER,
+                resource_type=RESOURCE_TYPE_APP,
+                external_id="existing-app",
+                display_name="Existing App",
+            )
+        )
+
+
+def _login_git_deploy(client: TestClient) -> dict[str, str]:
+    response = client.post(
+        "/api/v1/auth/login", json={"email": "owner@gitdeploy.test", "password": "gitdeploy-pass"}
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
+def test_git_deploy_over_quota_returns_402(client: TestClient, monkeypatch):
+    """POST /api/v1/deploys/git with max_apps=1 already occupied → 402 quota_exceeded.
+
+    The builder and engine are mocked so no real build runs; quota enforcement
+    happens synchronously before the build task is created.
+    """
+    asyncio.run(_seed_git_deploy_quota_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    # Mock the builder and engine so they never run — quota check happens before them.
+    async def fake_build(self, git_url, ref, *, project):
+        raise AssertionError("build should not be reached when quota is exceeded")
+
+    async def fake_deploy(self, project, compose_yaml, env=None):
+        raise AssertionError("deploy should not be reached when quota is exceeded")
+
+    monkeypatch.setattr("app.services.builder.Builder.build_from_git", fake_build)
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.deploy_stack", fake_deploy)
+
+    headers = _login_git_deploy(client)
+    response = client.post(
+        "/api/v1/deploys/git",
+        headers=headers,
+        json={"git_url": "https://github.com/example/repo.git", "ref": "main", "name": "new-app", "port": 3000},
+    )
+    assert response.status_code == 402, response.text
+    body = response.json()
+    assert body["error"] == "quota_exceeded"
+    assert body["reason"] == "apps"
+    assert body["limit"] == 1
+    assert body["used"] == 1
