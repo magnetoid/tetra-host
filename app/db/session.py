@@ -88,6 +88,17 @@ def _upgrade_existing_schema(connection) -> None:
     if "plans" in table_names:
         _seed_default_plans(connection)
 
+    # --- Task 3.1: allocation columns on tenant_resources ---
+    if "tenant_resources" in table_names:
+        tr_columns = get_columns("tenant_resources")
+        if "cpu_millicores" not in tr_columns:
+            connection.execute(text("ALTER TABLE tenant_resources ADD COLUMN cpu_millicores INTEGER"))
+        if "mem_mb" not in tr_columns:
+            connection.execute(text("ALTER TABLE tenant_resources ADD COLUMN mem_mb INTEGER"))
+        if "disk_mb" not in tr_columns:
+            connection.execute(text("ALTER TABLE tenant_resources ADD COLUMN disk_mb INTEGER"))
+        _backfill_task31(connection)
+
     # Only backfill when we just introduced the tenant_id column on a legacy
     # database that already has admins predating multi-tenancy. A freshly
     # created schema short-circuits here and lets the ORM bootstrap seed.
@@ -229,6 +240,23 @@ def _backfill_task14(connection) -> None:
                 "WHERE id=(SELECT id FROM admin_users ORDER BY created_at LIMIT 1)"
             )
         )
+
+
+def _backfill_task31(connection) -> None:
+    """Backfill cpu_millicores/mem_mb/disk_mb on app-type tenant_resources (idempotent: NULL-only)."""
+    settings = get_settings()
+    connection.execute(
+        text(
+            "UPDATE tenant_resources "
+            "SET cpu_millicores=:c, mem_mb=:m, disk_mb=:d "
+            "WHERE resource_type='app' AND cpu_millicores IS NULL"
+        ),
+        {
+            "c": settings.default_app_cpu_millicores,
+            "m": settings.default_app_mem_mb,
+            "d": settings.default_app_disk_mb,
+        },
+    )
 
 
 async def close_db() -> None:
