@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import Settings
 from app.models import AdminUser, Tenant
+from app.models.admin import ROLE_PLATFORM_ADMIN
 from app.models.tenant import TENANT_ACTIVE
 
 
@@ -90,6 +91,7 @@ class AuthService:
             full_name=settings.admin_bootstrap_name,
             password_hash=self.hash_password(settings.admin_bootstrap_password),
             is_active=True,
+            role=ROLE_PLATFORM_ADMIN,
         )
         self.session.add(admin)
         await self.session.flush()
