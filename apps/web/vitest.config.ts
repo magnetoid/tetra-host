@@ -7,6 +7,11 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    // jsdom environment setup can exceed the 5s default for the first test in a
+    // file when many files run in parallel under machine load (or in CI). Give it
+    // headroom so env-setup contention doesn't manifest as spurious timeouts.
+    testTimeout: 15000,
+    hookTimeout: 15000,
   },
   resolve: {
     alias: {
