@@ -2,6 +2,7 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 
 import {
   faBox,
+  faChartBar,
   faEnvelope,
   faGaugeHigh,
   faGlobe,
@@ -26,6 +27,7 @@ export const consoleNavItems: NavItem[] = [
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/admin", label: "Admin", icon: faUserShield },
+  { href: "/usage", label: "Usage", icon: faChartBar },
   {
     href: "/plans",
     label: "Plans",

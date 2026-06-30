@@ -235,3 +235,18 @@ export interface DocEntry {
     body: string[]
   }>
 }
+
+export interface Usage {
+  plan_key: string
+  apps_used: number
+  apps_limit: number
+  cpu_millicores_used: number
+  cpu_millicores_limit: number
+  mem_mb_used: number
+  mem_mb_limit: number
+  disk_mb_used: number
+  disk_mb_limit: number
+  domains_used: number
+  domains_limit: number
+  enforced: string[]
+}
