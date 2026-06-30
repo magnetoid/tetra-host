@@ -198,6 +198,12 @@ async def get_current_api_admin(
     admin = await auth_service.get_admin_by_id(admin_id)
     if admin is None or not admin.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin session is no longer valid.")
+    if (
+        admin.role != ROLE_PLATFORM_ADMIN
+        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and not (admin.tenant is not None and admin.tenant.status == TENANT_ACTIVE)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant is not active.")
     return admin
 
 
