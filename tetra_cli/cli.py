@@ -424,7 +424,12 @@ def _cmd_tenant_action(action: str, args: argparse.Namespace) -> int:
     result = client_from_config().tenant_action(args.slug, action)
     slug = result.get("slug", args.slug) if isinstance(result, dict) else args.slug
     status = result.get("status", "") if isinstance(result, dict) else ""
-    print(c("✓", "32") + f" tenant {slug} {action}d" + (f"  status={status_color(status)}" if status else ""))
+    past = {"approve": "approved", "reject": "rejected", "suspend": "suspended", "reactivate": "reactivated"}
+    print(
+        c("✓", "32")
+        + f" tenant {slug} {past.get(action, action)}"
+        + (f"  status={status_color(status)}" if status else "")
+    )
     return 0
 
 
