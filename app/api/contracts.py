@@ -1,6 +1,18 @@
 from pydantic import BaseModel, ConfigDict
 
 
+class SignupRequest(BaseModel):
+    """Public signup payload — ONLY these three fields are accepted.
+
+    Role, plan_id, status, tenant_id, and is_platform_scope are NEVER accepted
+    from the client; the service sets them server-side.
+    """
+
+    email: str
+    password: str
+    org_name: str
+
+
 class AdminSummary(BaseModel):
     id: str
     email: str

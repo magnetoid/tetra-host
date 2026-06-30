@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     force_https_redirect: bool = False
     login_rate_limit_attempts: int = 5
     login_rate_limit_window_seconds: int = 300
+    signup_rate_per_hour: int = 5
+    max_pending_tenants: int = 100
     request_timeout_seconds: float = 20.0
     provider_cache_ttl_seconds: int = 30
     enable_provider_actions: bool = False

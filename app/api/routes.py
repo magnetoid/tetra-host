@@ -42,6 +42,7 @@ from app.api.contracts import (
     PlanSummary,
     PlanUpdateRequest,
     ProviderSummary,
+    SignupRequest,
     SiteActionResponse,
     SiteDeploymentSummary,
     SiteSummary,
@@ -54,7 +55,7 @@ from app.api.contracts import (
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
-from app.models.tenant import TENANT_ACTIVE, TENANT_SUSPENDED
+from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_SUSPENDED
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.deploys.service import DeploysService
@@ -253,6 +254,81 @@ async def api_login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
     await auth_service.touch_last_login(admin)
     token = create_api_token(request.state.settings, admin)
+    return AuthResponse(token=token, admin=_admin_summary(admin))
+
+
+@router.post("/auth/signup", response_model=AuthResponse)
+async def api_signup(
+    request: Request,
+    payload: SignupRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> AuthResponse:
+    """Public self-serve signup — unauthenticated.
+
+    Security invariants enforced here:
+    1. `SignupRequest` accepts ONLY email/password/org_name — privilege fields are never in the body.
+    2. Rate-limited per client IP (signup_rate_per_hour in a 1-hour window).
+    3. Capped by max_pending_tenants (anti-abuse).
+    4. Duplicate email → non-distinguishing 200 with empty/non-authenticating token.
+    5. The new admin is created with role=owner, status=pending by the service (never from input).
+    """
+    settings = request.state.settings
+    client_host = request.client.host if request.client else "unknown"
+
+    # --- Rate limit: signup_rate_per_hour requests per IP per hour ---
+    limiter = request.app.state.rate_limiter
+    decision = await limiter.check(
+        f"signup:{client_host}",
+        limit=settings.signup_rate_per_hour,
+        window_seconds=3600,
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many signup attempts. Try again in {decision.retry_after_seconds}s.",
+        )
+
+    # --- Pending-tenant cap: anti-abuse guard ---
+    pending_count = await session.scalar(
+        select(func.count()).select_from(Tenant).where(Tenant.status == TENANT_PENDING)
+    ) or 0
+    if pending_count >= settings.max_pending_tenants:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Signup is temporarily unavailable. Please try again later.",
+        )
+
+    auth_service = AuthService(session)
+
+    try:
+        admin = await auth_service.signup(
+            email=payload.email,
+            password=payload.password,
+            org_name=payload.org_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    if admin is None:
+        # Duplicate email — non-distinguishing 200 with empty/non-authenticating token.
+        return AuthResponse(
+            token="",
+            admin=AdminSummary(
+                id="",
+                email="",
+                full_name="",
+                is_active=False,
+                tenant_id="",
+                tenant_slug="",
+                tenant_name="",
+                role="",
+            ),
+        )
+
+    token = create_api_token(settings, admin)
     return AuthResponse(token=token, admin=_admin_summary(admin))
 
 
