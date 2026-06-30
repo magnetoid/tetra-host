@@ -405,6 +405,45 @@ def cmd_plans_archive(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tenants_list(args: argparse.Namespace) -> int:
+    tenants = client_from_config().tenants()
+    rows = [
+        [
+            t.get("slug", ""),
+            t.get("name", ""),
+            status_color(t.get("status", "")),
+            t.get("plan_key", "") or "",
+        ]
+        for t in tenants
+    ]
+    print_table(["SLUG", "NAME", "STATUS", "PLAN"], rows)
+    return 0
+
+
+def _cmd_tenant_action(action: str, args: argparse.Namespace) -> int:
+    result = client_from_config().tenant_action(args.slug, action)
+    slug = result.get("slug", args.slug) if isinstance(result, dict) else args.slug
+    status = result.get("status", "") if isinstance(result, dict) else ""
+    print(c("✓", "32") + f" tenant {slug} {action}d" + (f"  status={status_color(status)}" if status else ""))
+    return 0
+
+
+def cmd_tenants_approve(args: argparse.Namespace) -> int:
+    return _cmd_tenant_action("approve", args)
+
+
+def cmd_tenants_reject(args: argparse.Namespace) -> int:
+    return _cmd_tenant_action("reject", args)
+
+
+def cmd_tenants_suspend(args: argparse.Namespace) -> int:
+    return _cmd_tenant_action("suspend", args)
+
+
+def cmd_tenants_reactivate(args: argparse.Namespace) -> int:
+    return _cmd_tenant_action("reactivate", args)
+
+
 def cmd_deploys_git(args: argparse.Namespace) -> int:
     import time
 
@@ -608,6 +647,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp = plans.add_parser("archive", help="archive a plan")
     sp.add_argument("plan_id", help="plan ID")
     sp.set_defaults(func=cmd_plans_archive)
+
+    tenants = sub.add_parser("tenants", help="manage tenants (platform-admin)").add_subparsers(
+        dest="tenants_cmd", required=True
+    )
+    tenants.add_parser("list", help="list all tenants").set_defaults(func=cmd_tenants_list)
+    for _action, _help in (
+        ("approve", "approve a pending tenant"),
+        ("reject", "reject a pending tenant"),
+        ("suspend", "suspend an active tenant"),
+        ("reactivate", "reactivate a suspended tenant"),
+    ):
+        _sp = tenants.add_parser(_action, help=_help)
+        _sp.add_argument("slug", help="tenant slug")
+        _sp.set_defaults(func=globals()[f"cmd_tenants_{_action}"])
 
     return p
 

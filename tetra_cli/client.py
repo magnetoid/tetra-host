@@ -231,3 +231,10 @@ class TetraClient:
 
     def plan_archive(self, plan_id: int | str) -> Any:
         return self._request("POST", f"/plans/{plan_id}/archive")
+
+    # ── Tenants ───────────────────────────────────────────────────────────
+    def tenants(self) -> list[dict]:
+        return self._request("GET", "/tenants")
+
+    def tenant_action(self, slug: str, action: str) -> Any:
+        return self._request("POST", f"/tenants/{slug}/{action}")

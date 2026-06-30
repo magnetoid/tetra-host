@@ -288,3 +288,40 @@ def test_client_plan_archive_posts_to_archive():
 
     result = make_client(handler).plan_archive(7)
     assert result["is_archived"] is True
+
+
+# ── Tenants client ────────────────────────────────────────────────────────
+
+
+def test_client_tenants_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/tenants"
+        return httpx.Response(200, json=[
+            {"id": 1, "name": "Acme", "slug": "acme", "is_active": True,
+             "status": "active", "plan_key": "starter"},
+        ])
+
+    result = make_client(handler).tenants()
+    assert isinstance(result, list)
+    assert result[0]["slug"] == "acme"
+
+
+def test_client_tenant_action_approve_posts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/tenants/acme/approve"
+        return httpx.Response(200, json={"id": 1, "slug": "acme", "status": "active"})
+
+    result = make_client(handler).tenant_action("acme", "approve")
+    assert result["status"] == "active"
+
+
+def test_client_tenant_action_suspend_posts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/tenants/acme/suspend"
+        return httpx.Response(200, json={"id": 1, "slug": "acme", "status": "suspended"})
+
+    result = make_client(handler).tenant_action("acme", "suspend")
+    assert result["status"] == "suspended"
