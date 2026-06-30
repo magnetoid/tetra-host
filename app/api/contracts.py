@@ -386,3 +386,42 @@ class UsageResponse(BaseModel):
     domains_limit: int
     # Dimensions that are actively enforced (block the action when exceeded).
     enforced: list[str] = ["apps"]
+
+
+class DatabaseSummary(BaseModel):
+    id: str
+    name: str
+    type: str = ""
+    status: str = "unknown"
+    internal_db_url: str = ""
+    image: str = ""
+
+
+class DatabaseProvisionRequest(BaseModel):
+    """Request to provision a new managed database via Coolify.
+
+    db_type must be one of the Coolify-supported database types.
+    No tenant_id, role, or owner fields — tenant is always the caller's tenant.
+    """
+
+    db_type: str = Field(
+        ...,
+        description="One of: postgresql, mysql, mariadb, mongodb, redis, keydb, dragonfly, clickhouse",
+    )
+    name: str = Field(..., min_length=1, max_length=120)
+    server_uuid: str
+    project_uuid: str
+    environment_name: str
+
+
+class BackupConfigSummary(BaseModel):
+    id: str
+    frequency: str = ""
+    retention_days: int = 0
+    s3_storage_id: str = ""
+
+
+class BackupCreateRequest(BaseModel):
+    frequency: str = "0 2 * * *"
+    retention_days: int = 7
+    s3_storage_id: str = ""
