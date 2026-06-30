@@ -439,6 +439,42 @@ class PlatformOverview(BaseModel):
     recent_events: list[AuditEventSummary] = []
 
 
+class AnalyticsSummary(BaseModel):
+    pageviews: int = 0
+    visitors: int = 0
+    visits: int = 0
+    bounce_rate: int = 0
+    avg_seconds: int = 0
+
+
+class AnalyticsSeriesPoint(BaseModel):
+    date: str
+    pageviews: int = 0
+    sessions: int = 0
+
+
+class AnalyticsMetric(BaseModel):
+    label: str
+    count: int = 0
+
+
+class ProjectAnalytics(BaseModel):
+    """Per-project web analytics (Umami). ``configured`` reflects whether the
+    platform has Umami wired; ``ready`` whether this project has a resolvable
+    website. When not configured/ready, the report fields stay empty."""
+
+    configured: bool = False
+    ready: bool = False
+    period: str = "7d"
+    reason: str = ""
+    website_id: str = ""
+    tracking_snippet: str = ""
+    summary: AnalyticsSummary = Field(default_factory=AnalyticsSummary)
+    series: list[AnalyticsSeriesPoint] = []
+    top_pages: list[AnalyticsMetric] = []
+    top_referrers: list[AnalyticsMetric] = []
+
+
 class DatabaseSummary(BaseModel):
     id: str
     name: str

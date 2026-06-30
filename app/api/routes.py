@@ -44,6 +44,7 @@ from app.api.contracts import (
     PlatformOverview,
     PlatformResourceUsage,
     PlatformTotals,
+    ProjectAnalytics,
     ProviderSummary,
     SignupRequest,
     ActionResponse,
@@ -69,6 +70,7 @@ from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TE
 from app.models.tenant_resource import RESOURCE_TYPE_APP, RESOURCE_TYPE_DATABASE
 from app.models.audit import AuditEvent
 from app.models.plan import Plan
+from app.modules.analytics.service import AnalyticsService
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.databases.service import DatabasesService
@@ -558,6 +560,25 @@ async def api_project_logs(
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return {"logs": logs}
+
+
+@router.get("/projects/{application_id}/analytics", response_model=ProjectAnalytics)
+async def api_project_analytics(
+    application_id: str,
+    request: Request,
+    period: str = "7d",
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ProjectAnalytics:
+    service = AnalyticsService(request)
+    try:
+        data = await service.get_analytics_for_project(
+            session, current_admin.tenant_id, application_id, period=period
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return ProjectAnalytics(**data)
 
 
 @router.get("/projects/{application_id}/envs")

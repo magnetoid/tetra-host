@@ -150,6 +150,37 @@ def cmd_runtime_logs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analytics(args: argparse.Namespace) -> int:
+    data = client_from_config().project_analytics(args.project, period=args.period)
+    if not data.get("configured"):
+        return die("analytics is not configured on this platform (set UMAMI_URL).")
+    if not data.get("ready"):
+        print(c(data.get("reason", "Analytics is not ready for this project."), "33"))
+        return 0
+    s = data.get("summary", {})
+    print(
+        c(f"Analytics ({data.get('period')})", "1")
+        + f"  visitors={s.get('visitors')}  pageviews={s.get('pageviews')}"
+        f"  bounce={s.get('bounce_rate')}%  avg={s.get('avg_seconds')}s"
+    )
+    pages = data.get("top_pages", [])
+    if pages:
+        print_table(
+            ["TOP PAGE", "VIEWS"], [[p.get("label", ""), str(p.get("count", 0))] for p in pages]
+        )
+    refs = data.get("top_referrers", [])
+    if refs:
+        print_table(
+            ["TOP REFERRER", "VISITS"],
+            [[r.get("label", ""), str(r.get("count", 0))] for r in refs],
+        )
+    snippet = data.get("tracking_snippet", "")
+    if snippet:
+        print(c("\nTracking snippet:", "90"))
+        print(snippet)
+    return 0
+
+
 def cmd_deploy(args: argparse.Namespace) -> int:
     client = client_from_config()
     result = client.deploy(args.project, force=args.force)
@@ -629,6 +660,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("--lines", type=int, default=200)
     sp.set_defaults(func=cmd_runtime_logs)
+
+    sp = sub.add_parser("analytics", help="show a project's web analytics (Umami)")
+    sp.add_argument("project")
+    sp.add_argument("--period", default="7d", choices=["24h", "7d", "30d", "90d"])
+    sp.set_defaults(func=cmd_analytics)
 
     dns = sub.add_parser("dns", help="manage DNS").add_subparsers(dest="dns_cmd", required=True)
     dns.add_parser("zones", help="list zones").set_defaults(func=cmd_dns_zones)

@@ -254,6 +254,38 @@ export interface PlatformOverview {
   recent_events: AuditEventRecord[]
 }
 
+export interface AnalyticsSummary {
+  pageviews: number
+  visitors: number
+  visits: number
+  bounce_rate: number
+  avg_seconds: number
+}
+
+export interface AnalyticsSeriesPoint {
+  date: string
+  pageviews: number
+  sessions: number
+}
+
+export interface AnalyticsMetric {
+  label: string
+  count: number
+}
+
+export interface ProjectAnalytics {
+  configured: boolean
+  ready: boolean
+  period: string
+  reason?: string
+  website_id?: string
+  tracking_snippet?: string
+  summary: AnalyticsSummary
+  series: AnalyticsSeriesPoint[]
+  top_pages: AnalyticsMetric[]
+  top_referrers: AnalyticsMetric[]
+}
+
 export interface ProjectActionResponse {
   ok: boolean
   message: string

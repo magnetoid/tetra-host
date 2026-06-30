@@ -477,6 +477,34 @@ def test_parser_runtime_logs_dispatches():
     assert args.command == "runtime-logs" and args.project == "app-1" and args.lines == 500
 
 
+def test_client_project_analytics_passes_period():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/projects/app-1/analytics"
+        assert request.url.params.get("period") == "30d"
+        return httpx.Response(200, json={"configured": True, "ready": True, "summary": {"visitors": 9}})
+
+    result = make_client(handler).project_analytics("app-1", period="30d")
+    assert result["summary"]["visitors"] == 9
+
+
+def test_main_analytics_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "configured": True, "ready": True, "period": "7d",
+            "summary": {"visitors": 12, "pageviews": 34, "bounce_rate": 40, "avg_seconds": 51},
+            "top_pages": [{"label": "/", "count": 20}],
+            "top_referrers": [{"label": "google.com", "count": 5}],
+            "tracking_snippet": "<script ...></script>",
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["analytics", "app-1", "--period", "7d"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "visitors=12" in out and "google.com" in out
+
+
 def test_main_admin_overview_renders(monkeypatch, capsys):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/admin/overview"

@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
 
+    # Umami web analytics (self-hosted v2). Empty url = analytics disabled (the
+    # Metrics tab shows a "connect analytics" state). Self-hosted Umami has no API
+    # keys, so we log in with username/password to mint a bearer token (cached).
+    umami_url: str = ""
+    umami_username: str = ""
+    umami_password: str = ""
+
     # Tetra Engine — independent Docker-native deployment (see docs/architecture/tetra-engine.md).
     docker_bin: str = "docker"
     nixpacks_bin: str = "nixpacks"
