@@ -1199,11 +1199,10 @@ def _plan_summary(plan) -> PlanSummary:
 
 @router.get("/plans", response_model=list[PlanSummary])
 async def api_list_plans(
-    request: Request,
+    include_archived: bool = False,
     session: AsyncSession = Depends(get_db_session),
     _: AdminUser = Depends(get_current_api_admin),
 ) -> list[PlanSummary]:
-    include_archived = request.query_params.get("include_archived") in {"1", "true", "yes"}
     service = PlanService(session)
     plans = await service.list_plans(include_archived=include_archived)
     return [_plan_summary(p) for p in plans]

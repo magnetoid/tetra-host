@@ -34,7 +34,7 @@ class PluginRegistry:
                 plugin.register(app)
 
     def nav_items(self) -> list[PluginMeta]:
-        return [p.meta for p in self._plugins if p.meta.enabled]
+        return [p.meta for p in self._plugins if p.meta.enabled and p.meta.nav_href]
 
     def plugins(self) -> list[TetraPlugin]:
         return list(self._plugins)

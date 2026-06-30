@@ -308,7 +308,7 @@ class PlanSummary(BaseModel):
     id: str
     key: str
     name: str
-    description: str
+    description: str = ""
     price_cents: int
     currency: str
     max_apps: int
