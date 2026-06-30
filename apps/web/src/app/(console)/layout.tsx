@@ -1,5 +1,7 @@
 import { AppShell } from "@/components/shell/app-shell"
+import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import type { ProjectRecord } from "@/lib/types"
 
 export default async function ConsoleLayout({
   children,
@@ -8,5 +10,19 @@ export default async function ConsoleLayout({
 }>) {
   const session = await requireConsoleSession()
 
-  return <AppShell admin={session.admin}>{children}</AppShell>
+  // Powers the sidebar's project-context switch (resolves the project name when
+  // the route is inside a project). The per-project layout fetches the same list
+  // for validation; identical GETs are request-memoized within a render.
+  const projects = await fetchBackend<ProjectRecord[]>("/projects", {
+    token: session.token,
+  }).catch(() => [] as ProjectRecord[])
+
+  return (
+    <AppShell
+      admin={session.admin}
+      projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+    >
+      {children}
+    </AppShell>
+  )
 }

@@ -24,11 +24,13 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   }
 
   return (
-    <div className="flex min-h-0 gap-8">
-      <div className="w-48 shrink-0">
+    <div className="space-y-6">
+      {/* Desktop: the main sidebar slides to this project's menu (see ConsoleNav).
+          Mobile (no sidebar): a horizontal project bar carries the same menu. */}
+      <div className="lg:hidden">
         <ProjectSubNav projectId={id} projectName={project.name} />
       </div>
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0">{children}</main>
     </div>
   )
 }

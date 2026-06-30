@@ -2,13 +2,21 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 
 import {
   faBox,
+  faBug,
   faChartBar,
+  faChartLine,
   faCrown,
+  faEarthAmericas,
   faEnvelope,
   faGaugeHigh,
+  faGear,
   faGlobe,
+  faKey,
   faLayerGroup,
+  faListCheck,
   faServer,
+  faTableColumns,
+  faTerminal,
   faUsers,
   faUserShield,
 } from "@/lib/icons"
@@ -19,6 +27,33 @@ export type NavItem = {
   icon?: IconDefinition
   /** When true, only visible to admins with role === "platform_admin". */
   platformAdminOnly?: boolean
+}
+
+export type ProjectNavItem = {
+  href: string
+  label: string
+  icon: IconDefinition
+  /** When true, only the exact path matches (no prefix match). */
+  exact?: boolean
+}
+
+/**
+ * The per-project menu. The console sidebar slides to show this set when the
+ * route is inside a project (`/projects/<id>/…`), Vercel-style; the mobile
+ * project bar renders the same items. Single source of truth for both.
+ */
+export function projectNavItems(projectId: string): ProjectNavItem[] {
+  const base = `/projects/${projectId}`
+  return [
+    { href: base, label: "Overview", icon: faTableColumns, exact: true },
+    { href: `${base}/deployments`, label: "Deployments", icon: faListCheck },
+    { href: `${base}/logs`, label: "Logs", icon: faTerminal },
+    { href: `${base}/env`, label: "Env", icon: faKey },
+    { href: `${base}/domains`, label: "Domains", icon: faEarthAmericas },
+    { href: `${base}/metrics`, label: "Metrics", icon: faChartLine },
+    { href: `${base}/errors`, label: "Errors", icon: faBug },
+    { href: `${base}/settings`, label: "Settings", icon: faGear },
+  ]
 }
 
 export const consoleNavItems: NavItem[] = [

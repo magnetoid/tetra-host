@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 // Mock next/navigation before importing the component under test
@@ -28,11 +28,15 @@ describe("ProjectSubNav", () => {
     return render(<ProjectSubNav projectId={projectId} projectName={projectName} />)
   }
 
-  it("renders all 8 nav links", () => {
+  it("renders all 8 nav links (plus a back link)", () => {
     setup(`/projects/${projectId}`)
-    const links = screen.getAllByRole("link")
-    // 8 nav items
-    expect(links).toHaveLength(8)
+    // The 8 menu items live in the <nav>; a "← Projects" back link sits in the header.
+    const nav = screen.getByRole("navigation")
+    expect(within(nav).getAllByRole("link")).toHaveLength(8)
+    expect(screen.getByRole("link", { name: /back to projects/i })).toHaveAttribute(
+      "href",
+      "/projects",
+    )
   })
 
   it("renders the project name", () => {

@@ -7,9 +7,11 @@ import type { AdminRecord } from "@/lib/types"
 
 export function AppShell({
   admin,
+  projects = [],
   children,
 }: {
   admin: AdminRecord
+  projects?: { id: string; name: string }[]
   children: React.ReactNode
 }) {
   // Pending owners (role === "owner" with a non-active tenant) see the gate.
@@ -41,7 +43,7 @@ export function AppShell({
           ) : null}
         </div>
 
-        <ConsoleNav adminRole={admin.role} />
+        <ConsoleNav adminRole={admin.role} projects={projects} />
       </aside>
 
       <main className="flex-1">
