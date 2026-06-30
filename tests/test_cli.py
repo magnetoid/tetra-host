@@ -325,3 +325,47 @@ def test_client_tenant_action_suspend_posts():
 
     result = make_client(handler).tenant_action("acme", "suspend")
     assert result["status"] == "suspended"
+
+
+# ── Usage client + CLI ────────────────────────────────────────────────────
+
+
+def test_client_usage_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/usage"
+        return httpx.Response(200, json={
+            "plan_key": "starter",
+            "apps_used": 1, "apps_limit": 3,
+            "cpu_millicores_used": 500, "cpu_millicores_limit": 8000,
+            "mem_mb_used": 512, "mem_mb_limit": 4096,
+            "disk_mb_used": 1024, "disk_mb_limit": 20480,
+            "domains_used": 2, "domains_limit": 5,
+            "enforced": ["apps"],
+        })
+
+    result = make_client(handler).usage()
+    assert result["apps_used"] == 1
+    assert result["apps_limit"] == 3
+    assert result["enforced"] == ["apps"]
+
+
+def test_main_usage_renders_table(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "plan_key": "pro",
+            "apps_used": 2, "apps_limit": 10,
+            "cpu_millicores_used": 1000, "cpu_millicores_limit": 8000,
+            "mem_mb_used": 256, "mem_mb_limit": 4096,
+            "disk_mb_used": 512, "disk_mb_limit": 20480,
+            "domains_used": 1, "domains_limit": 5,
+            "enforced": ["apps"],
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["usage"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "pro" in out
+    assert "2/10" in out
+    assert "advisory" in out

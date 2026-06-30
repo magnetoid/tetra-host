@@ -364,3 +364,25 @@ class PlanUpdateRequest(BaseModel):
     mem_mb: int | None = None
     disk_mb: int | None = None
     sort_order: int | None = None
+
+
+class UsageResponse(BaseModel):
+    """Per-tenant quota usage vs plan limits.
+
+    Only ``apps`` is enforced (quota_exceeded raised on install).
+    cpu/mem/disk/domains are advisory — surfaced for visibility but not blocked.
+    """
+
+    plan_key: str = ""
+    apps_used: int
+    apps_limit: int
+    cpu_millicores_used: int
+    cpu_millicores_limit: int
+    mem_mb_used: int
+    mem_mb_limit: int
+    disk_mb_used: int
+    disk_mb_limit: int
+    domains_used: int
+    domains_limit: int
+    # Dimensions that are actively enforced (block the action when exceeded).
+    enforced: list[str] = ["apps"]

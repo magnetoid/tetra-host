@@ -6,12 +6,14 @@ RED → GREEN sequence (run with pytest -q tests/test_quota.py).
 import asyncio
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.db import session_scope
 from app.db.session import init_db
-from app.models import Deployment, Plan, Tenant, TenantResource
+from app.models import AdminUser, Deployment, Plan, Tenant, TenantResource
 from app.models.deployment import STATUS_BUILDING, STATUS_QUEUED
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
+from app.modules.auth.service import AuthService
 from app.services.quota import Allocation, QuotaExceeded, QuotaService
 
 
@@ -352,3 +354,91 @@ class TestQuotaDedup:
                 assert u["apps"] == 1, f"Expected 1 (unresered in-flight), got {u['apps']}"
 
         asyncio.run(run())
+
+
+# ---------------------------------------------------------------------------
+# Task 3.5a: GET /api/v1/usage endpoint
+# ---------------------------------------------------------------------------
+
+
+async def _seed_usage_tenant(max_apps: int = 3) -> None:
+    """Seed a plan + tenant + admin for usage endpoint tests."""
+    await init_db()
+    async with session_scope() as session:
+        auth_service = AuthService(session)
+        plan = Plan(
+            key=f"usage_test_plan_{max_apps}",
+            name=f"Usage Test Plan (max={max_apps})",
+            max_apps=max_apps,
+            max_domains=5,
+            cpu_millicores=8000,
+            mem_mb=4096,
+            disk_mb=20480,
+        )
+        session.add(plan)
+        await session.flush()
+
+        tenant = Tenant(name="Usage Tenant", slug="usage-t", status="active", plan_id=plan.id)
+        session.add(tenant)
+        await session.flush()
+
+        session.add(
+            AdminUser(
+                tenant_id=tenant.id,
+                email="owner@usage.test",
+                full_name="Usage Owner",
+                password_hash=auth_service.hash_password("usage-pass"),
+                is_active=True,
+            )
+        )
+        # Seed 1 reserved app.
+        session.add(
+            TenantResource(
+                tenant_id=tenant.id,
+                provider=PROVIDER_DOCKER,
+                resource_type=RESOURCE_TYPE_APP,
+                external_id="usage-app-1",
+                display_name="Usage App 1",
+                cpu_millicores=500,
+                mem_mb=512,
+                disk_mb=1024,
+            )
+        )
+
+
+def _login_usage(client: TestClient) -> dict[str, str]:
+    response = client.post(
+        "/api/v1/auth/login", json={"email": "owner@usage.test", "password": "usage-pass"}
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
+class TestUsageEndpoint:
+    """GET /api/v1/usage — per-tenant quota endpoint (Task 3.5a)."""
+
+    def test_usage_returns_200_with_correct_body(self, client: TestClient):
+        """Seed 1 app on a max_apps=3 plan; expect apps_used=1, apps_limit=3, enforced=[apps]."""
+        asyncio.run(_seed_usage_tenant(max_apps=3))
+        headers = _login_usage(client)
+
+        response = client.get("/api/v1/usage", headers=headers)
+        assert response.status_code == 200, response.text
+
+        body = response.json()
+        assert body["apps_used"] == 1
+        assert body["apps_limit"] == 3
+        assert body["enforced"] == ["apps"]
+        assert body["plan_key"] == "usage_test_plan_3"
+        # Advisory dims are present.
+        assert "cpu_millicores_used" in body
+        assert "mem_mb_used" in body
+        assert "disk_mb_used" in body
+        assert "domains_used" in body
+        assert "domains_limit" in body
+
+    def test_usage_requires_auth(self, client: TestClient):
+        """GET /api/v1/usage without a token must return 401."""
+        asyncio.run(_seed_usage_tenant(max_apps=3))
+        response = client.get("/api/v1/usage")
+        assert response.status_code == 401

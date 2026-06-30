@@ -51,6 +51,7 @@ from app.api.contracts import (
     TenantResourceCreateRequest,
     TenantResourceSummary,
     TenantSummary,
+    UsageResponse,
 )
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
@@ -70,8 +71,10 @@ from app.modules.sites.service import SitesService
 from app.services.cloudflare import count_bind_records
 from app.services.coolify import parse_deployment_log_lines
 from app.models.admin import ROLE_PLATFORM_ADMIN
+from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
+from app.services.quota import QuotaService
 
 # Coolify deployment statuses that mean the build has stopped (terminal).
 _TERMINAL_DEPLOYMENT_STATES = {
@@ -1471,3 +1474,79 @@ async def api_archive_plan(
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found.")
     return _plan_summary(plan)
+
+
+# ---------------------------------------------------------------------------
+# Usage endpoint  (/api/v1/usage)
+# ---------------------------------------------------------------------------
+
+async def _resolve_plan_for_tenant(session: AsyncSession, tenant_id: str) -> Plan | None:
+    """Return the Plan for the tenant, falling back to the free plan, then None."""
+    tenant = await session.get(Tenant, tenant_id)
+    plan: Plan | None = None
+    if tenant and tenant.plan_id:
+        plan = await session.get(Plan, tenant.plan_id)
+    if plan is None:
+        plan = await session.scalar(select(Plan).where(Plan.key == "free"))
+    return plan
+
+
+@router.get("/usage", response_model=UsageResponse)
+async def api_usage(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> UsageResponse:
+    """Return the calling tenant's quota usage versus their plan limits.
+
+    Accessible by any authenticated admin for their own tenant — not gated to
+    platform-admin.  Only ``apps`` is enforced; cpu/mem/disk/domains are advisory.
+    """
+    tenant_id = current_admin.tenant_id
+
+    # --- usage from QuotaService ---
+    quota_svc = QuotaService(session, tenant_id)
+    used = await quota_svc.usage()
+
+    # --- plan limits ---
+    plan = await _resolve_plan_for_tenant(session, tenant_id)
+    if plan is not None:
+        plan_key = plan.key
+        apps_limit = plan.max_apps
+        cpu_limit = plan.cpu_millicores
+        mem_limit = plan.mem_mb
+        disk_limit = plan.disk_mb
+        domains_limit = plan.max_domains
+    else:
+        # Absolute fallback — no plan row at all.
+        from app.services.quota import DEFAULT_FREE_MAX_APPS
+        plan_key = ""
+        apps_limit = DEFAULT_FREE_MAX_APPS
+        cpu_limit = 0
+        mem_limit = 0
+        disk_limit = 0
+        domains_limit = 0
+
+    # --- domains used: count DNS-zone TenantResource rows ---
+    domains_used: int = (
+        await session.scalar(
+            select(func.count()).select_from(TenantResource).where(
+                TenantResource.tenant_id == tenant_id,
+                TenantResource.resource_type == RESOURCE_TYPE_DNS_ZONE,
+            )
+        )
+    ) or 0
+
+    return UsageResponse(
+        plan_key=plan_key,
+        apps_used=used["apps"],
+        apps_limit=apps_limit,
+        cpu_millicores_used=used["cpu_millicores"],
+        cpu_millicores_limit=cpu_limit,
+        mem_mb_used=used["mem_mb"],
+        mem_mb_limit=mem_limit,
+        disk_mb_used=used["disk_mb"],
+        disk_mb_limit=disk_limit,
+        domains_used=domains_used,
+        domains_limit=domains_limit,
+        enforced=["apps"],
+    )

@@ -238,3 +238,7 @@ class TetraClient:
 
     def tenant_action(self, slug: str, action: str) -> Any:
         return self._request("POST", f"/tenants/{slug}/{action}")
+
+    # ── Usage ─────────────────────────────────────────────────────────────
+    def usage(self) -> Any:
+        return self._request("GET", "/usage")

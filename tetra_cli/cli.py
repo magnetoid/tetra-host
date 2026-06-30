@@ -449,6 +449,21 @@ def cmd_tenants_reactivate(args: argparse.Namespace) -> int:
     return _cmd_tenant_action("reactivate", args)
 
 
+def cmd_usage(args: argparse.Namespace) -> int:
+    data = client_from_config().usage()
+    plan = data.get("plan_key", "") or "free"
+    print(c(f"Plan: {plan}", "1"))
+    rows = [
+        ["apps", f"{data.get('apps_used', 0)}/{data.get('apps_limit', 0)}", "enforced"],
+        ["cpu", f"{data.get('cpu_millicores_used', 0)}/{data.get('cpu_millicores_limit', 0)} mc", "advisory"],
+        ["mem", f"{data.get('mem_mb_used', 0)}/{data.get('mem_mb_limit', 0)} MB", "advisory"],
+        ["disk", f"{data.get('disk_mb_used', 0)}/{data.get('disk_mb_limit', 0)} MB", "advisory"],
+        ["domains", f"{data.get('domains_used', 0)}/{data.get('domains_limit', 0)}", "advisory"],
+    ]
+    print_table(["RESOURCE", "USED/LIMIT", "STATUS"], rows)
+    return 0
+
+
 def cmd_deploys_git(args: argparse.Namespace) -> int:
     import time
 
@@ -490,6 +505,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
     sub.add_parser("dashboard", help="show platform metrics").set_defaults(func=cmd_dashboard)
+    sub.add_parser("usage", help="show quota usage vs plan limits").set_defaults(func=cmd_usage)
     sub.add_parser("sites", help="list sites").set_defaults(func=cmd_sites)
 
     sp = sub.add_parser("deploy", help="trigger a deployment")
