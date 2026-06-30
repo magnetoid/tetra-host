@@ -182,7 +182,9 @@ def normalize_coolify_deployment(raw: dict[str, Any]) -> CoolifyDeployment:
         updated_at=str(raw.get("updated_at") or raw.get("created_at") or ""),
         commit=str(raw.get("commit") or raw.get("commit_sha") or raw.get("git_commit_sha") or ""),
         branch=str(raw.get("branch") or raw.get("git_branch") or ""),
-        deployment_log=str(raw.get("deployment_log") or ""),
+        # Coolify returns the build log under "logs" (a JSON-array string) on both the
+        # list and single-deployment endpoints; "deployment_log" is a defensive fallback.
+        deployment_log=str(raw.get("logs") or raw.get("deployment_log") or ""),
     )
 
 
@@ -775,7 +777,13 @@ class CoolifyClient:
             url=f"{self.base_url}/api/v1/deployments/applications/{application_uuid}",
             headers=self.headers(),
         )
-        items = payload.get("data", payload) if isinstance(payload, dict) else payload
+        # Coolify wraps the list as {"count": N, "deployments": [...]}; tolerate a bare
+        # list or a "data"-wrapped shape too. Never fall back to the dict itself, or we
+        # would iterate its keys and synthesize bogus "count"/"deployments" entries.
+        if isinstance(payload, dict):
+            items = payload.get("deployments") or payload.get("data") or []
+        else:
+            items = payload or []
         results: list[CoolifyDeployment] = []
         for item in items:
             if isinstance(item, str):
