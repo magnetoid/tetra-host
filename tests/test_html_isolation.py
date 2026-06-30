@@ -247,7 +247,7 @@ def test_dashboard_non_platform_admin_sees_only_own_resources(client, monkeypatc
 
 def test_html_dns_create_foreign_zone_denied(client, monkeypatch, provider_actions_enabled):
     """POST /dns/records/create with a foreign zone_id must be denied (provider not called)."""
-    asyncio.run(_seed_tenant("t-create-deny", "create-deny@example.test", "pass1", "zone-own-1"))
+    asyncio.run(_seed_tenant("t-create-deny", "create-deny@example.test", "password1", "zone-own-1"))
 
     created: list[str] = []
 
@@ -257,7 +257,7 @@ def test_html_dns_create_foreign_zone_denied(client, monkeypatch, provider_actio
 
     monkeypatch.setattr("app.services.cloudflare.CloudflareClient.create_dns_record", fake_create)
 
-    _login(client, "create-deny@example.test", "pass1")
+    _login(client, "create-deny@example.test", "password1")
     csrf = _get_csrf(client)
 
     resp = client.post(
@@ -282,7 +282,7 @@ def test_html_dns_create_foreign_zone_denied(client, monkeypatch, provider_actio
 
 def test_html_dns_create_own_zone_allowed(client, monkeypatch, provider_actions_enabled):
     """POST /dns/records/create with the tenant's mapped zone_id must succeed."""
-    asyncio.run(_seed_tenant("t-create-allow", "create-allow@example.test", "pass2", "zone-own-2"))
+    asyncio.run(_seed_tenant("t-create-allow", "create-allow@example.test", "password2", "zone-own-2"))
 
     created: list[str] = []
 
@@ -292,7 +292,7 @@ def test_html_dns_create_own_zone_allowed(client, monkeypatch, provider_actions_
 
     monkeypatch.setattr("app.services.cloudflare.CloudflareClient.create_dns_record", fake_create)
 
-    _login(client, "create-allow@example.test", "pass2")
+    _login(client, "create-allow@example.test", "password2")
     csrf = _get_csrf(client)
 
     resp = client.post(
@@ -317,7 +317,7 @@ def test_html_dns_create_own_zone_allowed(client, monkeypatch, provider_actions_
 
 def test_html_dns_edit_foreign_zone_denied(client, monkeypatch, provider_actions_enabled):
     """POST /dns/records/{id}/edit with foreign zone_id must be denied."""
-    asyncio.run(_seed_tenant("t-edit-deny", "edit-deny@example.test", "pass3", "zone-own-3"))
+    asyncio.run(_seed_tenant("t-edit-deny", "edit-deny@example.test", "password3", "zone-own-3"))
 
     updated: list[str] = []
 
@@ -327,7 +327,7 @@ def test_html_dns_edit_foreign_zone_denied(client, monkeypatch, provider_actions
 
     monkeypatch.setattr("app.services.cloudflare.CloudflareClient.update_dns_record", fake_update)
 
-    _login(client, "edit-deny@example.test", "pass3")
+    _login(client, "edit-deny@example.test", "password3")
     csrf = _get_csrf(client)
 
     resp = client.post(
@@ -352,7 +352,7 @@ def test_html_dns_edit_foreign_zone_denied(client, monkeypatch, provider_actions
 
 def test_html_dns_delete_foreign_zone_denied(client, monkeypatch, provider_actions_enabled):
     """POST /dns/records/{id}/delete with foreign zone_id must be denied."""
-    asyncio.run(_seed_tenant("t-delete-deny", "delete-deny@example.test", "pass4", "zone-own-4"))
+    asyncio.run(_seed_tenant("t-delete-deny", "delete-deny@example.test", "password4", "zone-own-4"))
 
     deleted: list[tuple[str, str]] = []
 
@@ -362,7 +362,7 @@ def test_html_dns_delete_foreign_zone_denied(client, monkeypatch, provider_actio
 
     monkeypatch.setattr("app.services.cloudflare.CloudflareClient.delete_dns_record", fake_delete)
 
-    _login(client, "delete-deny@example.test", "pass4")
+    _login(client, "delete-deny@example.test", "password4")
     csrf = _get_csrf(client)
 
     resp = client.post(
