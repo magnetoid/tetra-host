@@ -7,12 +7,16 @@ Tests cover:
   - Extra privilege fields in body are IGNORED (server-sets role/plan/status).
   - Duplicate email: 200 non-distinguishing response, returned token is empty / non-authenticating,
     and no second row was created.
+  - Rate limit (signup_rate_per_hour) enforced per client host → 429.
+  - Pending-tenant cap (max_pending_tenants) enforced globally → 429.
+  - Oversized org_name → 422 (Pydantic field bound, not DB error).
 """
 
 import asyncio
 
 from sqlalchemy import func, select
 
+from app.config import get_settings
 from app.db import session_scope
 from app.models import AdminUser, Tenant
 from app.models.tenant import TENANT_PENDING
@@ -145,3 +149,68 @@ def test_signup_duplicate_email_no_takeover(client):
             assert tenant_count == 1
 
     asyncio.run(_check_no_duplicate_rows())
+
+
+# ---------------------------------------------------------------------------
+# Hardening: race + bounds + 429 tests (Task 2.3 adversarial review)
+# ---------------------------------------------------------------------------
+
+def test_signup_rate_limited(client, monkeypatch):
+    """3rd signup from the same client host → 429 when rate limit is 2/hr."""
+    # Cap at 2 attempts per hour for this test; reset the in-memory limiter so
+    # state from other tests does not accumulate.
+    settings = get_settings()
+    monkeypatch.setattr(settings, "signup_rate_per_hour", 2)
+    # Clear the limiter state so nothing bleeds in from earlier tests.
+    client.app.state.rate_limiter._buckets.clear()
+
+    for i in range(2):
+        r = client.post(
+            "/api/v1/auth/signup",
+            json={"email": f"rl{i}@c.test", "password": "longenough1", "org_name": f"RlOrg{i}"},
+        )
+        assert r.status_code == 200, f"attempt {i} should succeed, got {r.status_code}"
+
+    r3 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "rl2@c.test", "password": "longenough1", "org_name": "RlOrg2"},
+    )
+    assert r3.status_code == 429, f"3rd attempt must be 429, got {r3.status_code}: {r3.text}"
+
+
+def test_signup_pending_cap(client, monkeypatch):
+    """Once max_pending_tenants is reached, next signup → 429 (cap, not rate-limit)."""
+    settings = get_settings()
+    # Keep rate limit high so we're definitely testing the cap, not the rate limit.
+    monkeypatch.setattr(settings, "signup_rate_per_hour", 100)
+    monkeypatch.setattr(settings, "max_pending_tenants", 1)
+    # Clear limiter state so rate limit plays no role.
+    client.app.state.rate_limiter._buckets.clear()
+
+    # First signup fills the cap (max_pending_tenants=1 → 1 pending tenant created).
+    r1 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "cap1@c.test", "password": "longenough1", "org_name": "CapOrg1"},
+    )
+    assert r1.status_code == 200, f"first signup should succeed, got {r1.status_code}"
+
+    # Second signup must be blocked by the pending cap.
+    r2 = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "cap2@c.test", "password": "longenough1", "org_name": "CapOrg2"},
+    )
+    assert r2.status_code == 429, f"cap exceeded must be 429, got {r2.status_code}: {r2.text}"
+
+
+def test_signup_org_name_too_long_422(client, monkeypatch):
+    """org_name over 120 chars → 422 from Pydantic validation (not a DB 500)."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "signup_rate_per_hour", 100)
+    client.app.state.rate_limiter._buckets.clear()
+
+    long_name = "A" * 200
+    r = client.post(
+        "/api/v1/auth/signup",
+        json={"email": "long@c.test", "password": "longenough1", "org_name": long_name},
+    )
+    assert r.status_code == 422, f"oversized org_name must be 422, got {r.status_code}: {r.text}"

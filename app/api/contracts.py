@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SignupRequest(BaseModel):
@@ -6,11 +6,15 @@ class SignupRequest(BaseModel):
 
     Role, plan_id, status, tenant_id, and is_platform_scope are NEVER accepted
     from the client; the service sets them server-side.
+
+    Field max_lengths turn oversized payloads into 422s (Pydantic) instead of
+    DB-layer 500s. The password lower bound (>= 10 chars) is enforced server-side
+    by validate_password; the Field bound here is only an upper cap.
     """
 
-    email: str
-    password: str
-    org_name: str
+    email: str = Field(..., max_length=254)
+    password: str = Field(..., max_length=200)
+    org_name: str = Field(..., min_length=1, max_length=120)
 
 
 class AdminSummary(BaseModel):

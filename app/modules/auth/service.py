@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from passlib.context import CryptContext
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -137,7 +138,14 @@ class AuthService:
             role=ROLE_OWNER,
         )
         self.session.add(admin)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            # Concurrent duplicate: roll back the whole unit-of-work (tenant + admin)
+            # so no orphan tenant is left behind, then return the same None sentinel
+            # as the pre-check duplicate path.
+            await self.session.rollback()
+            return None
 
         # Reload with relationships populated.
         return await self.get_admin_by_id(admin.id)
