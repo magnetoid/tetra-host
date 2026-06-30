@@ -55,7 +55,9 @@ from app.api.contracts import (
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
-from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_SUSPENDED
+from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
+from app.models.audit import AuditEvent
+from app.models.plan import Plan
 from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.deploys.service import DeploysService
@@ -155,12 +157,14 @@ def _admin_summary(admin: AdminUser) -> AdminSummary:
     )
 
 
-def _tenant_summary(tenant: Tenant) -> TenantSummary:
+def _tenant_summary(tenant: Tenant, plan_key: str = "") -> TenantSummary:
     return TenantSummary(
         id=tenant.id,
         name=tenant.name,
         slug=tenant.slug,
         is_active=tenant.is_active,
+        status=tenant.status,
+        plan_key=plan_key,
     )
 
 
@@ -1160,7 +1164,13 @@ async def api_list_tenants(
     _: AdminUser = Depends(require_platform_admin),
 ) -> list[TenantSummary]:
     tenants = list((await session.scalars(select(Tenant).order_by(Tenant.created_at))).all())
-    return [_tenant_summary(tenant) for tenant in tenants]
+    # Build a plan_id → plan_key map for all tenants in one query
+    plan_ids = {t.plan_id for t in tenants if t.plan_id}
+    plan_key_map: dict[str, str] = {}
+    if plan_ids:
+        plans = list((await session.scalars(select(Plan).where(Plan.id.in_(plan_ids)))).all())
+        plan_key_map = {p.id: p.key for p in plans}
+    return [_tenant_summary(t, plan_key_map.get(t.plan_id, "") if t.plan_id else "") for t in tenants]
 
 
 @router.post("/tenants/{tenant_slug}/activate", response_model=TenantSummary)
@@ -1191,6 +1201,121 @@ async def api_deactivate_tenant(
     tenant.status = TENANT_SUSPENDED
     await session.flush()
     return _tenant_summary(tenant)
+
+
+async def _resolve_plan_key(session: AsyncSession, plan_id: str | None) -> str:
+    if not plan_id:
+        return ""
+    plan = await session.get(Plan, plan_id)
+    return plan.key if plan else ""
+
+
+@router.post("/tenants/{tenant_slug}/approve", response_model=TenantSummary)
+async def api_approve_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot approve a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_ACTIVE
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.approve",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
+
+
+@router.post("/tenants/{tenant_slug}/reject", response_model=TenantSummary)
+async def api_reject_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot reject a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_REJECTED
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.reject",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
+
+
+@router.post("/tenants/{tenant_slug}/suspend", response_model=TenantSummary)
+async def api_suspend_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot suspend a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_SUSPENDED
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.suspend",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
+
+
+@router.post("/tenants/{tenant_slug}/reactivate", response_model=TenantSummary)
+async def api_reactivate_tenant(
+    tenant_slug: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_platform_admin),
+) -> TenantSummary:
+    auth_service = AuthService(session)
+    tenant = await auth_service.get_tenant_by_slug(tenant_slug)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if tenant.status != TENANT_SUSPENDED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot reactivate a tenant in status '{tenant.status}'.",
+        )
+    tenant.status = TENANT_ACTIVE
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="tenant.reactivate",
+        target=tenant_slug,
+        details="",
+    ))
+    await session.flush()
+    plan_key = await _resolve_plan_key(session, tenant.plan_id)
+    return _tenant_summary(tenant, plan_key)
 
 
 @router.post("/tenant-admins", response_model=AdminSummary)

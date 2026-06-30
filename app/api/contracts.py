@@ -287,6 +287,8 @@ class TenantSummary(BaseModel):
     name: str
     slug: str
     is_active: bool
+    status: str = ""
+    plan_key: str = ""
 
 
 class TenantCreateRequest(BaseModel):
