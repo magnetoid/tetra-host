@@ -82,14 +82,20 @@ class AnalyticsService:
         *,
         period: str = "7d",
     ) -> dict[str, Any]:
-        # Tenant isolation + project fetch in one guarded call (raises 403/404).
-        app = await self.projects.get_site_for_tenant(session, tenant_id, application_id)
+        # Tenant isolation guard (raises 403 if the project isn't this tenant's).
+        await self.projects.ensure_access_for_tenant(session, tenant_id, application_id)
 
         if not self.umami.is_configured():
             return {"configured": False, "ready": False, "period": period}
 
-        domain = _domain_of(getattr(app, "fqdn", "") if app else "")
-        name = (getattr(app, "name", "") if app else "") or application_id
+        # Resolve domain + name from the application LIST: primary_domain is reliably
+        # populated there, whereas the single-app GET omits fqdn on this Coolify version.
+        domain, name = "", application_id
+        for app in await self.projects.list_sites():
+            if app.id == application_id:
+                domain = app.primary_domain or _domain_of(app.fqdn)
+                name = app.name or application_id
+                break
         if not domain:
             return {
                 "configured": True,

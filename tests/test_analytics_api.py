@@ -106,11 +106,11 @@ def test_project_analytics_requires_auth(client):
 def test_project_analytics_not_configured(client, monkeypatch):
     """With Umami unset (test env), an accessible project returns configured=false."""
 
-    async def fake_get_site(self, session, tenant_id, application_id):
-        return None  # bypass the Coolify fetch + tenant guard for this test
+    async def fake_ensure(self, session, tenant_id, application_id):
+        return None  # bypass the real tenant/Coolify guard for this test
 
     monkeypatch.setattr(
-        "app.modules.projects.service.ProjectsService.get_site_for_tenant", fake_get_site
+        "app.modules.projects.service.ProjectsService.ensure_access_for_tenant", fake_ensure
     )
     headers = _login_as(client, "admin@example.com", "supersecurepassword")
     resp = client.get("/api/v1/projects/app-x/analytics", headers=headers)
