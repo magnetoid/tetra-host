@@ -7,8 +7,7 @@ from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING
 def test_plan_round_trips():
     async def go():
         await init_db()
-        async with session_scope() as s:
-            s.add(Plan(key="free", name="Free", max_apps=1, cpu_millicores=500, mem_mb=512, disk_mb=2048))
+        # init_db now seeds the free plan; just read it back and verify it.
         async with session_scope() as s:
             from sqlalchemy import select
             p = (await s.scalars(select(Plan).where(Plan.key == "free"))).one()
