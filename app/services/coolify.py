@@ -865,8 +865,13 @@ class CoolifyClient:
         POST /api/v1/databases/{postgresql|mysql|mariadb|mongodb|redis|keydb|dragonfly|clickhouse}
 
         Required fields per v4 spec: server_uuid, project_uuid, environment_name, name.
-        The db_type must be pre-validated against DB_TYPE_ALLOWLIST before calling this method.
+
+        db_type is validated here against DB_TYPE_ALLOWLIST as a client-layer invariant
+        (defense-in-depth — the service layer also validates before calling this method).
         """
+        # Fix 3: client-layer invariant — rejects unsupported types regardless of caller.
+        if db_type not in DB_TYPE_ALLOWLIST:
+            raise ValueError(f"Unsupported database type: {db_type}")
         if not self.is_configured():
             return {"ok": False, "message": "Coolify is not configured."}
         body: dict[str, Any] = {

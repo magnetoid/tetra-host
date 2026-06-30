@@ -222,3 +222,85 @@ def test_create_backup_on_owned_database(client, monkeypatch):
     )
     assert response.status_code == 200, response.text
     assert created and created[0]["uuid"] == "db-uuid-existing"
+
+
+def test_create_backup_cross_tenant_denied(client, monkeypatch):
+    """POST /api/v1/databases/{foreign_uuid}/backups by another tenant -> 403/404.
+
+    Mirrors test_backups_tenant_isolation (GET) but for the write (POST) path.
+    Tenant "dbt" (owns "db-uuid-existing") must be denied access to "db-uuid-foreign"
+    (owned by "other" tenant) on the backup creation endpoint.
+    """
+    asyncio.run(_seed_db_tenant())
+    asyncio.run(_seed_other_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    create_called: list[bool] = []
+
+    async def fake_create_backup(self, uuid, **config):
+        create_called.append(True)
+        return {"id": "should-not-reach"}
+
+    monkeypatch.setattr(CoolifyClient, "create_database_backup", fake_create_backup)
+
+    headers = _login(client)
+    # "dbt" tenant tries to create a backup on the other tenant's database
+    response = client.post(
+        "/api/v1/databases/db-uuid-foreign/backups",
+        headers=headers,
+        json={"frequency": "0 3 * * *", "retention_days": 14},
+    )
+    assert response.status_code in (403, 404), response.text
+    assert create_called == [], "CoolifyClient.create_database_backup must NOT be called for foreign DB"
+
+
+def test_provision_no_uuid_raises(client, monkeypatch):
+    """When Coolify returns no uuid/id, provision must 502 and NOT create a TenantResource.
+
+    This test was RED before Fix 1 (the service returned 200 + silently orphaned the DB).
+    After Fix 1 it is GREEN: a ProviderAPIError(502) is raised and no TenantResource row
+    is written for the tenant.
+    """
+    asyncio.run(_seed_db_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    async def fake_provision_no_uuid(self, db_type, server_uuid, project_uuid, environment_name, name, **opts):
+        # Simulates a Coolify response that has no uuid or id field
+        return {"ok": True}
+
+    monkeypatch.setattr(CoolifyClient, "provision_database", fake_provision_no_uuid)
+
+    headers = _login(client)
+    response = client.post(
+        "/api/v1/databases",
+        headers=headers,
+        json={
+            "db_type": "postgresql",
+            "name": "orphan-risk-db",
+            "server_uuid": "srv-123",
+            "project_uuid": "proj-456",
+            "environment_name": "production",
+        },
+    )
+    # Fix 1: must fail loud — not 2xx
+    assert response.status_code not in (200, 201), (
+        f"Expected non-2xx when Coolify returns no UUID, got {response.status_code}: {response.text}"
+    )
+    assert response.status_code == 502, response.text
+
+    # No TenantResource row should have been created for the tenant
+    async def count_db_resources():
+        from sqlalchemy import func, select
+        async with session_scope() as session:
+            from app.models import Tenant as T
+            tenant = (await session.scalars(select(T).where(T.slug == "dbt"))).first()
+            count = await session.scalar(
+                select(func.count()).select_from(TenantResource).where(
+                    TenantResource.tenant_id == tenant.id,
+                    TenantResource.resource_type == RESOURCE_TYPE_DATABASE,
+                    TenantResource.external_id == "",  # empty-uuid orphan
+                )
+            )
+            return count or 0
+
+    assert asyncio.run(count_db_resources()) == 0, "No TenantResource must be created when provision yields no UUID"

@@ -75,12 +75,22 @@ class DatabasesService:
         """Provision a new managed database via Coolify and record it as a TenantResource.
 
         Steps:
-        1. Gate on ENABLE_PROVIDER_ACTIONS (raises ProviderAPIError 403 if disabled).
-        2. Validate db_type against DB_TYPE_ALLOWLIST (raises ValueError if invalid — caller maps to 422).
-        3. Call Coolify: POST /api/v1/databases/{db_type}.
-        4. On success, create TenantResource(provider=coolify, resource_type=database, external_id=<uuid>).
-        5. On Coolify failure, ProviderAPIError propagates (no TenantResource created).
+        1. Guard: tenant_id must be non-empty (raises ProviderAPIError 400 otherwise).
+        2. Gate on ENABLE_PROVIDER_ACTIONS (raises ProviderAPIError 403 if disabled).
+        3. Validate db_type against DB_TYPE_ALLOWLIST (raises ValueError if invalid — caller maps to 422).
+        4. Call Coolify: POST /api/v1/databases/{db_type}.
+        5. On success, create TenantResource(provider=coolify, resource_type=database, external_id=<uuid>).
+           Raises ProviderAPIError(502) if Coolify returns no uuid/id — never a silent orphan.
+        6. On Coolify failure, ProviderAPIError propagates (no TenantResource created).
         """
+        # Fix 2: reject empty tenant_id before touching Coolify.
+        if not tenant_id:
+            raise ProviderAPIError(
+                service="Coolify",
+                message="Cannot provision a database without a tenant.",
+                status_code=400,
+            )
+
         self._require_actions()
 
         if db_type not in DB_TYPE_ALLOWLIST:
@@ -100,16 +110,24 @@ class DatabasesService:
         # Extract the new database's UUID from the Coolify response.
         # Coolify v4 returns {"uuid": "...", "name": "..."} on creation.
         db_uuid = str(result.get("uuid") or result.get("id") or "")
-        if db_uuid:
-            resource = TenantResource(
-                tenant_id=tenant_id or "",
-                provider=PROVIDER_COOLIFY,
-                resource_type=RESOURCE_TYPE_DATABASE,
-                external_id=db_uuid,
-                display_name=name,
+
+        # Fix 1: fail loud when Coolify returns no uuid — never create a silent orphan.
+        if not db_uuid:
+            raise ProviderAPIError(
+                service="Coolify",
+                message="Provision succeeded but Coolify returned no database UUID.",
+                status_code=502,
             )
-            session.add(resource)
-            await session.flush()
+
+        resource = TenantResource(
+            tenant_id=tenant_id,
+            provider=PROVIDER_COOLIFY,
+            resource_type=RESOURCE_TYPE_DATABASE,
+            external_id=db_uuid,
+            display_name=name,
+        )
+        session.add(resource)
+        await session.flush()
 
         result.setdefault("ok", True)
         return result
