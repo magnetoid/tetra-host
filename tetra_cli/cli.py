@@ -341,6 +341,70 @@ def cmd_apps_logs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plans_list(args: argparse.Namespace) -> int:
+    plans = client_from_config().plans(include_archived=args.include_archived)
+    rows = [
+        [
+            str(p.get("id", "")),
+            p.get("key", ""),
+            p.get("name", ""),
+            f"{p.get('price_cents', 0) / 100:.2f} {p.get('currency', '')}",
+            str(p.get("max_apps", "")),
+            str(p.get("max_domains", "")),
+            c("archived", "31") if p.get("is_archived") else c("active", "32"),
+        ]
+        for p in plans
+    ]
+    print_table(["ID", "KEY", "NAME", "PRICE", "MAX APPS", "MAX DOMAINS", "STATUS"], rows)
+    return 0
+
+
+def cmd_plans_create(args: argparse.Namespace) -> int:
+    fields: dict = {
+        "key": args.key,
+        "name": args.name,
+        "price_cents": args.price_cents,
+        "currency": args.currency,
+        "max_apps": args.max_apps,
+        "max_domains": args.max_domains,
+    }
+    if args.description is not None:
+        fields["description"] = args.description
+    if args.cpu_millicores is not None:
+        fields["cpu_millicores"] = args.cpu_millicores
+    if args.mem_mb is not None:
+        fields["mem_mb"] = args.mem_mb
+    if args.disk_mb is not None:
+        fields["disk_mb"] = args.disk_mb
+    if args.sort_order is not None:
+        fields["sort_order"] = args.sort_order
+    plan = client_from_config().plan_create(**fields)
+    print(c("✓", "32") + f" plan created: {plan.get('key')} (id={plan.get('id')})")
+    return 0
+
+
+def cmd_plans_edit(args: argparse.Namespace) -> int:
+    fields: dict = {}
+    for attr in ("name", "description", "price_cents", "currency", "max_apps", "max_domains",
+                 "cpu_millicores", "mem_mb", "disk_mb", "sort_order"):
+        val = getattr(args, attr, None)
+        if val is not None:
+            fields[attr] = val
+    if not fields:
+        return die("no fields provided — use --name, --price-cents, etc.")
+    plan = client_from_config().plan_update(args.plan_id, **fields)
+    print(c("✓", "32") + f" plan {args.plan_id} updated")
+    if isinstance(plan, dict) and plan.get("name"):
+        print(c(f"  name={plan['name']}", "90"))
+    return 0
+
+
+def cmd_plans_archive(args: argparse.Namespace) -> int:
+    client_from_config().plan_archive(args.plan_id)
+    print(c("✓", "32") + f" plan {args.plan_id} archived")
+    return 0
+
+
 def cmd_deploys_git(args: argparse.Namespace) -> int:
     import time
 
@@ -507,6 +571,43 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--ref", default="main")
     sp.add_argument("--port", type=int, default=3000)
     sp.set_defaults(func=cmd_deploys_git)
+
+    plans = sub.add_parser("plans", help="manage subscription plans (platform-admin)").add_subparsers(
+        dest="plans_cmd", required=True
+    )
+    sp = plans.add_parser("list", help="list plans")
+    sp.add_argument("--include-archived", dest="include_archived", action="store_true",
+                    help="include archived plans")
+    sp.set_defaults(func=cmd_plans_list)
+    sp = plans.add_parser("create", help="create a plan")
+    sp.add_argument("key", help="unique machine key (e.g. starter)")
+    sp.add_argument("name", help="display name")
+    sp.add_argument("--price-cents", dest="price_cents", type=int, required=True)
+    sp.add_argument("--currency", default="USD")
+    sp.add_argument("--max-apps", dest="max_apps", type=int, required=True)
+    sp.add_argument("--max-domains", dest="max_domains", type=int, required=True)
+    sp.add_argument("--description")
+    sp.add_argument("--cpu-millicores", dest="cpu_millicores", type=int, default=None)
+    sp.add_argument("--mem-mb", dest="mem_mb", type=int, default=None)
+    sp.add_argument("--disk-mb", dest="disk_mb", type=int, default=None)
+    sp.add_argument("--sort-order", dest="sort_order", type=int, default=None)
+    sp.set_defaults(func=cmd_plans_create)
+    sp = plans.add_parser("edit", help="update a plan (only flags provided are sent)")
+    sp.add_argument("plan_id", help="plan ID")
+    sp.add_argument("--name")
+    sp.add_argument("--description")
+    sp.add_argument("--price-cents", dest="price_cents", type=int, default=None)
+    sp.add_argument("--currency")
+    sp.add_argument("--max-apps", dest="max_apps", type=int, default=None)
+    sp.add_argument("--max-domains", dest="max_domains", type=int, default=None)
+    sp.add_argument("--cpu-millicores", dest="cpu_millicores", type=int, default=None)
+    sp.add_argument("--mem-mb", dest="mem_mb", type=int, default=None)
+    sp.add_argument("--disk-mb", dest="disk_mb", type=int, default=None)
+    sp.add_argument("--sort-order", dest="sort_order", type=int, default=None)
+    sp.set_defaults(func=cmd_plans_edit)
+    sp = plans.add_parser("archive", help="archive a plan")
+    sp.add_argument("plan_id", help="plan ID")
+    sp.set_defaults(func=cmd_plans_archive)
 
     return p
 

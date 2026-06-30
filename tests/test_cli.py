@@ -223,3 +223,68 @@ def test_main_requires_login(monkeypatch, tmp_path):
     monkeypatch.delenv("TETRA_TOKEN", raising=False)
     code = main(["sites"])
     assert code == 1  # not logged in
+
+
+# ── Plans client ──────────────────────────────────────────────────────────
+
+
+def test_client_plans_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/plans"
+        assert request.url.params.get("include_archived") in (None, "false", "False")
+        return httpx.Response(200, json=[
+            {"id": 1, "key": "starter", "name": "Starter", "price_cents": 900, "currency": "USD",
+             "max_apps": 1, "max_domains": 3, "is_archived": False},
+        ])
+
+    result = make_client(handler).plans()
+    assert isinstance(result, list)
+    assert result[0]["key"] == "starter"
+
+
+def test_client_plans_include_archived_passes_param():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/plans"
+        assert request.url.params.get("include_archived") in ("true", "True", "1")
+        return httpx.Response(200, json=[])
+
+    make_client(handler).plans(include_archived=True)
+
+
+def test_client_plan_create_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/plans"
+        body = json.loads(request.content)
+        assert body["key"] == "pro" and body["name"] == "Pro" and body["price_cents"] == 2900
+        return httpx.Response(201, json={"id": 2, "key": "pro", "name": "Pro"})
+
+    result = make_client(handler).plan_create(
+        key="pro", name="Pro", price_cents=2900, currency="USD",
+        max_apps=5, max_domains=10,
+    )
+    assert result["key"] == "pro"
+
+
+def test_client_plan_update_uses_patch():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH"
+        assert request.url.path == "/api/v1/plans/3"
+        body = json.loads(request.content)
+        assert body == {"name": "Pro Plus", "price_cents": 3900}
+        return httpx.Response(200, json={"id": 3, "name": "Pro Plus"})
+
+    result = make_client(handler).plan_update(3, name="Pro Plus", price_cents=3900)
+    assert result["name"] == "Pro Plus"
+
+
+def test_client_plan_archive_posts_to_archive():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/plans/7/archive"
+        return httpx.Response(200, json={"id": 7, "is_archived": True})
+
+    result = make_client(handler).plan_archive(7)
+    assert result["is_archived"] is True
