@@ -1,9 +1,15 @@
 """Databases service — tenant-scoped wrappers around the Coolify databases API."""
 
+from typing import Any
+
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.coolify import CoolifyClient, CoolifyDatabase
+from app.config import get_settings
+from app.models import TenantResource
+from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_DATABASE
+from app.services.coolify import CoolifyClient, CoolifyDatabase, DB_TYPE_ALLOWLIST
+from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
 
 
@@ -14,6 +20,33 @@ class DatabasesService:
             http_client=request.app.state.http_client,
             cache=request.app.state.cache,
         )
+        self.actions_enabled = get_settings().enable_provider_actions
+
+    def _require_actions(self) -> None:
+        if not self.actions_enabled:
+            raise ProviderAPIError(
+                service="Coolify",
+                message="Provider actions are disabled (ENABLE_PROVIDER_ACTIONS=false).",
+                status_code=403,
+            )
+
+    async def _ensure_database_access(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        db_uuid: str,
+    ) -> None:
+        allowed = await TenantResourceFilter(session, tenant_id).is_resource_accessible(
+            provider=PROVIDER_COOLIFY,
+            resource_type=RESOURCE_TYPE_DATABASE,
+            external_id=db_uuid,
+        )
+        if not allowed:
+            raise ProviderAPIError(
+                service="Coolify",
+                message="Database is not assigned to this tenant.",
+                status_code=403,
+            )
 
     async def list_databases(self, refresh: bool = False) -> list[CoolifyDatabase]:
         return await self.client.list_databases()
@@ -27,3 +60,78 @@ class DatabasesService:
     ) -> list[CoolifyDatabase]:
         databases = await self.list_databases(refresh=refresh)
         return await TenantResourceFilter(session, tenant_id).filter_databases(databases)
+
+    async def provision_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        *,
+        db_type: str,
+        name: str,
+        server_uuid: str,
+        project_uuid: str,
+        environment_name: str,
+    ) -> dict[str, Any]:
+        """Provision a new managed database via Coolify and record it as a TenantResource.
+
+        Steps:
+        1. Gate on ENABLE_PROVIDER_ACTIONS (raises ProviderAPIError 403 if disabled).
+        2. Validate db_type against DB_TYPE_ALLOWLIST (raises ValueError if invalid — caller maps to 422).
+        3. Call Coolify: POST /api/v1/databases/{db_type}.
+        4. On success, create TenantResource(provider=coolify, resource_type=database, external_id=<uuid>).
+        5. On Coolify failure, ProviderAPIError propagates (no TenantResource created).
+        """
+        self._require_actions()
+
+        if db_type not in DB_TYPE_ALLOWLIST:
+            raise ValueError(
+                f"Unsupported db_type '{db_type}'. "
+                f"Supported types: {', '.join(sorted(DB_TYPE_ALLOWLIST))}"
+            )
+
+        result = await self.client.provision_database(
+            db_type=db_type,
+            server_uuid=server_uuid,
+            project_uuid=project_uuid,
+            environment_name=environment_name,
+            name=name,
+        )
+
+        # Extract the new database's UUID from the Coolify response.
+        # Coolify v4 returns {"uuid": "...", "name": "..."} on creation.
+        db_uuid = str(result.get("uuid") or result.get("id") or "")
+        if db_uuid:
+            resource = TenantResource(
+                tenant_id=tenant_id or "",
+                provider=PROVIDER_COOLIFY,
+                resource_type=RESOURCE_TYPE_DATABASE,
+                external_id=db_uuid,
+                display_name=name,
+            )
+            session.add(resource)
+            await session.flush()
+
+        result.setdefault("ok", True)
+        return result
+
+    async def backups_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        db_uuid: str,
+    ) -> list[dict[str, Any]]:
+        """List backup configs for a tenant-owned database."""
+        await self._ensure_database_access(session, tenant_id, db_uuid)
+        return await self.client.list_database_backups(db_uuid)
+
+    async def create_backup_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        db_uuid: str,
+        **config: Any,
+    ) -> dict[str, Any]:
+        """Create a backup config for a tenant-owned database."""
+        self._require_actions()
+        await self._ensure_database_access(session, tenant_id, db_uuid)
+        return await self.client.create_database_backup(db_uuid, **config)
