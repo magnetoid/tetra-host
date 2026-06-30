@@ -6,7 +6,7 @@ import json
 import httpx
 
 from app.cache import TTLCache
-from app.modules.analytics.service import _domain_of, _num, _series, _summary
+from app.modules.analytics.service import _domain_of, _num, _series, _summary, _valid_domain
 from app.services.umami import UmamiClient
 
 
@@ -95,6 +95,12 @@ def test_analytics_helpers():
 
     assert _domain_of("https://shop.example.com/path") == "shop.example.com"
     assert _domain_of("a.com,b.com") == "a.com"
+
+    # Coolify's "No domain" placeholder + other non-hostnames are rejected.
+    assert _valid_domain("shop.example.com") is True
+    assert _valid_domain("No domain") is False
+    assert _valid_domain("") is False
+    assert _valid_domain("localhost") is False  # no dot
 
 
 # ── endpoint ────────────────────────────────────────────────────────────

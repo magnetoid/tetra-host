@@ -62,6 +62,12 @@ def _domain_of(fqdn: str) -> str:
     return first.split("/")[0].strip()
 
 
+def _valid_domain(value: str) -> bool:
+    """Reject empties, Coolify's "No domain" placeholder, and non-hostnames."""
+    d = (value or "").strip().lower()
+    return bool(d) and " " not in d and "." in d and d != "no domain"
+
+
 class AnalyticsService:
     def __init__(self, request: Request) -> None:
         self.request = request
@@ -90,10 +96,12 @@ class AnalyticsService:
 
         # Resolve domain + name from the application LIST: primary_domain is reliably
         # populated there, whereas the single-app GET omits fqdn on this Coolify version.
+        # Coolify uses the literal "No domain" placeholder when a site isn't exposed.
         domain, name = "", application_id
         for app in await self.projects.list_sites():
             if app.id == application_id:
-                domain = app.primary_domain or _domain_of(app.fqdn)
+                candidate = _domain_of(app.primary_domain) or _domain_of(app.fqdn)
+                domain = candidate if _valid_domain(candidate) else ""
                 name = app.name or application_id
                 break
         if not domain:
