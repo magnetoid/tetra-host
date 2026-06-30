@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import session_scope
-from app.models import TenantResource
 from app.models.deployment import (
     STATUS_BUILDING,
     STATUS_ERROR,
@@ -24,10 +23,10 @@ from app.models.deployment import (
     STATUS_READY,
     Deployment,
 )
-from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
+from app.services.quota import Allocation, QuotaService
 
 
 def compose_for_image(image: str, port: int) -> str:
@@ -68,10 +67,25 @@ class DeploysService:
     async def start_deploy_for_tenant(
         self, tenant_id: str | None, *, git_url: str, ref: str, name: str, port: int
     ) -> str:
-        """Create + commit a queued Deployment, kick off the background build, return its id."""
+        """Create + commit a queued Deployment, kick off the background build, return its id.
+
+        Atomically reserves a quota slot BEFORE the background task is scheduled.
+        QuotaExceeded propagates to the caller (→ 402 handler); no task is created.
+        """
         self._require_actions()
         project = sanitize_project_name(name)
+        settings = get_settings()
+        allocation = Allocation(
+            cpu_millicores=settings.default_app_cpu_millicores,
+            mem_mb=settings.default_app_mem_mb,
+            disk_mb=settings.default_app_disk_mb,
+        )
         async with session_scope() as session:
+            # Atomically check quota and reserve BEFORE the build is scheduled.
+            # QuotaExceeded is not caught here — it rolls back and propagates.
+            quota = QuotaService(session, tenant_id or "")
+            await quota.check_and_reserve(project, allocation, name)
+
             deployment = Deployment(
                 tenant_id=tenant_id or "", project=project, git_url=git_url, ref=ref,
                 status=STATUS_QUEUED, port=port,
@@ -113,8 +127,8 @@ class DeploysService:
             compose = apply_edge(compose, project=project, port=str(effective_port))
             await self.engine.deploy_stack(project, compose, {})
 
+            # Reservation made in start_deploy_for_tenant stays on success.
             domain = f"{project}.{self.base_domain}" if self.base_domain else ""
-            await self._record_app(tenant_id, project)
             log.append(f"✓ live at https://{domain}" if domain else "✓ running")
             await self._set(
                 deployment_id, log, status=STATUS_READY,
@@ -124,27 +138,15 @@ class DeploysService:
         except (BuildError, DockerEngineError) as exc:
             log.append(f"✗ {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
+            # Release the pre-build reservation so no orphan slot is left.
+            # _run_deploy runs after the request session is closed, so open a fresh scope.
+            async with session_scope() as release_session:
+                await QuotaService(release_session, tenant_id or "").release(project)
         except Exception as exc:  # never leave a deployment stuck in "building"
             log.append(f"✗ unexpected: {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
-
-    async def _record_app(self, tenant_id: str | None, project: str) -> None:
-        async with session_scope() as session:
-            existing = await session.scalar(
-                select(TenantResource).where(
-                    TenantResource.tenant_id == (tenant_id or ""),
-                    TenantResource.provider == PROVIDER_DOCKER,
-                    TenantResource.resource_type == RESOURCE_TYPE_APP,
-                    TenantResource.external_id == project,
-                )
-            )
-            if existing is None:
-                session.add(
-                    TenantResource(
-                        tenant_id=tenant_id or "", provider=PROVIDER_DOCKER,
-                        resource_type=RESOURCE_TYPE_APP, external_id=project, display_name=project,
-                    )
-                )
+            async with session_scope() as release_session:
+                await QuotaService(release_session, tenant_id or "").release(project)
 
     async def get_deployment_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, deployment_id: str

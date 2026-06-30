@@ -21,6 +21,7 @@ from app.services.app_catalog import (
 )
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
+from app.services.quota import Allocation, QuotaService
 from app.services.tenant_resources import TenantResourceFilter
 
 
@@ -145,17 +146,25 @@ class AppsService:
         # Attach Caddy routing labels + edge network (no-op unless the edge is configured).
         compose = apply_edge(compose, project=project, port=template.port)
         env = render_service_vars(compose, domain=resolved_domain)
-        await self.engine.deploy_stack(project, compose, env)
 
-        session.add(
-            TenantResource(
-                tenant_id=tenant_id or "",
-                provider=PROVIDER_DOCKER,
-                resource_type=RESOURCE_TYPE_APP,
-                external_id=project,
-                display_name=template.name,
-            )
+        # Atomically reserve a quota slot BEFORE the build starts.
+        # QuotaExceeded is intentionally NOT caught here — it must bubble up to the 402 handler.
+        settings = get_settings()
+        allocation = Allocation(
+            cpu_millicores=settings.default_app_cpu_millicores,
+            mem_mb=settings.default_app_mem_mb,
+            disk_mb=settings.default_app_disk_mb,
         )
+        quota = QuotaService(session, tenant_id or "")
+        await quota.check_and_reserve(project, allocation, template.name)
+
+        try:
+            await self.engine.deploy_stack(project, compose, env)
+        except DockerEngineError:
+            # Release the reservation so a failed install leaves no orphan slot.
+            await quota.release(project)
+            raise
+
         return {"ok": True, "project": project, "domain": resolved_domain}
 
     async def control_for_tenant(

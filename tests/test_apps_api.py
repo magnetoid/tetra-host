@@ -3,7 +3,7 @@ import base64
 
 from app.config import get_settings
 from app.db import session_scope
-from app.models import AdminUser, Tenant, TenantResource
+from app.models import AdminUser, Plan, Tenant, TenantResource
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.modules.auth.service import AuthService
 from app.services.app_catalog import AppTemplate
@@ -12,7 +12,20 @@ from app.services.app_catalog import AppTemplate
 async def _seed_apps_tenant() -> None:
     async with session_scope() as session:
         auth_service = AuthService(session)
-        tenant = Tenant(name="Apps Tenant", slug="appst", status="active")
+        # Seed a plan with max_apps=10 so existing apps tests are not quota-blocked.
+        plan = Plan(
+            key="apps_test_plan",
+            name="Apps Test Plan",
+            max_apps=10,
+            max_domains=0,
+            cpu_millicores=500,
+            mem_mb=512,
+            disk_mb=2048,
+        )
+        session.add(plan)
+        await session.flush()
+
+        tenant = Tenant(name="Apps Tenant", slug="appst", status="active", plan_id=plan.id)
         session.add(tenant)
         await session.flush()
         session.add(
@@ -126,3 +139,160 @@ def test_install_blocked_when_actions_disabled(client, monkeypatch):
     headers = _login(client)
     response = client.post("/api/v1/apps/install", headers=headers, json={"slug": "whatever"})
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Quota enforcement tests (Task 3.3 + 3.4)
+# ---------------------------------------------------------------------------
+
+async def _seed_quota_tenant(max_apps: int = 1, already_installed: int = 0) -> None:
+    """Seed a tenant on a plan with max_apps=<max_apps> and optionally some installed apps."""
+    async with session_scope() as session:
+        auth_service = AuthService(session)
+        plan = Plan(
+            key=f"quota_plan_{max_apps}",
+            name=f"Quota Plan {max_apps}",
+            max_apps=max_apps,
+            max_domains=0,
+            cpu_millicores=500,
+            mem_mb=512,
+            disk_mb=2048,
+        )
+        session.add(plan)
+        await session.flush()
+
+        tenant = Tenant(name="Quota Tenant", slug="quota-t", status="active", plan_id=plan.id)
+        session.add(tenant)
+        await session.flush()
+
+        session.add(
+            AdminUser(
+                tenant_id=tenant.id,
+                email="owner@quota.test",
+                full_name="Quota Owner",
+                password_hash=auth_service.hash_password("quota-pass"),
+                is_active=True,
+            )
+        )
+        for i in range(already_installed):
+            session.add(
+                TenantResource(
+                    tenant_id=tenant.id,
+                    provider=PROVIDER_DOCKER,
+                    resource_type=RESOURCE_TYPE_APP,
+                    external_id=f"existing-app-{i}",
+                    display_name=f"Existing App {i}",
+                )
+            )
+
+
+def _login_quota(client) -> dict[str, str]:
+    response = client.post(
+        "/api/v1/auth/login", json={"email": "owner@quota.test", "password": "quota-pass"}
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
+def test_install_over_quota_returns_402(client, monkeypatch):
+    """POST /api/v1/apps/install on a max_apps=1 tenant that already has 1 app → 402."""
+    asyncio.run(_seed_quota_tenant(max_apps=1, already_installed=1))
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    compose_b64 = base64.b64encode(b"services:\n  web:\n    image: nginx\n").decode()
+
+    async def fake_get_template(self, slug):
+        return AppTemplate(slug=slug, name="Test App", compose_b64=compose_b64)
+
+    async def fake_deploy(self, project, compose_yaml, env=None):
+        return {"ok": True, "project": project}
+
+    monkeypatch.setattr("app.services.app_catalog.AppCatalog.get_template", fake_get_template)
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.deploy_stack", fake_deploy)
+
+    headers = _login_quota(client)
+    response = client.post(
+        "/api/v1/apps/install", headers=headers, json={"slug": "test-app", "name": "new-app"}
+    )
+    assert response.status_code == 402, response.text
+    body = response.json()
+    assert body["error"] == "quota_exceeded"
+    assert body["reason"] == "apps"
+    assert body["limit"] == 1
+    assert body["used"] == 1
+
+
+def test_install_failure_releases_reservation(client, monkeypatch):
+    """If engine.deploy_stack fails, the quota reservation is released (no orphan)."""
+    asyncio.run(_seed_quota_tenant(max_apps=2, already_installed=0))
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    compose_b64 = base64.b64encode(b"services:\n  web:\n    image: nginx\n").decode()
+
+    async def fake_get_template(self, slug):
+        return AppTemplate(slug=slug, name="Test App", compose_b64=compose_b64)
+
+    from app.services.docker_engine import DockerEngineError as _DockerEngineError
+
+    async def failing_deploy(self, project, compose_yaml, env=None):
+        raise _DockerEngineError(message="simulated engine failure", code=500)
+
+    monkeypatch.setattr("app.services.app_catalog.AppCatalog.get_template", fake_get_template)
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.deploy_stack", failing_deploy)
+
+    headers = _login_quota(client)
+    response = client.post(
+        "/api/v1/apps/install", headers=headers, json={"slug": "test-app", "name": "failed-app"}
+    )
+    # Engine failure → 500 (mapped from DockerEngineError code=500)
+    assert response.status_code in (500, 503), response.text
+
+    # Check that the reservation was released: usage should be 0.
+    async def check_usage():
+        from app.services.quota import QuotaService
+        async with session_scope() as session:
+            from app.models import Tenant
+            from sqlalchemy import select
+            tenant = (await session.scalars(select(Tenant).where(Tenant.slug == "quota-t"))).first()
+            svc = QuotaService(session, tenant.id)
+            return await svc.usage()
+
+    usage = asyncio.run(check_usage())
+    assert usage["apps"] == 0, f"Expected 0 apps after failure, got {usage['apps']}"
+
+
+def test_pending_tenant_gets_403_not_402(client, monkeypatch):
+    """A pending (non-active) tenant hitting install must get 403 from the status gate,
+    NOT 402 from quota enforcement — gate precedence is locked."""
+
+    async def _seed_pending_tenant():
+        async with session_scope() as session:
+            auth_service = AuthService(session)
+            tenant = Tenant(name="Pending Corp", slug="pending-corp", status="pending")
+            session.add(tenant)
+            await session.flush()
+            session.add(
+                AdminUser(
+                    tenant_id=tenant.id,
+                    email="owner@pending.test",
+                    full_name="Pending Owner",
+                    password_hash=auth_service.hash_password("pend-pass"),
+                    is_active=True,
+                )
+            )
+
+    asyncio.run(_seed_pending_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+
+    response = client.post(
+        "/api/v1/auth/login", json={"email": "owner@pending.test", "password": "pend-pass"}
+    )
+    assert response.status_code == 200
+    headers = {"Authorization": f"Bearer {response.json()['token']}"}
+
+    response = client.post(
+        "/api/v1/apps/install", headers=headers, json={"slug": "test-app", "name": "blocked-app"}
+    )
+    assert response.status_code == 403, (
+        f"Expected 403 from status gate, got {response.status_code}: {response.text}"
+    )
