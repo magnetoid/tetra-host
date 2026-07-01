@@ -1,0 +1,25 @@
+[Unit]
+Description=Tetra Host Console (Next.js)
+After=network.target tetra-host.service
+Wants=tetra-host.service
+
+[Service]
+Type=simple
+User=tetrahost
+Group=tetrahost
+WorkingDirectory=/opt/tetra-host/apps/web
+Environment=NODE_ENV=production
+Environment=PORT=8099
+Environment=HOSTNAME=127.0.0.1
+Environment=BACKEND_API_BASE_URL=http://127.0.0.1:8088/api/v1
+ExecStart=/usr/bin/node /opt/tetra-host/apps/web/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 8099
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/tetra-host/apps/web/.next
+
+[Install]
+WantedBy=multi-user.target
