@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google"
 import { config } from "@fortawesome/fontawesome-svg-core"
 import "@fortawesome/fontawesome-svg-core/styles.css"
 
@@ -10,13 +10,20 @@ import "./globals.css"
 // We import Font Awesome's CSS above; stop it injecting a second copy (avoids icon flash).
 config.autoAddCss = false
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Tetra AI Cloud brand type system (ADR 0003): Space Grotesk display, Inter body,
+// JetBrains Mono for data/status. All variable fonts — no explicit weights needed.
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 })
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 })
 
@@ -25,7 +32,7 @@ export const metadata: Metadata = {
     default: APP_NAME,
     template: `%s · ${APP_NAME}`,
   },
-  description: "Cloud Industry multi-tenant hosting control plane.",
+  description: "Tetra AI Cloud — a multi-tenant hosting control plane for apps, databases, DNS, and mail.",
 }
 
 export default function RootLayout({
@@ -36,7 +43,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
