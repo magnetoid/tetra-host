@@ -168,6 +168,25 @@ def test_client_stream_logs_parses_sse():
     assert events[3][1]["status"] == "finished"
 
 
+def test_client_stream_deploy_logs_parses_sse():
+    # Native deploy stream: `log` events carry a raw line string, status/done carry dicts.
+    sse = (
+        'event: status\ndata: {"status": "building"}\n\n'
+        'event: log\ndata: "cloning repo"\n\n'
+        'event: log\ndata: "built image"\n\n'
+        'event: done\ndata: {"status": "ready"}\n\n'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/deploys/dep-9/logs/stream"
+        return httpx.Response(200, text=sse)
+
+    events = list(make_client(handler).stream_deploy_logs("dep-9"))
+    assert [e for e, _ in events] == ["status", "log", "log", "done"]
+    assert events[1][1] == "cloning repo"
+    assert events[3][1]["status"] == "ready"
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 
@@ -218,6 +237,31 @@ def test_main_logs_streams_and_reports_failure(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "step" in out
     assert code == 1  # terminal status was "failed"
+
+
+def test_main_deploys_git_streams_sse_then_reports_domain(monkeypatch, capsys):
+    sse = (
+        'event: status\ndata: {"status": "building"}\n\n'
+        'event: log\ndata: "cloning repo"\n\n'
+        'event: done\ndata: {"status": "ready"}\n\n'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/v1/deploys/git":
+            return httpx.Response(200, json={"deployment_id": "dep-42"})
+        if path == "/api/v1/deploys/dep-42/logs/stream":
+            return httpx.Response(200, text=sse)
+        if path == "/api/v1/deploys/dep-42":
+            return httpx.Response(200, json={"status": "ready", "domain": "demo.apps.test"})
+        return httpx.Response(404)
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["deploys", "git", "https://github.com/x/y", "--name", "demo"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "cloning repo" in out
+    assert "deployed" in out and "demo.apps.test" in out
 
 
 def test_main_requires_login(monkeypatch, tmp_path):

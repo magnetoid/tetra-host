@@ -1188,6 +1188,33 @@ async def api_deploy_status(
     return _deployment_status(deployment)
 
 
+@router.get("/deploys/{deployment_id}/logs/stream")
+async def api_stream_deploy_logs(
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> StreamingResponse:
+    """Live SSE build-log stream for a native (Tetra Engine) deployment.
+
+    Validates tenant access up front (the request DB session is not safely usable
+    inside the long-lived generator), then streams status/log/done events.
+    """
+    service = DeploysService(request)
+    deployment = await service.get_deployment_for_tenant(session, current_admin.tenant_id, deployment_id)
+    if deployment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
+    return StreamingResponse(
+        service.stream_logs(current_admin.tenant_id, deployment_id, request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/admin/overview", response_model=PlatformOverview)
 async def api_admin_overview(
     session: AsyncSession = Depends(get_db_session),

@@ -8,6 +8,8 @@ ENABLE_PROVIDER_ACTIONS.
 """
 
 import asyncio
+import json
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import yaml
 from fastapi import Request
@@ -29,6 +31,60 @@ from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.quota import Allocation, QuotaService
+
+
+_TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
+
+# fetch() -> (status, log_text) for the deployment, or None if it is gone/inaccessible.
+DeploymentFetch = Callable[[], Awaitable[tuple[str, str] | None]]
+
+
+def _sse_event(event: str, data: object) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+async def stream_deploy_log_events(
+    fetch: DeploymentFetch,
+    request: Request,
+    *,
+    poll_interval: float = 1.0,
+    max_seconds: float = 900.0,
+) -> AsyncIterator[str]:
+    """Poll a native deployment via ``fetch`` and emit incremental SSE events.
+
+    Mirrors the Coolify streamer (``app.api.routes._stream_deployment_logs``): the
+    Deployment row carries a growing newline-joined log, so each poll diffs by line
+    count and emits new lines + status transitions, terminating on a terminal status,
+    client disconnect, or the safety timeout. ``fetch`` returns ``(status, log)`` or
+    ``None`` when the deployment is missing/not owned by the caller.
+    """
+    sent_lines = 0
+    last_status: str | None = None
+    elapsed = 0.0
+    while True:
+        if await request.is_disconnected():
+            return
+        current = await fetch()
+        if current is None:
+            yield _sse_event("error", {"message": "Deployment not found."})
+            return
+        status_value, log_text = current
+        if status_value != last_status:
+            last_status = status_value
+            yield _sse_event("status", {"status": status_value})
+        lines = log_text.split("\n") if log_text else []
+        if len(lines) > sent_lines:
+            for line in lines[sent_lines:]:
+                yield _sse_event("log", line)
+            sent_lines = len(lines)
+        if status_value in _TERMINAL_STATES:
+            yield _sse_event("done", {"status": status_value})
+            return
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+        if elapsed >= max_seconds:
+            yield _sse_event("done", {"status": status_value, "timeout": True})
+            return
 
 
 def compose_for_image(image: str, port: int) -> str:
@@ -161,6 +217,32 @@ class DeploysService:
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             async with session_scope() as release_session:
                 await QuotaService(release_session, tenant_id or "").release(project)
+
+    def stream_logs(
+        self,
+        tenant_id: str | None,
+        deployment_id: str,
+        request: Request,
+        *,
+        poll_interval: float = 1.0,
+        max_seconds: float = 900.0,
+    ) -> AsyncIterator[str]:
+        """SSE build-log stream for a native deployment, scoped to ``tenant_id``.
+
+        Each poll opens a fresh session (the request session is not safe to hold
+        across the long-lived generator); returns None → the stream emits ``error``.
+        """
+
+        async def fetch() -> tuple[str, str] | None:
+            async with session_scope() as session:
+                deployment = await self.get_deployment_for_tenant(session, tenant_id, deployment_id)
+                if deployment is None:
+                    return None
+                return deployment.status, deployment.log
+
+        return stream_deploy_log_events(
+            fetch, request, poll_interval=poll_interval, max_seconds=max_seconds
+        )
 
     async def get_deployment_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, deployment_id: str

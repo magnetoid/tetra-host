@@ -228,6 +228,27 @@ class TetraClient:
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 
+    def stream_deploy_logs(self, deployment_id: str) -> Iterator[tuple[str, dict]]:
+        """Yield (event, data) tuples from a native deploy's SSE build-log stream."""
+        url = f"{self.api}/deploys/{deployment_id}/logs/stream"
+        with self._client() as client, client.stream("GET", url, headers=self._headers()) as response:
+            if response.status_code >= 400:
+                raise TetraError(f"log stream failed ({response.status_code})", response.status_code)
+            event = "message"
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if line.startswith("event:"):
+                    event = line[6:].strip()
+                elif line.startswith("data:"):
+                    payload = line[5:].strip()
+                    try:
+                        data = json.loads(payload)
+                    except ValueError:
+                        data = {"raw": payload}
+                    yield event, data
+                    event = "message"
+
     # ── Plans ─────────────────────────────────────────────────────────────
     def plans(self, include_archived: bool = False) -> list[dict]:
         return self._request("GET", "/plans", params={"include_archived": str(include_archived).lower()})
