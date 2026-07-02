@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
-import { faGithub, faPlus, faTrash } from "@/lib/icons"
+import { faPlus, faTrash } from "@/lib/icons"
 import type { DeployHook, DeployHookCreated } from "@/lib/types"
 
 const INPUT_CLASS =

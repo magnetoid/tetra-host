@@ -353,6 +353,7 @@ class DeployHookRequest(BaseModel):
     git_url: str
     ref: str = "main"
     port: int = 3000
+    previews: bool = True  # branch pushes get preview environments (Vercel parity)
 
 
 class DeployHookSummary(BaseModel):
@@ -362,6 +363,18 @@ class DeployHookSummary(BaseModel):
     ref: str = "main"
     port: int = 3000
     enabled: bool = True
+    previews: bool = True
+
+
+class PreviewSummary(BaseModel):
+    """A live per-branch preview environment (its own stack + subdomain)."""
+
+    id: str
+    project: str
+    branch: str
+    preview_project: str
+    domain: str = ""
+    last_deployment_id: str = ""
 
 
 class DeployHookCreated(BaseModel):

@@ -14,7 +14,7 @@ from secrets import token_hex
 
 import yaml
 from fastapi import Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -26,7 +26,7 @@ from app.models.deployment import (
     STATUS_READY,
     Deployment,
 )
-from app.models import AppEnvVar, DeployHook, TenantResource
+from app.models import AppEnvVar, DeployHook, PreviewEnv, TenantResource
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
@@ -88,6 +88,11 @@ async def stream_deploy_log_events(
         if elapsed >= max_seconds:
             yield _sse_event("done", {"status": status_value, "timeout": True})
             return
+
+
+def preview_project_name(project: str, branch: str) -> str:
+    """Vercel-style preview stack name: ``blog`` + ``feat/login`` → ``blog-git-feat-login``."""
+    return sanitize_project_name(f"{project}-git-{branch}")
 
 
 def compose_for_image(image: str, port: int, env: dict[str, str] | None = None) -> str:
@@ -190,8 +195,11 @@ class DeploysService:
             deployment.log = "\n".join(log)
 
     async def _run_deploy(
-        self, deployment_id: str, tenant_id: str | None, *, git_url: str, ref: str, project: str, port: int
+        self, deployment_id: str, tenant_id: str | None, *, git_url: str, ref: str, project: str,
+        port: int, env_project: str | None = None,
     ) -> None:
+        """``env_project`` lets preview stacks inherit the PARENT app's env vars while
+        building/running under their own project name (stack, subdomain, limits)."""
         log: list[str] = []
         try:
             log.append(f"→ cloning {git_url} @ {ref}")
@@ -203,7 +211,7 @@ class DeploysService:
             log.append(f"→ starting container on port {effective_port}")
             await self._set(deployment_id, log)
 
-            env = await self.env_map_for_deploy(tenant_id, project)
+            env = await self.env_map_for_deploy(tenant_id, env_project or project)
             if env:
                 log.append(f"→ injecting {len(env)} environment variable(s)")
                 await self._set(deployment_id, log)
@@ -463,6 +471,115 @@ class DeploysService:
             log.append(f"✗ unexpected: {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
 
+    # ── Preview environments (per-branch ephemeral stacks) ─────────────────
+    async def deploy_preview_for_tenant(
+        self, tenant_id: str | None, *, git_url: str, branch: str, project: str, port: int
+    ) -> tuple[str, str]:
+        """Deploy (or refresh) the preview environment for ``branch`` of ``project``.
+
+        Previews are separate Tetra Engine stacks named ``{project}-git-{branch}`` on
+        their own subdomain, inheriting the parent app's env vars. They bypass app
+        quota but are capped by ``max_previews_per_project`` and run with default
+        resource limits. Returns ``(deployment_id, preview_domain)``.
+        """
+        self._require_actions()
+        stack = preview_project_name(project, branch)
+        domain = f"{stack}.{self.base_domain}" if self.base_domain else ""
+        settings = get_settings()
+        async with session_scope() as session:
+            preview = await session.scalar(
+                select(PreviewEnv).where(
+                    PreviewEnv.tenant_id == (tenant_id or ""),
+                    PreviewEnv.project == project,
+                    PreviewEnv.branch == branch,
+                )
+            )
+            if preview is None:
+                count = await session.scalar(
+                    select(func.count())
+                    .select_from(PreviewEnv)
+                    .where(
+                        PreviewEnv.tenant_id == (tenant_id or ""),
+                        PreviewEnv.project == project,
+                    )
+                )
+                if (count or 0) >= settings.max_previews_per_project:
+                    raise DockerEngineError(
+                        message=(
+                            f"Preview limit ({settings.max_previews_per_project}) reached for "
+                            f"'{project}' — delete a preview or its branch first."
+                        ),
+                        code=409,
+                    )
+                preview = PreviewEnv(
+                    tenant_id=tenant_id or "", project=project, branch=branch,
+                    preview_project=stack, domain=domain,
+                )
+                session.add(preview)
+            deployment = Deployment(
+                tenant_id=tenant_id or "", project=stack, git_url=git_url, ref=branch,
+                status=STATUS_QUEUED, port=port,
+            )
+            session.add(deployment)
+            await session.flush()
+            preview.last_deployment_id = deployment.id
+            deployment_id = deployment.id
+        asyncio.create_task(
+            self._run_deploy(
+                deployment_id, tenant_id, git_url=git_url, ref=branch, project=stack,
+                port=port, env_project=project,
+            )
+        )
+        return deployment_id, domain
+
+    async def _remove_preview(self, preview_project: str) -> None:
+        """Best-effort stack removal — the stack may already be gone."""
+        try:
+            await self.engine.remove_stack(preview_project, volumes=True)
+        except DockerEngineError:
+            pass
+
+    async def teardown_preview_for_branch(
+        self, tenant_id: str | None, project: str, branch: str
+    ) -> bool:
+        """Tear down the preview for ``branch`` (webhook branch-delete path)."""
+        self._require_actions()
+        async with session_scope() as session:
+            preview = await session.scalar(
+                select(PreviewEnv).where(
+                    PreviewEnv.tenant_id == (tenant_id or ""),
+                    PreviewEnv.project == project,
+                    PreviewEnv.branch == branch,
+                )
+            )
+            if preview is None:
+                return False
+            stack = preview.preview_project
+            await session.delete(preview)
+        await self._remove_preview(stack)
+        return True
+
+    async def delete_preview_for_tenant(self, tenant_id: str | None, preview_id: str) -> bool:
+        """Tear down a preview by id (console/CLI delete path), tenant-scoped."""
+        self._require_actions()
+        async with session_scope() as session:
+            preview = await session.get(PreviewEnv, preview_id)
+            if preview is None or preview.tenant_id != (tenant_id or ""):
+                return False
+            stack = preview.preview_project
+            await session.delete(preview)
+        await self._remove_preview(stack)
+        return True
+
+    async def list_previews_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, project: str | None = None
+    ) -> list[PreviewEnv]:
+        query = select(PreviewEnv).where(PreviewEnv.tenant_id == (tenant_id or ""))
+        if project:
+            query = query.where(PreviewEnv.project == project)
+        rows = await session.scalars(query.order_by(PreviewEnv.created_at.desc()))
+        return list(rows.all())
+
     # ── GitHub push-to-deploy hooks (secret encrypted at rest) ─────────────
     async def create_hook_for_tenant(
         self,
@@ -473,13 +590,14 @@ class DeploysService:
         git_url: str,
         ref: str = "main",
         port: int = 3000,
+        previews: bool = True,
     ) -> tuple[DeployHook, str]:
         """Create a webhook for a project; returns (hook, raw_secret). The raw secret is
         shown to the owner once (to paste into GitHub) and stored only as ciphertext."""
         raw_secret = token_hex(20)
         hook = DeployHook(
             tenant_id=tenant_id or "", project=project, git_url=git_url, ref=ref, port=port,
-            secret=encrypt(raw_secret), enabled=True,
+            secret=encrypt(raw_secret), enabled=True, previews=previews,
         )
         session.add(hook)
         await session.flush()

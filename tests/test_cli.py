@@ -222,7 +222,8 @@ def test_client_create_deploy_hook_posts_body():
         assert request.method == "POST"
         assert request.url.path == "/api/v1/deploy-hooks"
         body = json.loads(request.content)
-        assert body == {"project": "blog", "git_url": "https://github.com/x/y", "ref": "main", "port": 3000}
+        assert body == {"project": "blog", "git_url": "https://github.com/x/y", "ref": "main",
+                        "port": 3000, "previews": True}
         return httpx.Response(200, json={"id": "h1", "url": "u", "secret": "s", "project": "blog", "ref": "main"})
 
     result = make_client(handler).create_deploy_hook("blog", "https://github.com/x/y")
@@ -680,3 +681,45 @@ def test_client_infra_provision_posts_body():
 
     result = make_client(handler).infra_provision("worker-1", server_type="cx23")
     assert result["server"]["id"] == 42
+
+
+def test_client_previews_list_and_delete():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            assert request.url.path == "/api/v1/previews"
+            assert request.url.params.get("project") == "blog"
+            return httpx.Response(200, json=[
+                {"id": "pv-1", "project": "blog", "branch": "dev",
+                 "preview_project": "blog-git-dev", "domain": "blog-git-dev.apps.test"},
+            ])
+        assert request.method == "DELETE"
+        assert request.url.path == "/api/v1/previews/pv-1"
+        return httpx.Response(200, json={"ok": True})
+
+    client = make_client(handler)
+    [preview] = client.previews(project="blog")
+    assert preview["branch"] == "dev"
+    assert client.delete_preview("pv-1") == {"ok": True}
+
+
+def test_client_create_deploy_hook_sends_previews_flag():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content)["previews"] is False
+        return httpx.Response(200, json={"id": "h1", "url": "u", "secret": "s"})
+
+    make_client(handler).create_deploy_hook("blog", "https://github.com/x/y", previews=False)
+
+
+def test_main_previews_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[
+            {"id": "pv-abc123", "project": "blog", "branch": "feat/login",
+             "preview_project": "blog-git-feat-login",
+             "domain": "blog-git-feat-login.apps.test"},
+        ])
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["previews", "list"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "blog" in out and "feat/login" in out and "blog-git-feat-login.apps.test" in out

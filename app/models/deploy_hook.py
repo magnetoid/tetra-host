@@ -29,4 +29,6 @@ class DeployHook(Base):
     port: Mapped[int] = mapped_column(Integer, default=3000, nullable=False)
     secret: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Vercel-parity default: pushes to non-production branches get preview environments.
+    previews: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

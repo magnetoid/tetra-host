@@ -269,10 +269,16 @@ class TetraClient:
     def deploy_env_rm(self, project: str, key: str) -> Any:
         return self._request("DELETE", f"/deploys/{project}/env/{key}")
 
-    def create_deploy_hook(self, project: str, git_url: str, ref: str = "main", port: int = 3000) -> Any:
+    def create_deploy_hook(
+        self, project: str, git_url: str, ref: str = "main", port: int = 3000,
+        previews: bool = True,
+    ) -> Any:
         return self._request(
             "POST", "/deploy-hooks",
-            json_body={"project": project, "git_url": git_url, "ref": ref, "port": port},
+            json_body={
+                "project": project, "git_url": git_url, "ref": ref, "port": port,
+                "previews": previews,
+            },
         )
 
     def deploy_hooks(self) -> Any:
@@ -280,6 +286,13 @@ class TetraClient:
 
     def delete_deploy_hook(self, hook_id: str) -> Any:
         return self._request("DELETE", f"/deploy-hooks/{hook_id}")
+
+    # ── Preview environments ──────────────────────────────────────────────
+    def previews(self, project: str | None = None) -> Any:
+        return self._request("GET", "/previews", params={"project": project} if project else None)
+
+    def delete_preview(self, preview_id: str) -> Any:
+        return self._request("DELETE", f"/previews/{preview_id}")
 
     # ── Own infrastructure (Hetzner, platform-admin) ──────────────────────
     def infra_servers(self) -> Any:

@@ -43,10 +43,13 @@ def _login(client, email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {r.json()['token']}"}
 
 
-def _create_hook(client, headers, *, project="blog", git_url="https://github.com/x/y", ref="main") -> dict:
+def _create_hook(
+    client, headers, *, project="blog", git_url="https://github.com/x/y", ref="main",
+    previews=True,
+) -> dict:
     r = client.post(
         "/api/v1/deploy-hooks", headers=headers,
-        json={"project": project, "git_url": git_url, "ref": ref},
+        json={"project": project, "git_url": git_url, "ref": ref, "previews": previews},
     )
     assert r.status_code == 200
     return r.json()
@@ -142,9 +145,11 @@ def test_push_to_matching_branch_triggers_redeploy(client, monkeypatch):
 
 
 def test_push_to_other_branch_is_ignored(client, monkeypatch):
+    # With previews disabled, a non-matching branch push must do nothing
+    # (previews-enabled behavior is covered in tests/test_previews.py).
     asyncio.run(_seed(slug="oth", email="owner@oth.test", app_project="blog"))
     headers = _login(client, "owner@oth.test")
-    created = _create_hook(client, headers, ref="main")
+    created = _create_hook(client, headers, ref="main", previews=False)
 
     async def fail_redeploy(self, *a, **k):  # must NOT be called
         raise AssertionError("redeploy should not run for a non-matching branch")

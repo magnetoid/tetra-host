@@ -56,6 +56,7 @@ from app.api.contracts import (
     PlatformOverview,
     PlatformResourceUsage,
     PlatformTotals,
+    PreviewSummary,
     ProjectAnalytics,
     ProjectErrors,
     ProviderSummary,
@@ -1523,7 +1524,7 @@ async def api_create_deploy_hook(
     service = DeploysService(request)
     hook, secret = await service.create_hook_for_tenant(
         session, current_admin.tenant_id, payload.project,
-        git_url=payload.git_url, ref=payload.ref, port=payload.port,
+        git_url=payload.git_url, ref=payload.ref, port=payload.port, previews=payload.previews,
     )
     base = str(request.base_url).rstrip("/")
     return DeployHookCreated(
@@ -1542,7 +1543,8 @@ async def api_list_deploy_hooks(
     hooks = await service.list_hooks_for_tenant(session, current_admin.tenant_id)
     return [
         DeployHookSummary(
-            id=h.id, project=h.project, git_url=h.git_url, ref=h.ref, port=h.port, enabled=h.enabled
+            id=h.id, project=h.project, git_url=h.git_url, ref=h.ref, port=h.port,
+            enabled=h.enabled, previews=h.previews,
         )
         for h in hooks
     ]
@@ -1583,27 +1585,96 @@ async def api_github_webhook(
     event = request.headers.get("X-GitHub-Event", "")
     if event == "ping":
         return JSONResponse(status_code=200, content={"ok": True, "pong": True})
-    if event != "push":
+    if event not in {"push", "delete"}:
         return JSONResponse(status_code=200, content={"ok": True, "ignored": True, "event": event})
 
     try:
         payload = json.loads(body)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON.") from exc
+
+    # Branch deleted → tear down its preview (GitHub sends both a `delete` event and a
+    # `push` with deleted=true; teardown is idempotent so handling both is safe).
+    if event == "delete":
+        if payload.get("ref_type") != "branch" or not hook.previews:
+            return JSONResponse(status_code=200, content={"ok": True, "ignored": True})
+        removed = await service.teardown_preview_for_branch(
+            hook.tenant_id, hook.project, str(payload.get("ref") or "")
+        )
+        return JSONResponse(status_code=200, content={"ok": True, "preview_removed": removed})
+
     branch = branch_from_ref(push_ref(payload))
-    if branch != hook.ref:
+    if not branch:  # tag pushes and malformed refs
+        return JSONResponse(status_code=200, content={"ok": True, "ignored": True})
+
+    if branch == hook.ref:
+        if payload.get("deleted"):
+            return JSONResponse(status_code=200, content={"ok": True, "ignored": True})
+        try:
+            deployment_id = await service.redeploy_for_tenant(
+                hook.tenant_id, git_url=hook.git_url, ref=hook.ref,
+                project=hook.project, port=hook.port,
+            )
+        except (ProviderAPIError, DockerEngineError, BuildError) as exc:
+            raise _engine_exc_to_http(exc) from exc
+        return JSONResponse(status_code=202, content={"ok": True, "deployment_id": deployment_id})
+
+    # Non-production branch → preview environment (when enabled on the hook).
+    if not hook.previews:
         return JSONResponse(
             status_code=200,
             content={"ok": True, "ignored": True, "reason": f"branch '{branch}' != '{hook.ref}'"},
         )
-
+    if payload.get("deleted"):
+        removed = await service.teardown_preview_for_branch(hook.tenant_id, hook.project, branch)
+        return JSONResponse(status_code=200, content={"ok": True, "preview_removed": removed})
     try:
-        deployment_id = await service.redeploy_for_tenant(
-            hook.tenant_id, git_url=hook.git_url, ref=hook.ref, project=hook.project, port=hook.port
+        deployment_id, domain = await service.deploy_preview_for_tenant(
+            hook.tenant_id, git_url=hook.git_url, branch=branch,
+            project=hook.project, port=hook.port,
         )
     except (ProviderAPIError, DockerEngineError, BuildError) as exc:
         raise _engine_exc_to_http(exc) from exc
-    return JSONResponse(status_code=202, content={"ok": True, "deployment_id": deployment_id})
+    return JSONResponse(
+        status_code=202,
+        content={"ok": True, "preview": True, "deployment_id": deployment_id, "domain": domain},
+    )
+
+
+@router.get("/previews", response_model=list[PreviewSummary])
+async def api_list_previews(
+    request: Request,
+    project: str | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[PreviewSummary]:
+    service = DeploysService(request)
+    previews = await service.list_previews_for_tenant(
+        session, current_admin.tenant_id, project=project
+    )
+    return [
+        PreviewSummary(
+            id=p.id, project=p.project, branch=p.branch, preview_project=p.preview_project,
+            domain=p.domain, last_deployment_id=p.last_deployment_id,
+        )
+        for p in previews
+    ]
+
+
+@router.delete("/previews/{preview_id}")
+async def api_delete_preview(
+    preview_id: str,
+    request: Request,
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    service = DeploysService(request)
+    try:
+        removed = await service.delete_preview_for_tenant(current_admin.tenant_id, preview_id)
+    except DockerEngineError as exc:
+        raise _engine_exc_to_http(exc) from exc
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preview not found.")
+    return {"ok": True}
 
 
 @router.get("/admin/overview", response_model=PlatformOverview)

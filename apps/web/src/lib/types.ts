@@ -400,6 +400,16 @@ export interface DeployHook {
   ref: string
   port: number
   enabled: boolean
+  previews: boolean
+}
+
+export interface PreviewRecord {
+  id: string
+  project: string
+  branch: string
+  preview_project: string
+  domain: string
+  last_deployment_id: string
 }
 
 export interface DeployHookCreated {

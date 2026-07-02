@@ -763,7 +763,8 @@ def cmd_domains_rm(args: argparse.Namespace) -> int:
 
 def cmd_deploys_hook_create(args: argparse.Namespace) -> int:
     result = client_from_config().create_deploy_hook(
-        args.project, args.git_url, ref=args.ref, port=args.port
+        args.project, args.git_url, ref=args.ref, port=args.port,
+        previews=not args.no_previews,
     )
     print(c("✓ webhook created", "1;32"))
     print(f"  URL:    {result.get('url', '')}")
@@ -785,6 +786,25 @@ def cmd_deploys_hook_list(args: argparse.Namespace) -> int:
 def cmd_deploys_hook_rm(args: argparse.Namespace) -> int:
     client_from_config().delete_deploy_hook(args.hook_id)
     print(c("✓", "32") + " removed webhook")
+    return 0
+
+
+def cmd_previews_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().previews(project=args.project)
+    if not isinstance(rows, list) or not rows:
+        print(c("no preview environments", "90"))
+        return 0
+    for preview in rows:
+        print(
+            f"{c(preview.get('id', '')[:8], '1;36')}  {preview.get('project', '')}"
+            f"  @{preview.get('branch', '')}  {c('https://' + preview.get('domain', ''), '4;36')}"
+        )
+    return 0
+
+
+def cmd_previews_rm(args: argparse.Namespace) -> int:
+    client_from_config().delete_preview(args.preview_id)
+    print(c("✓", "32") + " preview torn down")
     return 0
 
 
@@ -1029,12 +1049,24 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--git-url", dest="git_url", required=True)
     sp.add_argument("--ref", default="main")
     sp.add_argument("--port", type=int, default=3000)
+    sp.add_argument("--no-previews", dest="no_previews", action="store_true",
+                    help="don't create preview environments for branch pushes")
     sp.set_defaults(func=cmd_deploys_hook_create)
     sp = hook.add_parser("list", help="list webhooks")
     sp.set_defaults(func=cmd_deploys_hook_list)
     sp = hook.add_parser("rm", help="delete a webhook")
     sp.add_argument("hook_id")
     sp.set_defaults(func=cmd_deploys_hook_rm)
+
+    previews = sub.add_parser(
+        "previews", help="per-branch preview environments"
+    ).add_subparsers(dest="previews_cmd", required=True)
+    sp = previews.add_parser("list", help="list preview environments")
+    sp.add_argument("--project", default=None)
+    sp.set_defaults(func=cmd_previews_list)
+    sp = previews.add_parser("rm", help="tear down a preview environment")
+    sp.add_argument("preview_id")
+    sp.set_defaults(func=cmd_previews_rm)
 
     plans = sub.add_parser("plans", help="manage subscription plans (platform-admin)").add_subparsers(
         dest="plans_cmd", required=True

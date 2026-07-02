@@ -13,7 +13,8 @@ afterEach(() => {
 })
 
 const HOOK: DeployHook = {
-  id: "h1", project: "blog", git_url: "https://github.com/x/y", ref: "main", port: 3000, enabled: true,
+  id: "h1", project: "blog", git_url: "https://github.com/x/y", ref: "main", port: 3000,
+  enabled: true, previews: true,
 }
 
 describe("DeployHooksManager", () => {

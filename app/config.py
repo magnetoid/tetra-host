@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     default_app_disk_mb: int = 2048
     # Per-container PID cap (fork-bomb defense); applied with cpus/mem_limit hard caps.
     default_app_pids_limit: int = 256
+    # Preview environments don't hold quota slots; they're capped per project instead.
+    max_previews_per_project: int = 3
 
     deploy_notify_webhook_url: str = ""
     deploy_notify_webhook_bearer_token: str = ""

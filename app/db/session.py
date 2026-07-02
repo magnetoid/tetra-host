@@ -101,6 +101,14 @@ def _upgrade_existing_schema(connection) -> None:
                 text("ALTER TABLE domains ADD COLUMN cf_hostname_id VARCHAR(64) NOT NULL DEFAULT ''")
             )
 
+    # --- Preview environments: previews flag on deploy_hooks ---
+    if "deploy_hooks" in table_names:
+        hook_columns = get_columns("deploy_hooks")
+        if "previews" not in hook_columns:
+            connection.execute(
+                text("ALTER TABLE deploy_hooks ADD COLUMN previews BOOLEAN NOT NULL DEFAULT 1")
+            )
+
     # --- Task 3.1: allocation columns on tenant_resources ---
     if "tenant_resources" in table_names:
         tr_columns = get_columns("tenant_resources")
