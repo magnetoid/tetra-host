@@ -25,12 +25,13 @@ from app.models.deployment import (
     STATUS_READY,
     Deployment,
 )
-from app.models import TenantResource
+from app.models import AppEnvVar, TenantResource
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.quota import Allocation, QuotaService
+from app.services.secrets import decrypt, encrypt
 
 
 _TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
@@ -87,18 +88,25 @@ async def stream_deploy_log_events(
             return
 
 
-def compose_for_image(image: str, port: int) -> str:
+def compose_for_image(image: str, port: int, env: dict[str, str] | None = None) -> str:
     """Minimal one-service compose wrapping a built image; edge labels applied separately.
 
     PORT is injected so Nixpacks-built apps (which listen on $PORT) bind the routed port.
+    ``env`` (already-decrypted tenant vars) is layered on top; a user-supplied PORT is
+    ignored so it can't override the router-assigned port.
     """
+    environment = [f"PORT={port}"]
+    for key, value in (env or {}).items():
+        if key == "PORT":
+            continue
+        environment.append(f"{key}={value}")
     return yaml.safe_dump(
         {
             "services": {
                 "app": {
                     "image": image,
                     "restart": "unless-stopped",
-                    "environment": [f"PORT={port}"],
+                    "environment": environment,
                     "expose": [str(port)],
                 }
             }
@@ -193,7 +201,11 @@ class DeploysService:
             log.append(f"→ starting container on port {effective_port}")
             await self._set(deployment_id, log)
 
-            compose = compose_for_image(build.image, effective_port)
+            env = await self.env_map_for_deploy(tenant_id, project)
+            if env:
+                log.append(f"→ injecting {len(env)} environment variable(s)")
+                await self._set(deployment_id, log)
+            compose = compose_for_image(build.image, effective_port, env)
             compose = apply_edge(compose, project=project, port=str(effective_port))
             await self.engine.deploy_stack(project, compose, {})
 
@@ -243,6 +255,74 @@ class DeploysService:
         return stream_deploy_log_events(
             fetch, request, poll_interval=poll_interval, max_seconds=max_seconds
         )
+
+    # ── Environment variables (tenant-scoped, encrypted at rest) ───────────
+    async def set_env_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        project: str,
+        *,
+        key: str,
+        value: str,
+        is_secret: bool = False,
+        is_build_time: bool = False,
+    ) -> None:
+        """Upsert an env var for (tenant, project, key); the value is encrypted at rest."""
+        existing = await session.scalar(
+            select(AppEnvVar).where(
+                AppEnvVar.tenant_id == (tenant_id or ""),
+                AppEnvVar.project == project,
+                AppEnvVar.key == key,
+            )
+        )
+        ciphertext = encrypt(value)
+        if existing is not None:
+            existing.value = ciphertext
+            existing.is_secret = is_secret
+            existing.is_build_time = is_build_time
+        else:
+            session.add(
+                AppEnvVar(
+                    tenant_id=tenant_id or "", project=project, key=key,
+                    value=ciphertext, is_secret=is_secret, is_build_time=is_build_time,
+                )
+            )
+
+    async def list_env_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, project: str
+    ) -> list[AppEnvVar]:
+        rows = await session.scalars(
+            select(AppEnvVar)
+            .where(AppEnvVar.tenant_id == (tenant_id or ""), AppEnvVar.project == project)
+            .order_by(AppEnvVar.key)
+        )
+        return list(rows.all())
+
+    async def delete_env_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, project: str, key: str
+    ) -> bool:
+        existing = await session.scalar(
+            select(AppEnvVar).where(
+                AppEnvVar.tenant_id == (tenant_id or ""),
+                AppEnvVar.project == project,
+                AppEnvVar.key == key,
+            )
+        )
+        if existing is None:
+            return False
+        await session.delete(existing)
+        return True
+
+    async def env_map_for_deploy(self, tenant_id: str | None, project: str) -> dict[str, str]:
+        """Decrypted {key: value} for injection at deploy time (own session — runs post-request)."""
+        async with session_scope() as session:
+            rows = await session.scalars(
+                select(AppEnvVar).where(
+                    AppEnvVar.tenant_id == (tenant_id or ""), AppEnvVar.project == project
+                )
+            )
+            return {row.key: decrypt(row.value) for row in rows.all()}
 
     async def get_deployment_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, deployment_id: str

@@ -646,6 +646,31 @@ def cmd_deploys_git(args: argparse.Namespace) -> int:
     return die(status.get("error", "build failed") if isinstance(status, dict) else "build failed")
 
 
+def cmd_deploys_env_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().deploy_env(args.project)
+    if not isinstance(rows, list) or not rows:
+        print(c("no environment variables", "90"))
+        return 0
+    for row in rows:
+        lock = c(" 🔒", "33") if row.get("is_secret") else ""
+        print(f"{c(row.get('key', ''), '1;36')}={row.get('value', '')}{lock}")
+    return 0
+
+
+def cmd_deploys_env_set(args: argparse.Namespace) -> int:
+    client_from_config().deploy_env_set(
+        args.project, args.key, args.value, is_secret=args.secret, is_build_time=args.build_time
+    )
+    print(c("✓", "32") + f" set {args.key}" + (c(" (secret)", "90") if args.secret else ""))
+    return 0
+
+
+def cmd_deploys_env_rm(args: argparse.Namespace) -> int:
+    client_from_config().deploy_env_rm(args.project, args.key)
+    print(c("✓", "32") + f" removed {args.key}")
+    return 0
+
+
 # ── parser ────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -820,6 +845,24 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--ref", default="main")
     sp.add_argument("--port", type=int, default=3000)
     sp.set_defaults(func=cmd_deploys_git)
+
+    env = deploys.add_parser("env", help="manage a native app's environment variables").add_subparsers(
+        dest="deploys_env_cmd", required=True
+    )
+    sp = env.add_parser("list", help="list env vars (secrets masked)")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_deploys_env_list)
+    sp = env.add_parser("set", help="set an env var (redeploy to apply)")
+    sp.add_argument("project")
+    sp.add_argument("key")
+    sp.add_argument("value")
+    sp.add_argument("--secret", action="store_true", help="store encrypted + mask on read")
+    sp.add_argument("--build-time", dest="build_time", action="store_true", help="mark as a build-time var")
+    sp.set_defaults(func=cmd_deploys_env_set)
+    sp = env.add_parser("rm", help="remove an env var")
+    sp.add_argument("project")
+    sp.add_argument("key")
+    sp.set_defaults(func=cmd_deploys_env_rm)
 
     plans = sub.add_parser("plans", help="manage subscription plans (platform-admin)").add_subparsers(
         dest="plans_cmd", required=True

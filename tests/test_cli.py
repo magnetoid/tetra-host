@@ -187,6 +187,26 @@ def test_client_stream_deploy_logs_parses_sse():
     assert events[3][1]["status"] == "ready"
 
 
+def test_client_deploy_env_set_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/deploys/blog/env"
+        body = json.loads(request.content)
+        assert body == {"key": "API_KEY", "value": "sk-x", "is_secret": True, "is_build_time": False}
+        return httpx.Response(200, json=[])
+
+    make_client(handler).deploy_env_set("blog", "API_KEY", "sk-x", is_secret=True)
+
+
+def test_client_deploy_env_rm_deletes():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "DELETE"
+        assert request.url.path == "/api/v1/deploys/blog/env/API_KEY"
+        return httpx.Response(200, json={"ok": True})
+
+    make_client(handler).deploy_env_rm("blog", "API_KEY")
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 

@@ -249,6 +249,20 @@ class TetraClient:
                     yield event, data
                     event = "message"
 
+    def deploy_env(self, project: str) -> Any:
+        return self._request("GET", f"/deploys/{project}/env")
+
+    def deploy_env_set(
+        self, project: str, key: str, value: str, is_secret: bool = False, is_build_time: bool = False
+    ) -> Any:
+        return self._request(
+            "POST", f"/deploys/{project}/env",
+            json_body={"key": key, "value": value, "is_secret": is_secret, "is_build_time": is_build_time},
+        )
+
+    def deploy_env_rm(self, project: str, key: str) -> Any:
+        return self._request("DELETE", f"/deploys/{project}/env/{key}")
+
     # ── Plans ─────────────────────────────────────────────────────────────
     def plans(self, include_archived: bool = False) -> list[dict]:
         return self._request("GET", "/plans", params={"include_archived": str(include_archived).lower()})

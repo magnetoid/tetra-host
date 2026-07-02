@@ -7,6 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.contracts import (
+    AppEnvVarRequest,
+    AppEnvVarSummary,
     AdminResponse,
     AdminSummary,
     AppActionResponse,
@@ -90,6 +92,7 @@ from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
 from app.services.quota import QuotaService
+from app.services.secrets import decrypt
 
 # Coolify deployment statuses that mean the build has stopped (terminal).
 _TERMINAL_DEPLOYMENT_STATES = {
@@ -1213,6 +1216,63 @@ async def api_stream_deploy_logs(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _env_summary(row) -> AppEnvVarSummary:
+    """Mask secret values on read; non-secret values are returned decrypted."""
+    return AppEnvVarSummary(
+        key=row.key,
+        value="••••••" if row.is_secret else decrypt(row.value),
+        is_secret=row.is_secret,
+        is_build_time=row.is_build_time,
+    )
+
+
+@router.get("/deploys/{project}/env", response_model=list[AppEnvVarSummary])
+async def api_list_deploy_env(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[AppEnvVarSummary]:
+    service = DeploysService(request)
+    rows = await service.list_env_for_tenant(session, current_admin.tenant_id, project)
+    return [_env_summary(row) for row in rows]
+
+
+@router.post("/deploys/{project}/env", response_model=list[AppEnvVarSummary])
+async def api_set_deploy_env(
+    project: str,
+    payload: AppEnvVarRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[AppEnvVarSummary]:
+    key = payload.key.strip()
+    if not key:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Env var key is required.")
+    service = DeploysService(request)
+    await service.set_env_for_tenant(
+        session, current_admin.tenant_id, project,
+        key=key, value=payload.value, is_secret=payload.is_secret, is_build_time=payload.is_build_time,
+    )
+    rows = await service.list_env_for_tenant(session, current_admin.tenant_id, project)
+    return [_env_summary(row) for row in rows]
+
+
+@router.delete("/deploys/{project}/env/{key}")
+async def api_delete_deploy_env(
+    project: str,
+    key: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    service = DeploysService(request)
+    removed = await service.delete_env_for_tenant(session, current_admin.tenant_id, project, key)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Env var not found.")
+    return {"ok": True}
 
 
 @router.get("/admin/overview", response_model=PlatformOverview)

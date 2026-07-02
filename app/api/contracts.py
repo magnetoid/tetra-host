@@ -278,6 +278,20 @@ class DeploymentStatus(BaseModel):
     created_at: str = ""
 
 
+class AppEnvVarRequest(BaseModel):
+    key: str
+    value: str
+    is_secret: bool = False
+    is_build_time: bool = False
+
+
+class AppEnvVarSummary(BaseModel):
+    key: str
+    value: str  # masked ("••••••") when is_secret
+    is_secret: bool = False
+    is_build_time: bool = False
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]
