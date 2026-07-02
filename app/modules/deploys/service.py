@@ -31,6 +31,7 @@ from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
+from app.services.limits import apply_resource_limits
 from app.services.quota import Allocation, QuotaService
 from app.services.secrets import decrypt, encrypt
 
@@ -207,10 +208,12 @@ class DeploysService:
                 log.append(f"→ injecting {len(env)} environment variable(s)")
                 await self._set(deployment_id, log)
             extra_hosts = await self._custom_hosts(tenant_id, project)
+            cpu, mem = await self._limits_for(tenant_id, project)
             compose = compose_for_image(build.image, effective_port, env)
             compose = apply_edge(
                 compose, project=project, port=str(effective_port), extra_hosts=extra_hosts
             )
+            compose = apply_resource_limits(compose, cpu_millicores=cpu, mem_mb=mem)
             await self.engine.deploy_stack(project, compose, {})
 
             # Reservation made in start_deploy_for_tenant stays on success.
@@ -317,6 +320,23 @@ class DeploysService:
             return False
         await session.delete(existing)
         return True
+
+    async def _limits_for(self, tenant_id: str | None, project: str) -> tuple[int, int]:
+        """(cpu_millicores, mem_mb) hard caps from the app's reservation row, falling back
+        to config defaults (own session — runs post-request in the background task)."""
+        settings = get_settings()
+        async with session_scope() as session:
+            row = await session.scalar(
+                select(TenantResource).where(
+                    TenantResource.tenant_id == (tenant_id or ""),
+                    TenantResource.provider == PROVIDER_DOCKER,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                    TenantResource.external_id == project,
+                )
+            )
+        cpu = (row.cpu_millicores if row and row.cpu_millicores else 0) or settings.default_app_cpu_millicores
+        mem = (row.mem_mb if row and row.mem_mb else 0) or settings.default_app_mem_mb
+        return cpu, mem
 
     async def _custom_hosts(self, tenant_id: str | None, project: str) -> list[str]:
         """Verified custom domains to route alongside the auto subdomain (own session —
@@ -426,8 +446,10 @@ class DeploysService:
             await self._set(deployment_id, log, status=STATUS_BUILDING)
             env = await self.env_map_for_deploy(tenant_id, project)
             extra_hosts = await self._custom_hosts(tenant_id, project)
+            cpu, mem = await self._limits_for(tenant_id, project)
             compose = compose_for_image(image, port, env)
             compose = apply_edge(compose, project=project, port=str(port), extra_hosts=extra_hosts)
+            compose = apply_resource_limits(compose, cpu_millicores=cpu, mem_mb=mem)
             await self.engine.deploy_stack(project, compose, {})
             domain = f"{project}.{self.base_domain}" if self.base_domain else ""
             log.append("✓ rolled back" + (f" — live at https://{domain}" if domain else ""))

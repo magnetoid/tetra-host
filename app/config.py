@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     default_app_cpu_millicores: int = 500
     default_app_mem_mb: int = 512
     default_app_disk_mb: int = 2048
+    # Per-container PID cap (fork-bomb defense); applied with cpus/mem_limit hard caps.
+    default_app_pids_limit: int = 256
 
     deploy_notify_webhook_url: str = ""
     deploy_notify_webhook_bearer_token: str = ""

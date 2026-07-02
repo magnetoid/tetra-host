@@ -23,6 +23,7 @@ from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize
 from app.services.edge import apply_edge
 from app.services.quota import Allocation, QuotaService
 from app.services.compute import ComputeSample, parse_compute_samples
+from app.services.limits import apply_resource_limits
 from app.services.tenant_resources import TenantResourceFilter
 
 
@@ -146,7 +147,6 @@ class AppsService:
         resolved_domain = domain or (f"{project}.{self.base_domain}" if self.base_domain else "")
         # Attach Caddy routing labels + edge network (no-op unless the edge is configured).
         compose = apply_edge(compose, project=project, port=template.port)
-        env = render_service_vars(compose, domain=resolved_domain)
 
         # Atomically reserve a quota slot BEFORE the build starts.
         # QuotaExceeded is intentionally NOT caught here — it must bubble up to the 402 handler.
@@ -156,6 +156,11 @@ class AppsService:
             mem_mb=settings.default_app_mem_mb,
             disk_mb=settings.default_app_disk_mb,
         )
+        # Hard cgroup caps so the stack can't starve the shared host.
+        compose = apply_resource_limits(
+            compose, cpu_millicores=allocation.cpu_millicores, mem_mb=allocation.mem_mb
+        )
+        env = render_service_vars(compose, domain=resolved_domain)
         quota = QuotaService(session, tenant_id or "")
         await quota.check_and_reserve(project, allocation, template.name)
 
