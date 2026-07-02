@@ -16,6 +16,9 @@ from app.api.contracts import (
     DeployHookSummary,
     DomainRequest,
     DomainSummary,
+    InfraServerCreateRequest,
+    InfraServerCreated,
+    InfraServerSummary,
     AdminResponse,
     AdminSummary,
     AppActionResponse,
@@ -73,6 +76,7 @@ from app.api.contracts import (
     ZoneSettings,
     ZoneSettingUpdateRequest,
 )
+from app.config import get_settings
 from app.api.security import create_api_token, read_api_token
 from app.db import get_db_session
 from app.models import AdminUser, Tenant, TenantResource
@@ -100,6 +104,7 @@ from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
 from app.services.github_webhook import branch_from_ref, push_ref, verify_signature
+from app.services.hetzner import DEFAULT_CLOUD_INIT, HetznerClient, normalize_server
 from app.services.quota import QuotaService
 from app.services.secrets import decrypt
 
@@ -1270,6 +1275,94 @@ async def api_rollback_deploy(
     except (ProviderAPIError, DockerEngineError, BuildError) as exc:
         raise _engine_exc_to_http(exc) from exc
     return DeployStartResponse(deployment_id=new_id)
+
+
+# ── Own infrastructure (Hetzner Cloud, platform-admin only) ───────────────
+def _hetzner(request: Request) -> HetznerClient:
+    return HetznerClient.from_settings(
+        http_client=request.app.state.http_client, cache=request.app.state.cache
+    )
+
+
+def _infra_summary(server) -> InfraServerSummary:
+    return InfraServerSummary(
+        id=server.id, name=server.name, status=server.status, server_type=server.server_type,
+        ipv4=server.ipv4, location=server.location, created=server.created,
+    )
+
+
+@router.get("/infra/servers", response_model=list[InfraServerSummary])
+async def api_infra_servers(
+    request: Request,
+    _: AdminUser = Depends(require_platform_admin),
+) -> list[InfraServerSummary]:
+    client = _hetzner(request)
+    if not client.is_configured():
+        return []
+    try:
+        servers = await client.list_servers()
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return [_infra_summary(s) for s in servers]
+
+
+@router.post("/infra/servers", response_model=InfraServerCreated)
+async def api_infra_provision(
+    payload: InfraServerCreateRequest,
+    request: Request,
+    _: AdminUser = Depends(require_platform_admin),
+) -> InfraServerCreated:
+    """Provision a Hetzner server (billable!) with the Docker cloud-init bootstrap.
+
+    cloud-init is fire-and-forget: the returned action covers VM creation only; the
+    Docker install continues after boot and must be confirmed before attaching the
+    box to the deploy plane.
+    """
+    settings = get_settings()
+    if not settings.enable_provider_actions:
+        raise HTTPException(status_code=403, detail="Provider actions are disabled.")
+    client = _hetzner(request)
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="Hetzner is not configured (HETZNER_API_TOKEN).")
+    try:
+        result = await client.create_server(
+            name=payload.name.strip(),
+            server_type=payload.server_type or settings.hetzner_server_type,
+            image=payload.image or settings.hetzner_image,
+            location=payload.location or settings.hetzner_location,
+            user_data=DEFAULT_CLOUD_INIT,
+            labels={"managed-by": "tetra"},
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    server_item = result.get("server") or {}
+    action = result.get("action") or {}
+    action_status = str(action.get("status") or "")
+    if action.get("id"):
+        action_status = await client.wait_action(int(action["id"]), max_seconds=120.0)
+    return InfraServerCreated(
+        server=_infra_summary(normalize_server(server_item)),
+        action_status=action_status,
+        root_password=str(result.get("root_password") or ""),
+    )
+
+
+@router.delete("/infra/servers/{server_id}")
+async def api_infra_destroy(
+    server_id: int,
+    request: Request,
+    _: AdminUser = Depends(require_platform_admin),
+) -> dict[str, bool]:
+    if not get_settings().enable_provider_actions:
+        raise HTTPException(status_code=403, detail="Provider actions are disabled.")
+    client = _hetzner(request)
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="Hetzner is not configured (HETZNER_API_TOKEN).")
+    try:
+        await client.delete_server(server_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 # ── Custom domains (verified via DNS TXT; routed at the edge) ──────────────

@@ -667,3 +667,16 @@ def test_main_admin_overview_renders(monkeypatch, capsys):
     assert "total=4" in out
     assert "newco" in out          # pending queue rendered
     assert "tenant.approve" in out  # recent activity rendered
+
+
+def test_client_infra_provision_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/infra/servers"
+        assert json.loads(request.content) == {
+            "name": "worker-1", "server_type": "cx23", "image": "", "location": "",
+        }
+        return httpx.Response(200, json={"server": {"id": 42}, "action_status": "success"})
+
+    result = make_client(handler).infra_provision("worker-1", server_type="cx23")
+    assert result["server"]["id"] == 42

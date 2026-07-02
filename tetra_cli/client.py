@@ -281,6 +281,21 @@ class TetraClient:
     def delete_deploy_hook(self, hook_id: str) -> Any:
         return self._request("DELETE", f"/deploy-hooks/{hook_id}")
 
+    # ── Own infrastructure (Hetzner, platform-admin) ──────────────────────
+    def infra_servers(self) -> Any:
+        return self._request("GET", "/infra/servers")
+
+    def infra_provision(
+        self, name: str, server_type: str = "", image: str = "", location: str = ""
+    ) -> Any:
+        return self._request(
+            "POST", "/infra/servers",
+            json_body={"name": name, "server_type": server_type, "image": image, "location": location},
+        )
+
+    def infra_destroy(self, server_id: int) -> Any:
+        return self._request("DELETE", f"/infra/servers/{server_id}")
+
     # ── Custom domains ────────────────────────────────────────────────────
     def domains(self, project: str | None = None) -> Any:
         return self._request("GET", "/domains", params={"project": project} if project else None)

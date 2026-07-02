@@ -310,6 +310,29 @@ class AppComputeResponse(BaseModel):
     mem_used_mb: float = 0.0
 
 
+class InfraServerCreateRequest(BaseModel):
+    name: str
+    server_type: str = ""  # empty = platform default
+    image: str = ""
+    location: str = ""
+
+
+class InfraServerSummary(BaseModel):
+    id: int
+    name: str
+    status: str = ""
+    server_type: str = ""
+    ipv4: str = ""
+    location: str = ""
+    created: str = ""
+
+
+class InfraServerCreated(BaseModel):
+    server: InfraServerSummary
+    action_status: str = ""  # success | error | running (bootstrap continues via cloud-init)
+    root_password: str = ""  # shown once when no SSH key is attached — never stored
+
+
 class DomainRequest(BaseModel):
     project: str
     hostname: str

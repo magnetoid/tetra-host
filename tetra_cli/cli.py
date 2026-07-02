@@ -700,6 +700,35 @@ def cmd_deploys_env_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_infra_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().infra_servers()
+    if not isinstance(rows, list) or not rows:
+        print(c("no infra servers (or Hetzner not configured)", "90"))
+        return 0
+    for s in rows:
+        state = c(s.get("status", ""), "32" if s.get("status") == "running" else "33")
+        print(f"{c(str(s.get('id', '')), '1;36')}  {s.get('name', '')}  {s.get('server_type', '')}@{s.get('location', '')}  {s.get('ipv4', '')}  [{state}]")
+    return 0
+
+
+def cmd_infra_provision(args: argparse.Namespace) -> int:
+    result = client_from_config().infra_provision(
+        args.name, server_type=args.type or "", image=args.image or "", location=args.location or ""
+    )
+    server = result.get("server", {}) if isinstance(result, dict) else {}
+    print(c("✓ server provisioning", "1;32") + f"  {server.get('name', '')} (id {server.get('id', '')})  {server.get('ipv4', '')}")
+    print(f"  create action: {result.get('action_status', '')}  (Docker bootstrap continues via cloud-init)")
+    if result.get("root_password"):
+        print(c(f"  root password: {result['root_password']}  (shown once — store it now)", "33"))
+    return 0
+
+
+def cmd_infra_rm(args: argparse.Namespace) -> int:
+    client_from_config().infra_destroy(args.server_id)
+    print(c("✓", "32") + f" server {args.server_id} deleted (billing stops)")
+    return 0
+
+
 def cmd_domains_list(args: argparse.Namespace) -> int:
     rows = client_from_config().domains(getattr(args, "project", None))
     if not isinstance(rows, list) or not rows:
@@ -959,6 +988,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("key")
     sp.set_defaults(func=cmd_deploys_env_rm)
+
+    infra = sub.add_parser("infra", help="own infrastructure (Hetzner, platform-admin)").add_subparsers(
+        dest="infra_cmd", required=True
+    )
+    sp = infra.add_parser("list", help="list Hetzner servers")
+    sp.set_defaults(func=cmd_infra_list)
+    sp = infra.add_parser("provision", help="provision a server (billable) with Docker bootstrap")
+    sp.add_argument("name")
+    sp.add_argument("--type", help="server type (default from platform config)")
+    sp.add_argument("--image")
+    sp.add_argument("--location")
+    sp.set_defaults(func=cmd_infra_provision)
+    sp = infra.add_parser("rm", help="delete a server (stops billing)")
+    sp.add_argument("server_id", type=int)
+    sp.set_defaults(func=cmd_infra_rm)
 
     domains = sub.add_parser("domains", help="custom domains for native apps").add_subparsers(
         dest="domains_cmd", required=True

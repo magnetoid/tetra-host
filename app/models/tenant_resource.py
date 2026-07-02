@@ -20,6 +20,7 @@ PROVIDER_COOLIFY = "coolify"
 PROVIDER_MAILCOW = "mailcow"
 PROVIDER_CLOUDFLARE = "cloudflare"
 PROVIDER_DOCKER = "docker"
+PROVIDER_HETZNER = "hetzner"
 
 
 def utc_now() -> datetime:

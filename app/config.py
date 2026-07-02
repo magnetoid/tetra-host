@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
+    # Hetzner Cloud (own-infra provisioning, ADR 0004 Phase 3). Empty token = disabled.
+    hetzner_api_token: str = ""
+    hetzner_server_type: str = "cx23"
+    hetzner_image: str = "ubuntu-24.04"
+    hetzner_location: str = "fsn1"
     # Cloudflare for SaaS (custom-hostname TLS, ADR 0009). Empty zone id = disabled.
     # When set, the token also needs the Zone > SSL and Certificates > Edit scope,
     # and cname_target is the proxied edge hostname customers point their CNAME at.
