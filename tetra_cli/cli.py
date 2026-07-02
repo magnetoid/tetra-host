@@ -666,6 +666,15 @@ def cmd_deploys_git(args: argparse.Namespace) -> int:
     return die(status.get("error", "build failed") if isinstance(status, dict) else "build failed")
 
 
+def cmd_deploys_rollback(args: argparse.Namespace) -> int:
+    result = client_from_config().rollback_deploy(args.deployment_id)
+    new_id = result.get("deployment_id", "") if isinstance(result, dict) else ""
+    if not new_id:
+        return die("rollback did not start")
+    print(c("✓", "32") + f" rollback started (deployment {new_id[:8]})")
+    return 0
+
+
 def cmd_deploys_env_list(args: argparse.Namespace) -> int:
     rows = client_from_config().deploy_env(args.project)
     if not isinstance(rows, list) or not rows:
@@ -896,6 +905,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--ref", default="main")
     sp.add_argument("--port", type=int, default=3000)
     sp.set_defaults(func=cmd_deploys_git)
+
+    sp = deploys.add_parser("rollback", help="redeploy a prior deployment's image (no rebuild)")
+    sp.add_argument("deployment_id")
+    sp.set_defaults(func=cmd_deploys_rollback)
 
     env = deploys.add_parser("env", help="manage a native app's environment variables").add_subparsers(
         dest="deploys_env_cmd", required=True

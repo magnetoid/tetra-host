@@ -360,6 +360,73 @@ class DeploysService:
         )
         return deployment_id
 
+    async def rollback_for_tenant(self, tenant_id: str | None, deployment_id: str) -> str:
+        """Instant rollback: redeploy a PRIOR successful deployment's image, no rebuild.
+
+        Creates a new Deployment pinned to the old image and re-runs the stack with
+        current env. Requires the target to be a ``ready`` deployment with a built image
+        and the app to still exist (no quota re-reservation). Caveat: the image must still
+        be present locally (registry push + retention is a later hardening step).
+        """
+        self._require_actions()
+        async with session_scope() as session:
+            target = await session.get(Deployment, deployment_id)
+            if target is None or target.tenant_id != (tenant_id or ""):
+                raise DockerEngineError(message="Deployment not found.", code=404)
+            if target.status != STATUS_READY or not target.image:
+                raise DockerEngineError(
+                    message="Can only roll back to a successful deployment with a built image.",
+                    code=409,
+                )
+            existing = await session.scalar(
+                select(TenantResource).where(
+                    TenantResource.tenant_id == (tenant_id or ""),
+                    TenantResource.provider == PROVIDER_DOCKER,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                    TenantResource.external_id == target.project,
+                )
+            )
+            if existing is None:
+                raise DockerEngineError(
+                    message=f"App '{target.project}' is not deployed; deploy it first.", code=404
+                )
+            new_deployment = Deployment(
+                tenant_id=tenant_id or "", project=target.project, git_url=target.git_url,
+                ref=target.ref, status=STATUS_QUEUED, port=target.port,
+                image=target.image, commit=target.commit, builder=target.builder,
+            )
+            session.add(new_deployment)
+            await session.flush()
+            new_id = new_deployment.id
+            project, image, port = target.project, target.image, target.port
+        asyncio.create_task(
+            self._run_rollback(new_id, tenant_id, project=project, image=image, port=port)
+        )
+        return new_id
+
+    async def _run_rollback(
+        self, deployment_id: str, tenant_id: str | None, *, project: str, image: str, port: int
+    ) -> None:
+        log: list[str] = []
+        try:
+            log.append(f"→ rolling back to {image}")
+            await self._set(deployment_id, log, status=STATUS_BUILDING)
+            env = await self.env_map_for_deploy(tenant_id, project)
+            compose = compose_for_image(image, port, env)
+            compose = apply_edge(compose, project=project, port=str(port))
+            await self.engine.deploy_stack(project, compose, {})
+            domain = f"{project}.{self.base_domain}" if self.base_domain else ""
+            log.append("✓ rolled back" + (f" — live at https://{domain}" if domain else ""))
+            await self._set(
+                deployment_id, log, status=STATUS_READY, image=image, port=port, domain=domain
+            )
+        except (BuildError, DockerEngineError) as exc:
+            log.append(f"✗ {exc}")
+            await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
+        except Exception as exc:  # never leave a deployment stuck in "building"
+            log.append(f"✗ unexpected: {exc}")
+            await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
+
     # ── GitHub push-to-deploy hooks (secret encrypted at rest) ─────────────
     async def create_hook_for_tenant(
         self,

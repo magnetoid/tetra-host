@@ -140,6 +140,16 @@ def test_client_deploy_git_posts_body():
     assert result["deployment_id"] == "dep-1"
 
 
+def test_client_rollback_deploy_posts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/deploys/dep-1/rollback"
+        return httpx.Response(200, json={"ok": True, "deployment_id": "dep-2", "status": "queued"})
+
+    result = make_client(handler).rollback_deploy("dep-1")
+    assert result["deployment_id"] == "dep-2"
+
+
 def test_client_raises_on_error_with_detail():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"detail": "Zone is not assigned to this tenant."})

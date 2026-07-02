@@ -1253,6 +1253,22 @@ async def api_stream_deploy_logs(
     )
 
 
+@router.post("/deploys/{deployment_id}/rollback", response_model=DeployStartResponse)
+async def api_rollback_deploy(
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DeployStartResponse:
+    """Instant rollback: redeploy a prior successful deployment's image (no rebuild)."""
+    service = DeploysService(request)
+    try:
+        new_id = await service.rollback_for_tenant(current_admin.tenant_id, deployment_id)
+    except (ProviderAPIError, DockerEngineError, BuildError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return DeployStartResponse(deployment_id=new_id)
+
+
 def _env_summary(row) -> AppEnvVarSummary:
     """Mask secret values on read; non-secret values are returned decrypted."""
     return AppEnvVarSummary(

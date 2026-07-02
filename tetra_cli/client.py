@@ -231,6 +231,9 @@ class TetraClient:
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 
+    def rollback_deploy(self, deployment_id: str) -> Any:
+        return self._request("POST", f"/deploys/{deployment_id}/rollback")
+
     def stream_deploy_logs(self, deployment_id: str) -> Iterator[tuple[str, dict]]:
         """Yield (event, data) tuples from a native deploy's SSE build-log stream."""
         url = f"{self.api}/deploys/{deployment_id}/logs/stream"
