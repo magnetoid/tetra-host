@@ -359,3 +359,13 @@ export interface ComputeMetrics {
   cpu_percent: number
   mem_used_mb: number
 }
+
+export interface DomainRecord {
+  id: string
+  project: string
+  hostname: string
+  status: "pending" | "verified" | string
+  txt_name: string
+  txt_value: string
+  cname_target: string
+}
