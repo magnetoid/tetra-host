@@ -263,6 +263,18 @@ class TetraClient:
     def deploy_env_rm(self, project: str, key: str) -> Any:
         return self._request("DELETE", f"/deploys/{project}/env/{key}")
 
+    def create_deploy_hook(self, project: str, git_url: str, ref: str = "main", port: int = 3000) -> Any:
+        return self._request(
+            "POST", "/deploy-hooks",
+            json_body={"project": project, "git_url": git_url, "ref": ref, "port": port},
+        )
+
+    def deploy_hooks(self) -> Any:
+        return self._request("GET", "/deploy-hooks")
+
+    def delete_deploy_hook(self, hook_id: str) -> Any:
+        return self._request("DELETE", f"/deploy-hooks/{hook_id}")
+
     # ── Plans ─────────────────────────────────────────────────────────────
     def plans(self, include_archived: bool = False) -> list[dict]:
         return self._request("GET", "/plans", params={"include_archived": str(include_archived).lower()})

@@ -292,6 +292,30 @@ class AppEnvVarSummary(BaseModel):
     is_build_time: bool = False
 
 
+class DeployHookRequest(BaseModel):
+    project: str
+    git_url: str
+    ref: str = "main"
+    port: int = 3000
+
+
+class DeployHookSummary(BaseModel):
+    id: str
+    project: str
+    git_url: str = ""
+    ref: str = "main"
+    port: int = 3000
+    enabled: bool = True
+
+
+class DeployHookCreated(BaseModel):
+    id: str
+    project: str
+    url: str
+    secret: str  # shown once — paste into GitHub's webhook secret
+    ref: str = "main"
+
+
 class AdminResponse(BaseModel):
     admins: list[AdminSummary]
     providers: list[ProviderSummary]

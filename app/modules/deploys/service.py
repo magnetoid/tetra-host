@@ -10,6 +10,7 @@ ENABLE_PROVIDER_ACTIONS.
 import asyncio
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable
+from secrets import token_hex
 
 import yaml
 from fastapi import Request
@@ -25,7 +26,7 @@ from app.models.deployment import (
     STATUS_READY,
     Deployment,
 )
-from app.models import AppEnvVar, TenantResource
+from app.models import AppEnvVar, DeployHook, TenantResource
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
@@ -323,6 +324,87 @@ class DeploysService:
                 )
             )
             return {row.key: decrypt(row.value) for row in rows.all()}
+
+    async def redeploy_for_tenant(
+        self, tenant_id: str | None, *, git_url: str, ref: str, project: str, port: int
+    ) -> str:
+        """Rebuild + redeploy an EXISTING app (webhook/manual redeploy).
+
+        Unlike ``start_deploy_for_tenant`` this does NOT reserve a quota slot (the app
+        already holds one) and requires the app to exist — a redeploy of a project with
+        no reservation would bypass quota, so a missing app raises 404.
+        """
+        self._require_actions()
+        async with session_scope() as session:
+            existing = await session.scalar(
+                select(TenantResource).where(
+                    TenantResource.tenant_id == (tenant_id or ""),
+                    TenantResource.provider == PROVIDER_DOCKER,
+                    TenantResource.resource_type == RESOURCE_TYPE_APP,
+                    TenantResource.external_id == project,
+                )
+            )
+            if existing is None:
+                raise DockerEngineError(
+                    message=f"App '{project}' is not deployed; deploy it first.", code=404
+                )
+            deployment = Deployment(
+                tenant_id=tenant_id or "", project=project, git_url=git_url, ref=ref,
+                status=STATUS_QUEUED, port=port,
+            )
+            session.add(deployment)
+            await session.flush()
+            deployment_id = deployment.id
+        asyncio.create_task(
+            self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
+        )
+        return deployment_id
+
+    # ── GitHub push-to-deploy hooks (secret encrypted at rest) ─────────────
+    async def create_hook_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        project: str,
+        *,
+        git_url: str,
+        ref: str = "main",
+        port: int = 3000,
+    ) -> tuple[DeployHook, str]:
+        """Create a webhook for a project; returns (hook, raw_secret). The raw secret is
+        shown to the owner once (to paste into GitHub) and stored only as ciphertext."""
+        raw_secret = token_hex(20)
+        hook = DeployHook(
+            tenant_id=tenant_id or "", project=project, git_url=git_url, ref=ref, port=port,
+            secret=encrypt(raw_secret), enabled=True,
+        )
+        session.add(hook)
+        await session.flush()
+        return hook, raw_secret
+
+    async def list_hooks_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None
+    ) -> list[DeployHook]:
+        rows = await session.scalars(
+            select(DeployHook)
+            .where(DeployHook.tenant_id == (tenant_id or ""))
+            .order_by(DeployHook.created_at.desc())
+        )
+        return list(rows.all())
+
+    async def get_hook(self, session: AsyncSession, hook_id: str) -> DeployHook | None:
+        """Load a hook by id — NOT tenant-scoped (the webhook receiver is unauthenticated
+        and authenticates via HMAC, not a session)."""
+        return await session.get(DeployHook, hook_id)
+
+    async def delete_hook_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, hook_id: str
+    ) -> bool:
+        hook = await session.get(DeployHook, hook_id)
+        if hook is None or hook.tenant_id != (tenant_id or ""):
+            return False
+        await session.delete(hook)
+        return True
 
     async def get_deployment_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, deployment_id: str

@@ -671,6 +671,33 @@ def cmd_deploys_env_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_deploys_hook_create(args: argparse.Namespace) -> int:
+    result = client_from_config().create_deploy_hook(
+        args.project, args.git_url, ref=args.ref, port=args.port
+    )
+    print(c("✓ webhook created", "1;32"))
+    print(f"  URL:    {result.get('url', '')}")
+    print(f"  Secret: {result.get('secret', '')}" + c("  (shown once — add to GitHub)", "90"))
+    return 0
+
+
+def cmd_deploys_hook_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().deploy_hooks()
+    if not isinstance(rows, list) or not rows:
+        print(c("no webhooks", "90"))
+        return 0
+    for hook in rows:
+        state = c("on", "32") if hook.get("enabled") else c("off", "31")
+        print(f"{c(hook.get('id', '')[:8], '1;36')}  {hook.get('project', '')}  @{hook.get('ref', '')}  [{state}]  {c(hook.get('git_url', ''), '90')}")
+    return 0
+
+
+def cmd_deploys_hook_rm(args: argparse.Namespace) -> int:
+    client_from_config().delete_deploy_hook(args.hook_id)
+    print(c("✓", "32") + " removed webhook")
+    return 0
+
+
 # ── parser ────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -863,6 +890,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("key")
     sp.set_defaults(func=cmd_deploys_env_rm)
+
+    hook = deploys.add_parser("hook", help="manage GitHub push-to-deploy webhooks").add_subparsers(
+        dest="deploys_hook_cmd", required=True
+    )
+    sp = hook.add_parser("create", help="create a webhook (prints URL + secret once)")
+    sp.add_argument("project")
+    sp.add_argument("--git-url", dest="git_url", required=True)
+    sp.add_argument("--ref", default="main")
+    sp.add_argument("--port", type=int, default=3000)
+    sp.set_defaults(func=cmd_deploys_hook_create)
+    sp = hook.add_parser("list", help="list webhooks")
+    sp.set_defaults(func=cmd_deploys_hook_list)
+    sp = hook.add_parser("rm", help="delete a webhook")
+    sp.add_argument("hook_id")
+    sp.set_defaults(func=cmd_deploys_hook_rm)
 
     plans = sub.add_parser("plans", help="manage subscription plans (platform-admin)").add_subparsers(
         dest="plans_cmd", required=True

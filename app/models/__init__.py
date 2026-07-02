@@ -1,6 +1,7 @@
 from app.models.admin import AdminUser
 from app.models.app_env import AppEnvVar
 from app.models.audit import AuditEvent
+from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.plan import Plan
 from app.models.tenant import Tenant
@@ -10,6 +11,7 @@ __all__ = [
     "AdminUser",
     "AppEnvVar",
     "AuditEvent",
+    "DeployHook",
     "Deployment",
     "Plan",
     "Tenant",

@@ -207,6 +207,18 @@ def test_client_deploy_env_rm_deletes():
     make_client(handler).deploy_env_rm("blog", "API_KEY")
 
 
+def test_client_create_deploy_hook_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/deploy-hooks"
+        body = json.loads(request.content)
+        assert body == {"project": "blog", "git_url": "https://github.com/x/y", "ref": "main", "port": 3000}
+        return httpx.Response(200, json={"id": "h1", "url": "u", "secret": "s", "project": "blog", "ref": "main"})
+
+    result = make_client(handler).create_deploy_hook("blog", "https://github.com/x/y")
+    assert result["secret"] == "s"
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 

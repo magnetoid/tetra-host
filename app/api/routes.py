@@ -2,13 +2,16 @@ import asyncio
 import json
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.contracts import (
     AppEnvVarRequest,
     AppEnvVarSummary,
+    DeployHookCreated,
+    DeployHookRequest,
+    DeployHookSummary,
     AdminResponse,
     AdminSummary,
     AppActionResponse,
@@ -91,6 +94,7 @@ from app.models.admin import ROLE_PLATFORM_ADMIN
 from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
+from app.services.github_webhook import branch_from_ref, push_ref, verify_signature
 from app.services.quota import QuotaService
 from app.services.secrets import decrypt
 
@@ -1273,6 +1277,102 @@ async def api_delete_deploy_env(
     if not removed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Env var not found.")
     return {"ok": True}
+
+
+# ── GitHub push-to-deploy webhooks ─────────────────────────────────────────
+# NB: management routes live under /deploy-hooks (not /deploys/hooks) so they are not
+# shadowed by the GET /deploys/{deployment_id} catch-all declared earlier.
+@router.post("/deploy-hooks", response_model=DeployHookCreated)
+async def api_create_deploy_hook(
+    payload: DeployHookRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DeployHookCreated:
+    service = DeploysService(request)
+    hook, secret = await service.create_hook_for_tenant(
+        session, current_admin.tenant_id, payload.project,
+        git_url=payload.git_url, ref=payload.ref, port=payload.port,
+    )
+    base = str(request.base_url).rstrip("/")
+    return DeployHookCreated(
+        id=hook.id, project=hook.project, ref=hook.ref, secret=secret,
+        url=f"{base}/api/v1/webhooks/github/{hook.id}",
+    )
+
+
+@router.get("/deploy-hooks", response_model=list[DeployHookSummary])
+async def api_list_deploy_hooks(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[DeployHookSummary]:
+    service = DeploysService(request)
+    hooks = await service.list_hooks_for_tenant(session, current_admin.tenant_id)
+    return [
+        DeployHookSummary(
+            id=h.id, project=h.project, git_url=h.git_url, ref=h.ref, port=h.port, enabled=h.enabled
+        )
+        for h in hooks
+    ]
+
+
+@router.delete("/deploy-hooks/{hook_id}")
+async def api_delete_deploy_hook(
+    hook_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    service = DeploysService(request)
+    removed = await service.delete_hook_for_tenant(session, current_admin.tenant_id, hook_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found.")
+    return {"ok": True}
+
+
+@router.post("/webhooks/github/{hook_id}")
+async def api_github_webhook(
+    hook_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> JSONResponse:
+    """Unauthenticated GitHub webhook receiver — authenticity is proven by the HMAC
+    signature, not a session. A push to the hook's branch redeploys its app."""
+    service = DeploysService(request)
+    hook = await service.get_hook(session, hook_id)
+    if hook is None or not hook.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found.")
+
+    body = await request.body()
+    secret = decrypt(hook.secret)
+    if not verify_signature(secret, body, request.headers.get("X-Hub-Signature-256")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature.")
+
+    event = request.headers.get("X-GitHub-Event", "")
+    if event == "ping":
+        return JSONResponse(status_code=200, content={"ok": True, "pong": True})
+    if event != "push":
+        return JSONResponse(status_code=200, content={"ok": True, "ignored": True, "event": event})
+
+    try:
+        payload = json.loads(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON.") from exc
+    branch = branch_from_ref(push_ref(payload))
+    if branch != hook.ref:
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "ignored": True, "reason": f"branch '{branch}' != '{hook.ref}'"},
+        )
+
+    try:
+        deployment_id = await service.redeploy_for_tenant(
+            hook.tenant_id, git_url=hook.git_url, ref=hook.ref, project=hook.project, port=hook.port
+        )
+    except (ProviderAPIError, DockerEngineError, BuildError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return JSONResponse(status_code=202, content={"ok": True, "deployment_id": deployment_id})
 
 
 @router.get("/admin/overview", response_model=PlatformOverview)
