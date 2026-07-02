@@ -341,3 +341,21 @@ export interface Usage {
   domains_limit: number
   enforced: string[]
 }
+
+export interface ComputeSample {
+  name: string
+  cpu_percent: number
+  mem_used_mb: number
+  mem_limit_mb: number
+  mem_percent: number
+  net_rx_mb: number
+  net_tx_mb: number
+  pids: number
+}
+
+export interface ComputeMetrics {
+  project: string
+  samples: ComputeSample[]
+  cpu_percent: number
+  mem_used_mb: number
+}

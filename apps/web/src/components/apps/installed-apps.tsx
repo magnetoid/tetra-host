@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
@@ -63,6 +64,12 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href={`/apps/${app.project}/compute`}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5"
+            >
+              Compute
+            </Link>
             <Button size="sm" icon={faCirclePlay} disabled={pending !== null} onClick={() => act(app.project, "start")}>
               {pending === `start:${app.project}` ? "…" : "Start"}
             </Button>
