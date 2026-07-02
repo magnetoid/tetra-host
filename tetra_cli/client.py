@@ -281,6 +281,21 @@ class TetraClient:
     def delete_deploy_hook(self, hook_id: str) -> Any:
         return self._request("DELETE", f"/deploy-hooks/{hook_id}")
 
+    # ── Custom domains ────────────────────────────────────────────────────
+    def domains(self, project: str | None = None) -> Any:
+        return self._request("GET", "/domains", params={"project": project} if project else None)
+
+    def domain_add(self, project: str, hostname: str) -> Any:
+        return self._request(
+            "POST", "/domains", json_body={"project": project, "hostname": hostname}
+        )
+
+    def domain_verify(self, domain_id: str) -> Any:
+        return self._request("POST", f"/domains/{domain_id}/verify")
+
+    def domain_rm(self, domain_id: str) -> Any:
+        return self._request("DELETE", f"/domains/{domain_id}")
+
     # ── Plans ─────────────────────────────────────────────────────────────
     def plans(self, include_archived: bool = False) -> list[dict]:
         return self._request("GET", "/plans", params={"include_archived": str(include_archived).lower()})

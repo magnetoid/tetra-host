@@ -73,9 +73,13 @@ def _public_service(services: dict[str, Any]) -> tuple[str, dict[str, Any]] | No
     return None
 
 
-def apply_edge(compose_yaml: str, *, project: str, port: str) -> str:
+def apply_edge(
+    compose_yaml: str, *, project: str, port: str, extra_hosts: list[str] | None = None
+) -> str:
     """Attach Caddy routing labels + the shared edge network to a compose stack's public
-    service. No-op (returns input unchanged) when the edge is not configured."""
+    service. ``extra_hosts`` (verified custom domains) are added as additional site
+    addresses on the same route. No-op (returns input unchanged) when the edge is not
+    configured."""
     if not edge_enabled():
         return compose_yaml
     try:
@@ -99,7 +103,9 @@ def apply_edge(compose_yaml: str, *, project: str, port: str) -> str:
     # We run caddy-docker-proxy with a CUSTOM label prefix ("tetra") so it ONLY ever reads
     # our labels — never the `caddy.*` labels other tenants' containers carry on this shared
     # box. http:// => Caddy serves HTTP-only (no ACME); nginx terminates the wildcard TLS.
-    labels["tetra"] = f"http://{host}"
+    # Verified custom domains ride the same site block as extra comma-separated addresses.
+    addresses = [f"http://{host}"] + [f"http://{h}" for h in (extra_hosts or []) if h]
+    labels["tetra"] = ", ".join(addresses)
     labels["tetra.reverse_proxy"] = upstream
     svc["labels"] = labels
 

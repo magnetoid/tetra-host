@@ -310,6 +310,21 @@ class AppComputeResponse(BaseModel):
     mem_used_mb: float = 0.0
 
 
+class DomainRequest(BaseModel):
+    project: str
+    hostname: str
+
+
+class DomainSummary(BaseModel):
+    id: str
+    project: str
+    hostname: str
+    status: str  # pending | verified
+    txt_name: str = ""
+    txt_value: str = ""
+    cname_target: str = ""
+
+
 class DeployHookRequest(BaseModel):
     project: str
     git_url: str

@@ -700,6 +700,38 @@ def cmd_deploys_env_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_domains_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().domains(getattr(args, "project", None))
+    if not isinstance(rows, list) or not rows:
+        print(c("no custom domains", "90"))
+        return 0
+    for d in rows:
+        state = c("verified", "32") if d.get("status") == "verified" else c("pending", "33")
+        print(f"{c(d.get('id', '')[:8], '1;36')}  {d.get('hostname', '')}  → {d.get('project', '')}  [{state}]")
+    return 0
+
+
+def cmd_domains_add(args: argparse.Namespace) -> int:
+    d = client_from_config().domain_add(args.project, args.hostname)
+    print(c("✓ domain claimed", "1;32") + f"  {d.get('hostname', '')}")
+    print("Publish these DNS records, then run: tetra domains verify " + d.get("id", "")[:8])
+    print(f"  TXT   {d.get('txt_name', '')}  \"{d.get('txt_value', '')}\"")
+    print(f"  CNAME {d.get('hostname', '')}  →  {d.get('cname_target', '')}")
+    return 0
+
+
+def cmd_domains_verify(args: argparse.Namespace) -> int:
+    d = client_from_config().domain_verify(args.domain_id)
+    print(c("✓ verified", "1;32") + f"  {d.get('hostname', '')}  (redeploy the app to route it)")
+    return 0
+
+
+def cmd_domains_rm(args: argparse.Namespace) -> int:
+    client_from_config().domain_rm(args.domain_id)
+    print(c("✓", "32") + " removed domain")
+    return 0
+
+
 def cmd_deploys_hook_create(args: argparse.Namespace) -> int:
     result = client_from_config().create_deploy_hook(
         args.project, args.git_url, ref=args.ref, port=args.port
@@ -927,6 +959,23 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("key")
     sp.set_defaults(func=cmd_deploys_env_rm)
+
+    domains = sub.add_parser("domains", help="custom domains for native apps").add_subparsers(
+        dest="domains_cmd", required=True
+    )
+    sp = domains.add_parser("list", help="list custom domains")
+    sp.add_argument("--project")
+    sp.set_defaults(func=cmd_domains_list)
+    sp = domains.add_parser("add", help="claim a domain for an app (prints DNS instructions)")
+    sp.add_argument("project")
+    sp.add_argument("hostname")
+    sp.set_defaults(func=cmd_domains_add)
+    sp = domains.add_parser("verify", help="verify the DNS TXT challenge")
+    sp.add_argument("domain_id")
+    sp.set_defaults(func=cmd_domains_verify)
+    sp = domains.add_parser("rm", help="remove a domain")
+    sp.add_argument("domain_id")
+    sp.set_defaults(func=cmd_domains_rm)
 
     hook = deploys.add_parser("hook", help="manage GitHub push-to-deploy webhooks").add_subparsers(
         dest="deploys_hook_cmd", required=True

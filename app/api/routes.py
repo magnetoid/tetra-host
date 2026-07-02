@@ -14,6 +14,8 @@ from app.api.contracts import (
     DeployHookCreated,
     DeployHookRequest,
     DeployHookSummary,
+    DomainRequest,
+    DomainSummary,
     AdminResponse,
     AdminSummary,
     AppActionResponse,
@@ -83,6 +85,7 @@ from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.databases.service import DatabasesService
 from app.modules.deploys.service import DeploysService
+from app.modules.domains.service import DomainsService
 from app.modules.dns.service import DnsService
 from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
@@ -1267,6 +1270,82 @@ async def api_rollback_deploy(
     except (ProviderAPIError, DockerEngineError, BuildError) as exc:
         raise _engine_exc_to_http(exc) from exc
     return DeployStartResponse(deployment_id=new_id)
+
+
+# ── Custom domains (verified via DNS TXT; routed at the edge) ──────────────
+def _domain_summary(service: DomainsService, domain) -> DomainSummary:
+    info = service.instructions(domain)
+    return DomainSummary(
+        id=domain.id, project=domain.project, hostname=domain.hostname, status=domain.status,
+        txt_name=info["txt_name"], txt_value=info["txt_value"], cname_target=info["cname_target"],
+    )
+
+
+@router.post("/domains", response_model=DomainSummary)
+async def api_add_domain(
+    payload: DomainRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DomainSummary:
+    service = DomainsService()
+    try:
+        domain = await service.add_for_tenant(
+            session, current_admin.tenant_id, project=payload.project, hostname=payload.hostname
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except DockerEngineError as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return _domain_summary(service, domain)
+
+
+@router.get("/domains", response_model=list[DomainSummary])
+async def api_list_domains(
+    project: str | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[DomainSummary]:
+    service = DomainsService()
+    domains = await service.list_for_tenant(session, current_admin.tenant_id, project)
+    return [_domain_summary(service, d) for d in domains]
+
+
+@router.post("/domains/{domain_id}/verify", response_model=DomainSummary)
+async def api_verify_domain(
+    domain_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DomainSummary:
+    service = DomainsService()
+    try:
+        domain = await service.verify_for_tenant(session, current_admin.tenant_id, domain_id)
+    except DockerEngineError as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return _domain_summary(service, domain)
+
+
+@router.delete("/domains/{domain_id}")
+async def api_delete_domain(
+    domain_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    removed = await DomainsService().delete_for_tenant(session, current_admin.tenant_id, domain_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found.")
+    return {"ok": True}
+
+
+@router.get("/edge/ask")
+async def api_edge_ask(
+    domain: str = "",
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, bool]:
+    """Caddy On-Demand TLS 'ask' endpoint — unauthenticated by design (Caddy is the
+    caller); answers 200 only for a verified tenant domain, else 404. No data leaks."""
+    if await DomainsService().is_hostname_verified(session, domain):
+        return {"ok": True}
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown domain.")
 
 
 def _env_summary(row) -> AppEnvVarSummary:

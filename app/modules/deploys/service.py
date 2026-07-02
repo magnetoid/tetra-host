@@ -206,8 +206,11 @@ class DeploysService:
             if env:
                 log.append(f"→ injecting {len(env)} environment variable(s)")
                 await self._set(deployment_id, log)
+            extra_hosts = await self._custom_hosts(tenant_id, project)
             compose = compose_for_image(build.image, effective_port, env)
-            compose = apply_edge(compose, project=project, port=str(effective_port))
+            compose = apply_edge(
+                compose, project=project, port=str(effective_port), extra_hosts=extra_hosts
+            )
             await self.engine.deploy_stack(project, compose, {})
 
             # Reservation made in start_deploy_for_tenant stays on success.
@@ -315,6 +318,16 @@ class DeploysService:
         await session.delete(existing)
         return True
 
+    async def _custom_hosts(self, tenant_id: str | None, project: str) -> list[str]:
+        """Verified custom domains to route alongside the auto subdomain (own session —
+        runs post-request). Imported lazily to avoid a deploys↔domains import cycle."""
+        from app.modules.domains.service import DomainsService
+
+        async with session_scope() as session:
+            return await DomainsService().verified_hostnames_for_project(
+                session, tenant_id, project
+            )
+
     async def env_map_for_deploy(self, tenant_id: str | None, project: str) -> dict[str, str]:
         """Decrypted {key: value} for injection at deploy time (own session — runs post-request)."""
         async with session_scope() as session:
@@ -412,8 +425,9 @@ class DeploysService:
             log.append(f"→ rolling back to {image}")
             await self._set(deployment_id, log, status=STATUS_BUILDING)
             env = await self.env_map_for_deploy(tenant_id, project)
+            extra_hosts = await self._custom_hosts(tenant_id, project)
             compose = compose_for_image(image, port, env)
-            compose = apply_edge(compose, project=project, port=str(port))
+            compose = apply_edge(compose, project=project, port=str(port), extra_hosts=extra_hosts)
             await self.engine.deploy_stack(project, compose, {})
             domain = f"{project}.{self.base_domain}" if self.base_domain else ""
             log.append("✓ rolled back" + (f" — live at https://{domain}" if domain else ""))

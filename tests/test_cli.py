@@ -229,6 +229,26 @@ def test_client_create_deploy_hook_posts_body():
     assert result["secret"] == "s"
 
 
+def test_client_domain_add_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/domains"
+        assert json.loads(request.content) == {"project": "blog", "hostname": "www.example.com"}
+        return httpx.Response(200, json={"id": "d1", "hostname": "www.example.com", "status": "pending"})
+
+    result = make_client(handler).domain_add("blog", "www.example.com")
+    assert result["status"] == "pending"
+
+
+def test_client_domain_verify_posts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/domains/d1/verify"
+        return httpx.Response(200, json={"id": "d1", "status": "verified"})
+
+    assert make_client(handler).domain_verify("d1")["status"] == "verified"
+
+
 def test_client_apps_compute_gets():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
