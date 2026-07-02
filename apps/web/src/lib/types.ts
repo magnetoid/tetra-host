@@ -385,3 +385,27 @@ export interface DeploymentRecord {
   error: string
   created_at: string
 }
+
+export interface AppEnvVar {
+  key: string
+  value: string // masked ("••••••") when is_secret
+  is_secret: boolean
+  is_build_time: boolean
+}
+
+export interface DeployHook {
+  id: string
+  project: string
+  git_url: string
+  ref: string
+  port: number
+  enabled: boolean
+}
+
+export interface DeployHookCreated {
+  id: string
+  project: string
+  url: string
+  secret: string // shown once
+  ref: string
+}

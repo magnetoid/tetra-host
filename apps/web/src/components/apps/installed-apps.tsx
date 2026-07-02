@@ -70,6 +70,12 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
             >
               Compute
             </Link>
+            <Link
+              href={`/apps/${app.project}/env`}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5"
+            >
+              Env
+            </Link>
             <Button size="sm" icon={faCirclePlay} disabled={pending !== null} onClick={() => act(app.project, "start")}>
               {pending === `start:${app.project}` ? "…" : "Start"}
             </Button>
