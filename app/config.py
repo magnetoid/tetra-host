@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
+    # Cloudflare for SaaS (custom-hostname TLS, ADR 0009). Empty zone id = disabled.
+    # When set, the token also needs the Zone > SSL and Certificates > Edit scope,
+    # and cname_target is the proxied edge hostname customers point their CNAME at.
+    cloudflare_saas_zone_id: str = ""
+    cloudflare_saas_cname_target: str = ""
 
     # Umami web analytics (self-hosted v2). Empty url = analytics disabled (the
     # Metrics tab shows a "connect analytics" state). Self-hosted Umami has no API

@@ -215,6 +215,44 @@ class CloudflareClient:
         await self.cache.delete(f"cloudflare:records:{zone_id}")
         return payload if isinstance(payload, dict) else {"ok": True}
 
+    # ── Cloudflare for SaaS custom hostnames (ADR 0009) ───────────────────
+    # Requires the Zone > SSL and Certificates > Edit token scope on the SaaS zone.
+
+    async def create_custom_hostname(self, zone_id: str, hostname: str) -> dict[str, Any]:
+        """Register a customer hostname; ssl.method=http lets CF auto-validate the
+        cert once the customer's CNAME routes traffic through the zone."""
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="POST",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_hostnames",
+            headers=self.headers(),
+            json_body={"hostname": hostname, "ssl": {"method": "http", "type": "dv"}},
+        )
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
+    async def get_custom_hostname(self, zone_id: str, hostname_id: str) -> dict[str, Any]:
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="GET",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_hostnames/{hostname_id}",
+            headers=self.headers(),
+        )
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
+    async def delete_custom_hostname(self, zone_id: str, hostname_id: str) -> None:
+        await request_json(
+            self.http_client, service="Cloudflare", method="DELETE",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_hostnames/{hostname_id}",
+            headers=self.headers(),
+        )
+
+    async def set_fallback_origin(self, zone_id: str, origin: str) -> dict[str, Any]:
+        """Set the zone's SaaS fallback origin (must be a proxied record on the zone)."""
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="PUT",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_hostnames/fallback_origin",
+            headers=self.headers(), json_body={"origin": origin},
+        )
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
     async def update_dns_record(
         self, zone_id: str, record_id: str, record_type: str, name: str,
         content: str, ttl: int = 1, proxied: bool = False, priority: int | None = None,

@@ -93,7 +93,7 @@ from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
 from app.modules.projects.service import ProjectsService
-from app.services.cloudflare import count_bind_records
+from app.services.cloudflare import CloudflareClient, count_bind_records
 from app.services.coolify import parse_deployment_log_lines
 from app.models.admin import ROLE_PLATFORM_ADMIN
 from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
@@ -1273,6 +1273,14 @@ async def api_rollback_deploy(
 
 
 # ── Custom domains (verified via DNS TXT; routed at the edge) ──────────────
+def _domains_service(request: Request) -> DomainsService:
+    """DomainsService with the Cloudflare client attached (SaaS TLS, ADR 0009)."""
+    cf = CloudflareClient.from_settings(
+        http_client=request.app.state.http_client, cache=request.app.state.cache
+    )
+    return DomainsService(cf_client=cf)
+
+
 def _domain_summary(service: DomainsService, domain) -> DomainSummary:
     info = service.instructions(domain)
     return DomainSummary(
@@ -1313,10 +1321,11 @@ async def api_list_domains(
 @router.post("/domains/{domain_id}/verify", response_model=DomainSummary)
 async def api_verify_domain(
     domain_id: str,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> DomainSummary:
-    service = DomainsService()
+    service = _domains_service(request)
     try:
         domain = await service.verify_for_tenant(session, current_admin.tenant_id, domain_id)
     except DockerEngineError as exc:
@@ -1327,10 +1336,13 @@ async def api_verify_domain(
 @router.delete("/domains/{domain_id}")
 async def api_delete_domain(
     domain_id: str,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> dict[str, bool]:
-    removed = await DomainsService().delete_for_tenant(session, current_admin.tenant_id, domain_id)
+    removed = await _domains_service(request).delete_for_tenant(
+        session, current_admin.tenant_id, domain_id
+    )
     if not removed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found.")
     return {"ok": True}

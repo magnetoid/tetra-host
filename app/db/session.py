@@ -93,6 +93,14 @@ def _upgrade_existing_schema(connection) -> None:
     if "plans" in table_names:
         _seed_default_plans(connection)
 
+    # --- ADR 0009: Cloudflare custom-hostname id on domains ---
+    if "domains" in table_names:
+        domain_columns = get_columns("domains")
+        if "cf_hostname_id" not in domain_columns:
+            connection.execute(
+                text("ALTER TABLE domains ADD COLUMN cf_hostname_id VARCHAR(64) NOT NULL DEFAULT ''")
+            )
+
     # --- Task 3.1: allocation columns on tenant_resources ---
     if "tenant_resources" in table_names:
         tr_columns = get_columns("tenant_resources")

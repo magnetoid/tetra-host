@@ -31,6 +31,8 @@ class Domain(Base):
     hostname: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), default=DOMAIN_PENDING, nullable=False)
     token: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    # Cloudflare for SaaS custom-hostname id (ADR 0009); "" when SaaS TLS is disabled.
+    cf_hostname_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False

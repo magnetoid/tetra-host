@@ -45,8 +45,15 @@ async def _dig_txt_resolver(name: str) -> list[str]:
 
 
 class DomainsService:
-    def __init__(self, resolver: TxtResolver | None = None) -> None:
+    def __init__(self, resolver: TxtResolver | None = None, cf_client=None) -> None:
+        """``cf_client`` (a CloudflareClient) enables SaaS custom-hostname TLS (ADR 0009);
+        None or an empty cloudflare_saas_zone_id leaves TLS wiring off (HTTP routing only)."""
         self._resolve = resolver or _dig_txt_resolver
+        self._cf = cf_client
+
+    @staticmethod
+    def _saas_zone_id() -> str:
+        return get_settings().cloudflare_saas_zone_id
 
     @staticmethod
     def normalize_hostname(hostname: str) -> str:
@@ -123,6 +130,16 @@ class DomainsService:
                 code=409,
             )
         domain.status = DOMAIN_VERIFIED
+        # ADR 0009: register the hostname with Cloudflare for SaaS so CF mints + renews
+        # the cert. Best-effort — routing works over HTTP even if registration fails,
+        # and a re-verify retries it.
+        zone_id = self._saas_zone_id()
+        if self._cf is not None and zone_id and not domain.cf_hostname_id:
+            try:
+                result = await self._cf.create_custom_hostname(zone_id, domain.hostname)
+                domain.cf_hostname_id = str(result.get("id") or "")
+            except Exception:  # noqa: BLE001 — provider hiccups must not fail the verify
+                pass
         return domain
 
     async def delete_for_tenant(
@@ -131,6 +148,12 @@ class DomainsService:
         domain = await self.get_for_tenant(session, tenant_id, domain_id)
         if domain is None:
             return False
+        zone_id = self._saas_zone_id()
+        if self._cf is not None and zone_id and domain.cf_hostname_id:
+            try:
+                await self._cf.delete_custom_hostname(zone_id, domain.cf_hostname_id)
+            except Exception:  # noqa: BLE001 — never block removal on provider errors
+                pass
         await session.delete(domain)
         return True
 
@@ -158,9 +181,12 @@ class DomainsService:
 
     @staticmethod
     def instructions(domain: Domain) -> dict[str, str]:
-        """What the tenant must publish: the TXT challenge + a CNAME to the app host."""
+        """What the tenant must publish: the TXT challenge + a CNAME. With Cloudflare
+        for SaaS configured, the CNAME targets the proxied edge hostname (CF terminates
+        TLS there); otherwise the app's auto subdomain (HTTP via the wildcard edge)."""
+        target = get_settings().cloudflare_saas_cname_target or app_hostname(domain.project)
         return {
             "txt_name": f"{CHALLENGE_PREFIX}.{domain.hostname}",
             "txt_value": domain.token,
-            "cname_target": app_hostname(domain.project),
+            "cname_target": target,
         }

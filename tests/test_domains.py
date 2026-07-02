@@ -147,6 +147,88 @@ def test_invalid_hostname_422(client):
     assert r.status_code == 422
 
 
+# ── Cloudflare for SaaS TLS (ADR 0009) ─────────────────────────────────────
+
+
+class _FakeCF:
+    def __init__(self, fail: bool = False) -> None:
+        self.created: list[tuple[str, str]] = []
+        self.deleted: list[tuple[str, str]] = []
+        self.fail = fail
+
+    async def create_custom_hostname(self, zone_id: str, hostname: str) -> dict:
+        if self.fail:
+            raise RuntimeError("cf down")
+        self.created.append((zone_id, hostname))
+        return {"id": "cfh-123", "hostname": hostname, "status": "pending"}
+
+    async def delete_custom_hostname(self, zone_id: str, hostname_id: str) -> None:
+        self.deleted.append((zone_id, hostname_id))
+
+
+def _saas_flow(monkeypatch, *, cf: _FakeCF) -> tuple[str, str]:
+    """Seed tenant+app, claim + verify a domain through the service with SaaS on.
+    Returns (tenant_id, domain_id)."""
+    monkeypatch.setattr(get_settings(), "cloudflare_saas_zone_id", "zone-1")
+
+    async def go() -> tuple[str, str]:
+        await _seed(slug="cf" + cf.__class__.__name__[-2:].lower() + str(len(cf.created)), email=f"o{id(cf) % 10000}@cf.test")
+        async with session_scope() as session:
+            from sqlalchemy import select
+
+            tenant = (await session.scalars(select(Tenant).order_by(Tenant.created_at.desc()))).first()
+            service = DomainsService(resolver=None, cf_client=cf)
+            domain = await service.add_for_tenant(
+                session, tenant.id, project="blog", hostname=f"cf{id(cf) % 10000}.example.com"
+            )
+            service._resolve = _fake_resolver([domain.token])  # correct TXT
+            await service.verify_for_tenant(session, tenant.id, domain.id)
+            return tenant.id, domain.id
+
+    return asyncio.run(go())
+
+
+def test_verify_registers_cf_custom_hostname(client, monkeypatch):
+    cf = _FakeCF()
+    tenant_id, domain_id = _saas_flow(monkeypatch, cf=cf)
+    assert cf.created and cf.created[0][0] == "zone-1"
+
+    async def check():
+        async with session_scope() as session:
+            from app.models import Domain
+
+            domain = await session.get(Domain, domain_id)
+            assert domain.cf_hostname_id == "cfh-123"
+            # delete tears the CF hostname down
+            await DomainsService(cf_client=cf).delete_for_tenant(session, tenant_id, domain_id)
+
+    asyncio.run(check())
+    assert cf.deleted == [("zone-1", "cfh-123")]
+
+
+def test_cf_failure_does_not_block_verification(client, monkeypatch):
+    cf = _FakeCF(fail=True)
+    _, domain_id = _saas_flow(monkeypatch, cf=cf)
+
+    async def check():
+        async with session_scope() as session:
+            from app.models import Domain
+
+            domain = await session.get(Domain, domain_id)
+            assert domain.status == "verified"  # verify survived the CF outage
+            assert domain.cf_hostname_id == ""
+
+    asyncio.run(check())
+
+
+def test_instructions_use_saas_cname_target_when_configured(monkeypatch):
+    from app.models import Domain as DomainModel
+
+    monkeypatch.setattr(get_settings(), "cloudflare_saas_cname_target", "edge.cloud-industry.com")
+    d = DomainModel(tenant_id="t", project="blog", hostname="www.example.com", token="tok")
+    assert DomainsService.instructions(d)["cname_target"] == "edge.cloud-industry.com"
+
+
 # ── Edge routing label ─────────────────────────────────────────────────────
 
 
