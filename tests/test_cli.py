@@ -219,6 +219,16 @@ def test_client_create_deploy_hook_posts_body():
     assert result["secret"] == "s"
 
 
+def test_client_apps_compute_gets():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/apps/blog/compute"
+        return httpx.Response(200, json={"project": "blog", "samples": [], "cpu_percent": 0, "mem_used_mb": 0})
+
+    result = make_client(handler).apps_compute("blog")
+    assert result["project"] == "blog"
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 

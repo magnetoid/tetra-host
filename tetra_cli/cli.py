@@ -405,6 +405,26 @@ def cmd_apps_logs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_apps_compute(args: argparse.Namespace) -> int:
+    result = client_from_config().apps_compute(args.project)
+    if not isinstance(result, dict):
+        return die("unexpected response")
+    samples = result.get("samples", [])
+    if not samples:
+        print(c("no running containers", "90"))
+        return 0
+    print(c(f"{result.get('project', '')}: {result.get('cpu_percent', 0)}% CPU · {result.get('mem_used_mb', 0)} MB", "1;36"))
+    for s in samples:
+        print(
+            f"  {s.get('name', '')}  "
+            f"cpu {s.get('cpu_percent', 0)}%  "
+            f"mem {s.get('mem_used_mb', 0)}/{s.get('mem_limit_mb', 0)}MB ({s.get('mem_percent', 0)}%)  "
+            f"net ↓{s.get('net_rx_mb', 0)}/↑{s.get('net_tx_mb', 0)}MB  "
+            f"pids {s.get('pids', 0)}"
+        )
+    return 0
+
+
 def cmd_plans_list(args: argparse.Namespace) -> int:
     plans = client_from_config().plans(include_archived=args.include_archived)
     rows = [
@@ -862,6 +882,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = apps.add_parser("logs", help="show an app's logs")
     sp.add_argument("project")
     sp.set_defaults(func=cmd_apps_logs)
+
+    sp = apps.add_parser("compute", help="live CPU/mem/net stats for an app")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_apps_compute)
 
     deploys = sub.add_parser("deploys", help="build & deploy git repos").add_subparsers(
         dest="deploys_cmd", required=True

@@ -7,6 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.contracts import (
+    AppComputeResponse,
+    AppComputeSample,
     AppEnvVarRequest,
     AppEnvVarSummary,
     DeployHookCreated,
@@ -1140,6 +1142,35 @@ async def api_apps_logs(
     except (ProviderAPIError, DockerEngineError) as exc:
         raise _engine_exc_to_http(exc) from exc
     return {"logs": logs}
+
+
+@router.get("/apps/{project}/compute", response_model=AppComputeResponse)
+async def api_apps_compute(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppComputeResponse:
+    """Live per-container CPU/mem/net snapshot for a tenant's app (Vercel-style compute)."""
+    service = AppsService(request)
+    try:
+        samples = await service.compute_for_tenant(session, current_admin.tenant_id, project)
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    out = [
+        AppComputeSample(
+            name=s.name, cpu_percent=s.cpu_percent, mem_used_mb=s.mem_used_mb,
+            mem_limit_mb=s.mem_limit_mb, mem_percent=s.mem_percent,
+            net_rx_mb=s.net_rx_mb, net_tx_mb=s.net_tx_mb, pids=s.pids,
+        )
+        for s in samples
+    ]
+    return AppComputeResponse(
+        project=project,
+        samples=out,
+        cpu_percent=round(sum(s.cpu_percent for s in out), 2),
+        mem_used_mb=round(sum(s.mem_used_mb for s in out), 2),
+    )
 
 
 def _deployment_status(deployment) -> DeploymentStatus:

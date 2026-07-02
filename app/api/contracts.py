@@ -292,6 +292,24 @@ class AppEnvVarSummary(BaseModel):
     is_build_time: bool = False
 
 
+class AppComputeSample(BaseModel):
+    name: str
+    cpu_percent: float = 0.0
+    mem_used_mb: float = 0.0
+    mem_limit_mb: float = 0.0
+    mem_percent: float = 0.0
+    net_rx_mb: float = 0.0
+    net_tx_mb: float = 0.0
+    pids: int = 0
+
+
+class AppComputeResponse(BaseModel):
+    project: str
+    samples: list[AppComputeSample] = []
+    cpu_percent: float = 0.0  # summed across the app's containers
+    mem_used_mb: float = 0.0
+
+
 class DeployHookRequest(BaseModel):
     project: str
     git_url: str

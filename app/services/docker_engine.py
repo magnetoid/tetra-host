@@ -162,3 +162,23 @@ class DockerEngine:
         return await self._docker(
             "compose", "-p", project, "logs", "--no-color", "--tail", str(tail)
         )
+
+    async def container_stats(self, container_ids: list[str]) -> list[dict[str, Any]]:
+        """A one-shot `docker stats` snapshot (JSON) for specific containers."""
+        ids = [cid for cid in container_ids if cid]
+        if not ids:
+            return []
+        out = await self._docker(
+            "stats", "--no-stream", "--no-trunc", "--format", "{{json .}}", *ids
+        )
+        return _parse_json_objects(out)
+
+    async def stats_for_project(self, project: str) -> list[dict[str, Any]]:
+        """Live per-container compute snapshot for a compose project (raw docker stats JSON)."""
+        containers = await self.stack_ps(project)
+        ids = [
+            str(c.get("ID") or c.get("Id") or c.get("Name") or "")
+            for c in containers
+            if (c.get("ID") or c.get("Id") or c.get("Name"))
+        ]
+        return await self.container_stats(ids)

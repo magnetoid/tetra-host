@@ -22,6 +22,7 @@ from app.services.app_catalog import (
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.quota import Allocation, QuotaService
+from app.services.compute import ComputeSample, parse_compute_samples
 from app.services.tenant_resources import TenantResourceFilter
 
 
@@ -201,3 +202,11 @@ class AppsService:
     ) -> str:
         await self._ensure_app_access(session, tenant_id, project)
         return await self.engine.logs(project, tail=tail)
+
+    async def compute_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, project: str
+    ) -> list[ComputeSample]:
+        """Live per-container CPU/mem/net snapshot for a tenant's app (Vercel-style)."""
+        await self._ensure_app_access(session, tenant_id, project)
+        raw = await self.engine.stats_for_project(project)
+        return parse_compute_samples(raw)
