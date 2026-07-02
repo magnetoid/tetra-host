@@ -369,3 +369,19 @@ export interface DomainRecord {
   txt_value: string
   cname_target: string
 }
+
+export interface DeploymentRecord {
+  id: string
+  project: string
+  status: "queued" | "building" | "ready" | "error" | string
+  git_url: string
+  ref: string
+  builder: string
+  image: string
+  commit: string
+  port: number
+  domain: string
+  log: string
+  error: string
+  created_at: string
+}
