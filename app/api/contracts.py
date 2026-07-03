@@ -120,6 +120,74 @@ class MailResponse(BaseModel):
     mailboxes: list[MailboxSummary]
 
 
+class MailDomainCreateRequest(BaseModel):
+    domain: str
+    description: str = ""
+    quota_mb: int = Field(default=10240, ge=1, le=1048576)
+
+
+class MailDnsRecordReport(BaseModel):
+    name: str
+    record_type: str
+    status: str  # created | failed | skipped
+    detail: str = ""
+
+
+class MailDomainCreateResponse(BaseModel):
+    domain: str
+    dkim_name: str = ""
+    dkim_txt: str = ""
+    relay_assigned: bool = False
+    dns_zone: str = ""
+    dns_records: list[MailDnsRecordReport] = []
+
+
+class MailboxCreateRequest(BaseModel):
+    local_part: str
+    domain: str
+    name: str = ""
+    password: str
+    quota_mb: int = 3072
+
+
+class MailAliasCreateRequest(BaseModel):
+    address: str
+    goto: str
+
+
+class MailAliasSummary(BaseModel):
+    id: int
+    address: str
+    goto: str
+    domain: str
+    active: bool
+
+
+class MailDkimResponse(BaseModel):
+    domain: str
+    dkim_name: str = ""
+    dkim_txt: str = ""
+
+
+class MailRelayhostCreateRequest(BaseModel):
+    hostname: str
+    username: str
+    password: str
+
+
+class MailRelayhostCreateResponse(BaseModel):
+    ok: bool = True
+    relayhost_id: int = 0
+
+
+class MailRelayhostSummary(BaseModel):
+    id: int
+    hostname: str
+    username: str
+    active: bool = True
+    used_by_domains: str = ""
+
+
 class DNSZoneSummary(BaseModel):
     id: str
     name: str

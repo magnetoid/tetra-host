@@ -852,6 +852,141 @@ def cmd_previews_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── mail ──────────────────────────────────────────────────────────────────
+
+def cmd_mail(args: argparse.Namespace) -> int:
+    data = client_from_config().mail(refresh=getattr(args, "refresh", False))
+    for provider in data.get("providers", []):
+        print(f"{provider.get('name')}: {provider.get('status')} — {provider.get('detail')}")
+    domains = data.get("domains", [])
+    if domains:
+        print(c("\nDomains", "1"))
+        for domain in domains:
+            state = "" if domain.get("active") else c(" (inactive)", "90")
+            print(f"  {domain.get('domain_name')}{state}")
+    mailboxes = data.get("mailboxes", [])
+    if mailboxes:
+        print(c("\nMailboxes", "1"))
+        for mailbox in mailboxes:
+            print(f"  {mailbox.get('username')}  {mailbox.get('name', '')}")
+    return 0
+
+
+def _print_mail_dns_report(body: dict) -> None:
+    if body.get("dkim_txt"):
+        print(c("\nDKIM record", "1"))
+        print(f"  {body['dkim_name']}  TXT")
+        print(c(f"  {body['dkim_txt']}", "90"))
+    records = body.get("dns_records", [])
+    if records:
+        print(c("\nDNS automation", "1"))
+        for rec in records:
+            mark = {"created": c("✓", "32"), "failed": c("✗", "31")}.get(
+                rec.get("status"), c("→", "90")
+            )
+            detail = f"  {c(rec.get('detail', ''), '90')}" if rec.get("detail") else ""
+            print(
+                f"  {mark} {rec.get('record_type')} {rec.get('name')}"
+                f" [{rec.get('status')}]{detail}"
+            )
+
+
+def cmd_mail_domain_add(args: argparse.Namespace) -> int:
+    body = client_from_config().create_mail_domain(
+        args.domain, description=args.description, quota_mb=args.quota_mb
+    )
+    print(c("✓", "32") + f" mail domain {body.get('domain')} created")
+    if body.get("relay_assigned"):
+        print(c("✓", "32") + " outbound relay assigned (platform ESP)")
+    _print_mail_dns_report(body)
+    return 0
+
+
+def cmd_mail_domain_rm(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("Refusing to delete without --yes (removes the domain and its mailboxes).")
+        return 1
+    result = client_from_config().delete_mail_domain(args.domain)
+    print(c("✓", "32") + f" {result.get('message', 'domain deleted')}")
+    return 0
+
+
+def cmd_mail_mailbox_add(args: argparse.Namespace) -> int:
+    password = getpass.getpass("Mailbox password: ")
+    client_from_config().create_mailbox(
+        args.local_part, args.domain, password=password, name=args.name, quota_mb=args.quota_mb
+    )
+    print(c("✓", "32") + f" mailbox {args.local_part}@{args.domain} created")
+    return 0
+
+
+def cmd_mail_mailbox_rm(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("Refusing to delete without --yes.")
+        return 1
+    client_from_config().delete_mailbox(args.username)
+    print(c("✓", "32") + f" mailbox {args.username} deleted")
+    return 0
+
+
+def cmd_mail_aliases(args: argparse.Namespace) -> int:
+    aliases = client_from_config().mail_aliases(refresh=getattr(args, "refresh", False))
+    if not aliases:
+        print("No aliases.")
+        return 0
+    for alias in aliases:
+        state = "" if alias.get("active") else c(" (inactive)", "90")
+        print(f"  [{alias.get('id')}] {alias.get('address')} → {alias.get('goto')}{state}")
+    return 0
+
+
+def cmd_mail_alias_add(args: argparse.Namespace) -> int:
+    client_from_config().create_mail_alias(args.address, args.goto)
+    print(c("✓", "32") + f" alias {args.address} → {args.goto}")
+    return 0
+
+
+def cmd_mail_alias_rm(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("Refusing to delete without --yes.")
+        return 1
+    client_from_config().delete_mail_alias(args.alias_id)
+    print(c("✓", "32") + f" alias {args.alias_id} deleted")
+    return 0
+
+
+def cmd_mail_dkim(args: argparse.Namespace) -> int:
+    body = client_from_config().mail_dkim(args.domain)
+    if not body.get("dkim_txt"):
+        print("No DKIM key published for this domain yet.")
+        return 1
+    print(f"{body['dkim_name']}  TXT")
+    print(body["dkim_txt"])
+    return 0
+
+
+def cmd_mail_relayhost_list(args: argparse.Namespace) -> int:
+    hosts = client_from_config().list_mail_relayhosts()
+    if not hosts:
+        print("No relayhosts.")
+        return 0
+    for host in hosts:
+        state = "" if host.get("active") else c(" (inactive)", "90")
+        used = f"  → {host['used_by_domains']}" if host.get("used_by_domains") else ""
+        print(f"  [{host.get('id')}] {host.get('hostname')} as {host.get('username')}{state}{used}")
+    return 0
+
+
+def cmd_mail_relayhost_add(args: argparse.Namespace) -> int:
+    password = getpass.getpass("ESP/SMTP password: ")
+    body = client_from_config().create_mail_relayhost(args.hostname, args.username, password)
+    rid = body.get("relayhost_id", 0)
+    print(c("✓", "32") + (f" relayhost created (id {rid})" if rid else " relayhost created"))
+    if rid:
+        print(c(f"  set MAIL_DEFAULT_RELAYHOST_ID={rid} to auto-assign it to new domains", "90"))
+    return 0
+
+
 # ── parser ────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -934,6 +1069,63 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("zone")
     sp.add_argument("file")
     sp.set_defaults(func=cmd_dns_import)
+
+    mail_parser = sub.add_parser("mail", help="manage mail (Mailcow)")
+    mail_parser.add_argument("--refresh", action="store_true")
+    mail_parser.set_defaults(func=cmd_mail)
+    mail = mail_parser.add_subparsers(dest="mail_cmd", required=False)
+    domain = mail.add_parser("domain", help="manage mail domains").add_subparsers(
+        dest="mail_domain_cmd", required=True
+    )
+    sp = domain.add_parser("add", help="create a mail domain (DKIM + DNS automation)")
+    sp.add_argument("domain")
+    sp.add_argument("--description", default="")
+    sp.add_argument("--quota-mb", type=int, default=10240)
+    sp.set_defaults(func=cmd_mail_domain_add)
+    sp = domain.add_parser("rm", help="delete a mail domain")
+    sp.add_argument("domain")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_mail_domain_rm)
+    mailbox = mail.add_parser("mailbox", help="manage mailboxes").add_subparsers(
+        dest="mail_mailbox_cmd", required=True
+    )
+    sp = mailbox.add_parser("add", help="create a mailbox (password prompted, never echoed)")
+    sp.add_argument("local_part")
+    sp.add_argument("domain")
+    sp.add_argument("--name", default="")
+    sp.add_argument("--quota-mb", type=int, default=3072)
+    sp.set_defaults(func=cmd_mail_mailbox_add)
+    sp = mailbox.add_parser("rm", help="delete a mailbox")
+    sp.add_argument("username")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_mail_mailbox_rm)
+    sp = mail.add_parser("aliases", help="list aliases")
+    sp.add_argument("--refresh", action="store_true")
+    sp.set_defaults(func=cmd_mail_aliases)
+    alias = mail.add_parser("alias", help="manage aliases").add_subparsers(
+        dest="mail_alias_cmd", required=True
+    )
+    sp = alias.add_parser("add", help="create an alias")
+    sp.add_argument("address")
+    sp.add_argument("goto")
+    sp.set_defaults(func=cmd_mail_alias_add)
+    sp = alias.add_parser("rm", help="delete an alias by id")
+    sp.add_argument("alias_id", type=int)
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_mail_alias_rm)
+    sp = mail.add_parser("dkim", help="show a domain's DKIM DNS record")
+    sp.add_argument("domain")
+    sp.set_defaults(func=cmd_mail_dkim)
+    relayhost = mail.add_parser("relayhost", help="ESP relay (platform admin)").add_subparsers(
+        dest="mail_relayhost_cmd", required=True
+    )
+    relayhost.add_parser("list", help="list sender-dependent transports").set_defaults(
+        func=cmd_mail_relayhost_list
+    )
+    sp = relayhost.add_parser("add", help="create a sender-dependent transport (password prompted)")
+    sp.add_argument("hostname", help="smtp host:port, e.g. smtp.postmarkapp.com:587")
+    sp.add_argument("username")
+    sp.set_defaults(func=cmd_mail_relayhost_add)
 
     env = sub.add_parser("env", help="manage project env vars").add_subparsers(dest="env_cmd", required=True)
     sp = env.add_parser("list", help="list env vars")

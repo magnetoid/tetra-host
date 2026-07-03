@@ -47,7 +47,11 @@ async def _send_with_retries(
                 data=data,
                 files=files,
             )
-        except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as exc:
+        except httpx.HTTPError as exc:
+            # ALL transport failures (incl. ConnectTimeout/PoolTimeout/WriteTimeout/
+            # ReadError) must surface as ProviderAPIError, never raw — callers'
+            # best-effort paths catch ProviderAPIError only. Nothing here raises
+            # HTTPStatusError (statuses are handled below).
             last_error = exc
             if attempt == max_attempts:
                 break
@@ -99,7 +103,14 @@ async def request_json(
     )
     if not response.content:
         return {}
-    return response.json()
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise ProviderAPIError(
+            service=service,
+            message=f"{service} returned invalid JSON.",
+            status_code=response.status_code,
+        ) from exc
 
 
 async def request_text(

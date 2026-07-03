@@ -363,3 +363,42 @@ Gotchas (verified):
 - Token scope for custom hostnames: Zone > **SSL and Certificates > Edit** (prod token
   must be re-minted; current scopes lack it).
 - Envelope as usual: `{success, result, errors}` — read `result`.
+
+---
+
+## Mailcow API — write operations (verified 2026-07-03)
+
+**Source:** `https://raw.githubusercontent.com/mailcow/mailcow-dockerized/master/data/web/api/openapi.yaml` (authoritative spec shipped inside mailcow-dockerized).
+**Auth:** `X-API-Key: <key>` header. **Base:** `https://<mailcow-host>`.
+
+**Response envelope for add/edit/delete:** JSON **array** of
+`{type: "success"|"danger"|"error", msg: [...], log: [...]}` (the spec sometimes
+declares a bare object — real instances return an array; handle both). A 200 with
+`type: danger|error` is a FAILED operation — must be surfaced as an error.
+
+| Operation | Method + path | Body (key fields) |
+|---|---|---|
+| Create domain | `POST /api/v1/add/domain` | `{domain, description?, active, quota, maxquota, defquota, mailboxes, aliases, restart_sogo, rl_frame?, rl_value?}` (quotas in MiB) |
+| Update domain | `POST /api/v1/edit/domain` | `{items: [domain,...], attr: {…, relayhost: <id>}}` — partial attrs OK; `relayhost` assigns a sender-dependent transport |
+| Delete domain | `POST /api/v1/delete/domain` | JSON array: `["domain.tld", ...]` |
+| Create mailbox | `POST /api/v1/add/mailbox` | `{local_part, domain, name?, password, password2, quota, active, force_pw_update?, tls_enforce_in?, tls_enforce_out?}` |
+| Delete mailbox | `POST /api/v1/delete/mailbox` | JSON array: `["user@domain.tld", ...]` |
+| Create alias | `POST /api/v1/add/alias` | `{address, goto, active}` — `address` `@domain.tld` = catchall; `goto` comma-separated; only one of goto/goto_ham/goto_null/goto_spam |
+| Delete alias | `POST /api/v1/delete/alias` | JSON array of alias **ids** as strings: `["6"]` |
+| List aliases | `GET /api/v1/get/alias/all` | (the `{id}` routes accept `all` — same convention our `get/domain/all` read already uses) |
+| Get DKIM | `GET /api/v1/get/dkim/{domain}` | → `{dkim_selector, dkim_txt, length, pubkey, privkey:""}` — `dkim_txt` is the TXT record CONTENT; record NAME is `{dkim_selector}._domainkey.{domain}` |
+| Generate DKIM | `POST /api/v1/add/dkim` | `{domains, dkim_selector (default "dkim"), key_size (1024/2048/3072/4096)}` |
+| Delete DKIM | `POST /api/v1/delete/dkim` | JSON array: `["domain.tld"]` |
+| Create relayhost | `POST /api/v1/add/relayhost` | `{hostname: "smtp.esp.tld:587", username, password}` — "Sender-Dependent Transports" |
+| List relayhosts | `GET /api/v1/get/relayhost/all` | → entries carry `id` used by `edit/domain attr.relayhost` |
+| Delete relayhost | `POST /api/v1/delete/relayhost` | JSON array of ids |
+
+### Gotchas
+
+- **HTTP 200 ≠ success** — always inspect the envelope `type`.
+- Numeric fields are commonly sent/returned as **strings** ("1", "3072") — normalize.
+- Mailbox creation requires `password` AND `password2` (confirmation).
+- ESP relay pattern: `add/relayhost` once (platform credential), then per-domain
+  `edit/domain {attr: {relayhost: <id>}}` — outbound for that domain routes via the ESP.
+- DKIM: generate at domain creation; publish `dkim_txt` at
+  `{selector}._domainkey.{domain}` TXT. mailcow does NOT publish DNS itself.

@@ -172,6 +172,81 @@ _TOOLS: list[dict[str, Any]] = [
             a["project"], a["key"], a["value"], is_secret=bool(a.get("is_secret", False))
         ),
     },
+    {
+        "name": "mail_overview",
+        "description": "List the tenant's mail domains and mailboxes (Mailcow inventory).",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.mail(),
+    },
+    {
+        "name": "list_mail_aliases",
+        "description": "List the tenant's mail aliases.",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.mail_aliases(),
+    },
+    {
+        "name": "get_mail_dkim",
+        "description": "Get the DKIM DNS record (name + TXT content) for a mail domain.",
+        "inputSchema": _schema(
+            {"domain": {"type": "string", "description": "Mail domain"}}, ["domain"]
+        ),
+        "write": False,
+        "handler": lambda c, a: c.mail_dkim(a["domain"]),
+    },
+    {
+        "name": "create_mail_domain",
+        "description": "Create a mail domain — provisions DKIM and MX/SPF/DMARC DNS automatically.",
+        "inputSchema": _schema(
+            {
+                "domain": {"type": "string", "description": "Fully qualified mail domain"},
+                "description": {"type": "string"},
+                **_CONFIRM,
+            },
+            ["domain", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.create_mail_domain(
+            a["domain"], description=str(a.get("description", ""))
+        ),
+    },
+    {
+        "name": "delete_mail_domain",
+        "description": "Delete a mail domain and unregister its mailboxes (DNS records are kept).",
+        "inputSchema": _schema(
+            {"domain": {"type": "string", "description": "Mail domain"}, **_CONFIRM},
+            ["domain", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.delete_mail_domain(a["domain"]),
+    },
+    {
+        "name": "create_mail_alias",
+        "description": "Create a mail alias (address → goto) on a domain the tenant owns.",
+        "inputSchema": _schema(
+            {
+                "address": {"type": "string", "description": "Alias address (or @domain catchall)"},
+                "goto": {"type": "string", "description": "Destination address(es), comma-separated"},
+                **_CONFIRM,
+            },
+            ["address", "goto", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.create_mail_alias(a["address"], a["goto"]),
+    },
+    {
+        "name": "delete_mail_alias",
+        "description": "Delete a mail alias by id.",
+        "inputSchema": _schema(
+            {"alias_id": {"type": "integer", "description": "Alias id"}, **_CONFIRM},
+            ["alias_id", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.delete_mail_alias(int(a["alias_id"])),
+    },
+    # Mailbox creation is deliberately NOT exposed over MCP: it would put a mailbox
+    # password into the model's context/transcript. Use `tetra mail mailbox add`.
 ]
 
 
@@ -248,6 +323,10 @@ class MCPServer:
             return _tool_error(str(exc))
         except KeyError as exc:
             return _tool_error(f"Missing required argument: {exc.args[0]}")
+        except (ValueError, TypeError) as exc:
+            # Bad-typed arguments (e.g. a non-numeric alias_id) must come back as a
+            # tool error, not kill the stdio loop.
+            return _tool_error(f"Invalid argument: {exc}")
         text = payload if isinstance(payload, str) else json.dumps(payload, indent=2, default=str)
         return {"content": [{"type": "text", "text": text}], "isError": False}
 

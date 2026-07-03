@@ -16,7 +16,7 @@ from app.models.tenant_resource import (
 )
 from app.services.cloudflare import CloudflareDNSRecord, CloudflareZone
 from app.services.coolify import CoolifyApplication, CoolifyDatabase, CoolifyServer
-from app.services.mailcow import MailcowDomain, MailcowMailbox
+from app.services.mailcow import MailcowAlias, MailcowDomain, MailcowMailbox
 
 
 class TenantResourceFilter:
@@ -90,6 +90,16 @@ class TenantResourceFilter:
             if mailbox.username in mapped_mailboxes or mailbox.domain in allowed_domains
         ]
         return filtered_domains, filtered_mailboxes
+
+    async def filter_aliases(self, aliases: list[MailcowAlias]) -> list[MailcowAlias]:
+        """Aliases are scoped by their domain — an alias is visible iff its domain is
+        mapped to the tenant (there is no per-alias TenantResource type)."""
+        if await self._fall_open():
+            return aliases
+        mapped_domains = await self._mapped_values(
+            provider=PROVIDER_MAILCOW, resource_type=RESOURCE_TYPE_MAIL_DOMAIN
+        )
+        return [alias for alias in aliases if alias.domain in mapped_domains]
 
     async def filter_dns(
         self,

@@ -5,7 +5,23 @@ from pydantic import BaseModel, ConfigDict
 
 from app.cache import TTLCache
 from app.config import get_settings
-from app.services.http import request_json
+from app.services.http import ProviderAPIError, request_json
+
+# Write-op envelope: mailcow answers HTTP 200 with [{type: success|danger|error, msg, log}]
+# (occasionally a bare object) — a 200 "danger"/"error" is a FAILED operation.
+_FAILURE_TYPES = {"danger", "error"}
+
+_CACHE_KEYS = ("mailcow:domains", "mailcow:mailboxes", "mailcow:aliases")
+
+
+def _failure_message(payload: Any) -> str | None:
+    items = payload if isinstance(payload, list) else [payload]
+    for item in items:
+        if isinstance(item, dict) and item.get("type") in _FAILURE_TYPES:
+            msg = item.get("msg")
+            text = " ".join(str(part) for part in msg) if isinstance(msg, list) else str(msg or "")
+            return text or "Mailcow rejected the operation."
+    return None
 
 
 class MailcowDomain(BaseModel):
@@ -35,6 +51,27 @@ def normalize_domain(raw: dict[str, Any]) -> MailcowDomain:
         mailboxes=int(raw.get("max_num_mboxes_for_domain") or raw.get("mboxes_in_domain") or 0),
         aliases=int(raw.get("max_num_aliases_for_domain") or raw.get("aliases_in_domain") or 0),
         quota_bytes=int(raw.get("maxquota") or raw.get("defquota") or 0),
+        active=str(raw.get("active", "1")) in {"1", "true", "True"},
+    )
+
+
+class MailcowAlias(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: int
+    address: str
+    goto: str = ""
+    domain: str = ""
+    active: bool = True
+
+
+def normalize_alias(raw: dict[str, Any]) -> MailcowAlias:
+    address = str(raw.get("address") or "")
+    return MailcowAlias(
+        id=int(raw.get("id") or 0),
+        address=address,
+        goto=str(raw.get("goto") or ""),
+        domain=address.split("@", 1)[-1] if "@" in address else str(raw.get("domain") or ""),
         active=str(raw.get("active", "1")) in {"1", "true", "True"},
     )
 
@@ -133,4 +170,158 @@ class MailcowClient:
             "mailcow:mailboxes",
             settings.provider_cache_ttl_seconds,
             fetch,
+        )
+
+    async def list_aliases(self, refresh: bool = False) -> list[MailcowAlias]:
+        if not self.is_configured():
+            return []
+
+        settings = get_settings()
+
+        async def fetch() -> list[MailcowAlias]:
+            payload = await request_json(
+                self.http_client,
+                service="Mailcow",
+                method="GET",
+                url=f"{self.base_url}/api/v1/get/alias/all",
+                headers=self.headers(),
+            )
+            return [normalize_alias(item) for item in payload]
+
+        if refresh:
+            await self.cache.delete("mailcow:aliases")
+        return await self.cache.get_or_set(
+            "mailcow:aliases", settings.provider_cache_ttl_seconds, fetch
+        )
+
+    # ── Write operations (Phase 2) ──────────────────────────────────────────
+    # Shapes verified against mailcow's shipped openapi.yaml — see
+    # docs/providers/combined-api-reference.md. Unlike reads (which degrade to
+    # empty lists), writes on an unconfigured client are an error.
+
+    def _require_configured(self) -> None:
+        if not self.is_configured():
+            raise ProviderAPIError(
+                service="Mailcow", message="Mailcow is not configured.", status_code=503
+            )
+
+    async def _write(self, path: str, body: Any) -> Any:
+        self._require_configured()
+        payload = await request_json(
+            self.http_client,
+            service="Mailcow",
+            method="POST",
+            url=f"{self.base_url}/api/v1/{path}",
+            headers=self.headers(),
+            json_body=body,
+        )
+        failure = _failure_message(payload)
+        if failure:
+            raise ProviderAPIError(service="Mailcow", message=failure, status_code=422)
+        for key in _CACHE_KEYS:
+            await self.cache.delete(key)
+        return payload
+
+    async def create_domain(
+        self,
+        domain: str,
+        *,
+        description: str = "",
+        quota_mb: int = 10240,
+        max_quota_mb: int = 10240,
+        def_quota_mb: int = 3072,
+        max_mailboxes: int = 10,
+        max_aliases: int = 400,
+    ) -> Any:
+        return await self._write(
+            "add/domain",
+            {
+                "domain": domain,
+                "description": description,
+                "active": "1",
+                "quota": str(quota_mb),
+                "maxquota": str(max_quota_mb),
+                "defquota": str(def_quota_mb),
+                "mailboxes": str(max_mailboxes),
+                "aliases": str(max_aliases),
+                "restart_sogo": "1",
+            },
+        )
+
+    async def delete_domain(self, domain: str) -> Any:
+        return await self._write("delete/domain", [domain])
+
+    async def create_mailbox(
+        self,
+        local_part: str,
+        domain: str,
+        *,
+        password: str,
+        name: str = "",
+        quota_mb: int = 3072,
+        force_pw_update: bool = False,
+    ) -> Any:
+        return await self._write(
+            "add/mailbox",
+            {
+                "local_part": local_part,
+                "domain": domain,
+                "name": name,
+                "password": password,
+                "password2": password,
+                "quota": str(quota_mb),
+                "active": "1",
+                "force_pw_update": "1" if force_pw_update else "0",
+            },
+        )
+
+    async def delete_mailbox(self, username: str) -> Any:
+        return await self._write("delete/mailbox", [username])
+
+    async def create_alias(self, address: str, goto: str) -> Any:
+        return await self._write("add/alias", {"address": address, "goto": goto, "active": "1"})
+
+    async def delete_alias(self, alias_id: int | str) -> Any:
+        return await self._write("delete/alias", [str(alias_id)])
+
+    async def get_dkim(self, domain: str) -> dict[str, Any]:
+        self._require_configured()
+        payload = await request_json(
+            self.http_client,
+            service="Mailcow",
+            method="GET",
+            url=f"{self.base_url}/api/v1/get/dkim/{domain}",
+            headers=self.headers(),
+        )
+        return payload if isinstance(payload, dict) else {}
+
+    async def generate_dkim(
+        self, domain: str, *, selector: str = "dkim", key_size: int = 2048
+    ) -> Any:
+        return await self._write(
+            "add/dkim",
+            {"domains": domain, "dkim_selector": selector, "key_size": str(key_size)},
+        )
+
+    async def create_relayhost(self, hostname: str, username: str, password: str) -> Any:
+        return await self._write(
+            "add/relayhost",
+            {"hostname": hostname, "username": username, "password": password},
+        )
+
+    async def list_relayhosts(self) -> list[dict[str, Any]]:
+        self._require_configured()
+        payload = await request_json(
+            self.http_client,
+            service="Mailcow",
+            method="GET",
+            url=f"{self.base_url}/api/v1/get/relayhost/all",
+            headers=self.headers(),
+        )
+        return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
+
+    async def assign_relayhost(self, domain: str, relayhost_id: int | str) -> Any:
+        return await self._write(
+            "edit/domain",
+            {"items": [domain], "attr": {"relayhost": str(relayhost_id)}},
         )

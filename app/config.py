@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     # Shared external Docker network the Caddy edge is attached to. Empty = edge disabled
     # (apps still deploy, just not routed). See app/services/edge.py.
     edge_network: str = ""
+    # Mail platform (Phase 2, ADR 0015). MAIL_HOSTNAME is the MX target (the dedicated
+    # Mailcow host FQDN) — empty skips the MX record in DNS automation. SPF/DMARC
+    # contents are configurable so an ESP include can be added. A non-zero
+    # MAIL_DEFAULT_RELAYHOST_ID auto-assigns that mailcow relayhost (ESP sender-
+    # dependent transport) to every newly created mail domain.
+    mail_hostname: str = ""
+    mail_spf_record: str = "v=spf1 mx ~all"
+    mail_dmarc_record: str = "v=DMARC1; p=quarantine"
+    mail_default_relayhost_id: int = 0
+
     # Image registry for rollback durability (ADR 0014). Empty = disabled: built images
     # stay local-only and rollback depends on them not being pruned. Set a host:port
     # (e.g. 127.0.0.1:5000, see scripts/install-registry.sh) to push every successful
@@ -120,6 +130,15 @@ class Settings(BaseSettings):
     @classmethod
     def strip_provider_urls(cls, value: str) -> str:
         return value.rstrip("/") if isinstance(value, str) else value
+
+    @field_validator("mail_default_relayhost_id", "registry_keep_images", mode="before")
+    @classmethod
+    def blank_int_means_default(cls, value: object) -> object:
+        # Operators commonly leave optional int vars blank in .env / systemd
+        # EnvironmentFile; a bare "" must mean "unset", not a boot-time crash.
+        if value in ("", None):
+            return 0
+        return value
 
     @field_validator("allowed_hosts_raw", "deploy_notify_enabled_events_raw")
     @classmethod

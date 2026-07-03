@@ -48,8 +48,18 @@ from app.api.contracts import (
     EnvVarCreateRequest,
     GitDeployRequest,
     InstalledAppSummary,
+    MailAliasCreateRequest,
+    MailAliasSummary,
+    MailboxCreateRequest,
     MailboxSummary,
+    MailDkimResponse,
+    MailDnsRecordReport,
+    MailDomainCreateRequest,
+    MailDomainCreateResponse,
     MailDomainSummary,
+    MailRelayhostCreateRequest,
+    MailRelayhostCreateResponse,
+    MailRelayhostSummary,
     MailResponse,
     PlanCreateRequest,
     PlanSummary,
@@ -779,6 +789,197 @@ async def api_mail(
         domains=[MailDomainSummary(**domain.model_dump()) for domain in domains],
         mailboxes=[MailboxSummary(**mailbox.model_dump()) for mailbox in mailboxes],
     )
+
+
+@router.post("/mail/domains", response_model=MailDomainCreateResponse)
+async def api_create_mail_domain(
+    payload: MailDomainCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> MailDomainCreateResponse:
+    service = MailService(request)
+    try:
+        result = await service.create_domain_for_tenant(
+            session, current_admin.tenant_id, payload.domain,
+            description=payload.description, quota_mb=payload.quota_mb,
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return MailDomainCreateResponse(
+        domain=result["domain"],
+        dkim_name=result["dkim_name"],
+        dkim_txt=result["dkim_txt"],
+        relay_assigned=result["relay_assigned"],
+        dns_zone=result["dns_zone"],
+        dns_records=[MailDnsRecordReport(**record) for record in result["dns_records"]],
+    )
+
+
+@router.delete("/mail/domains/{domain}", response_model=ActionResponse)
+async def api_delete_mail_domain(
+    domain: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.delete_domain_for_tenant(session, current_admin.tenant_id, domain)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(
+        message=f"Mail domain {domain} deleted. DNS records were left in place — "
+        "remove MX/SPF/DKIM/DMARC manually if the domain is retired."
+    )
+
+
+@router.post("/mail/mailboxes", response_model=ActionResponse)
+async def api_create_mailbox(
+    payload: MailboxCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        username = await service.create_mailbox_for_tenant(
+            session, current_admin.tenant_id,
+            local_part=payload.local_part, domain=payload.domain,
+            password=payload.password, name=payload.name, quota_mb=payload.quota_mb,
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Mailbox {username} created.")
+
+
+@router.delete("/mail/mailboxes/{username}", response_model=ActionResponse)
+async def api_delete_mailbox(
+    username: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.delete_mailbox_for_tenant(session, current_admin.tenant_id, username)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Mailbox {username} deleted.")
+
+
+@router.get("/mail/aliases", response_model=list[MailAliasSummary])
+async def api_mail_aliases(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[MailAliasSummary]:
+    service = MailService(request)
+    try:
+        aliases = await service.aliases_for_tenant(
+            session, current_admin.tenant_id,
+            refresh=request.query_params.get("refresh") == "1",
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return [MailAliasSummary(**alias.model_dump()) for alias in aliases]
+
+
+@router.post("/mail/aliases", response_model=ActionResponse)
+async def api_create_mail_alias(
+    payload: MailAliasCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.create_alias_for_tenant(
+            session, current_admin.tenant_id, address=payload.address, goto=payload.goto
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Alias {payload.address} → {payload.goto} created.")
+
+
+@router.delete("/mail/aliases/{alias_id}", response_model=ActionResponse)
+async def api_delete_mail_alias(
+    alias_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.delete_alias_for_tenant(session, current_admin.tenant_id, alias_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Alias {alias_id} deleted.")
+
+
+@router.get("/mail/domains/{domain}/dkim", response_model=MailDkimResponse)
+async def api_mail_dkim(
+    domain: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> MailDkimResponse:
+    service = MailService(request)
+    try:
+        dkim = await service.dkim_for_tenant(session, current_admin.tenant_id, domain)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return MailDkimResponse(**dkim)
+
+
+@router.get("/mail/relayhosts", response_model=list[MailRelayhostSummary])
+async def api_list_mail_relayhosts(
+    request: Request,
+    _: AdminUser = Depends(require_platform_admin),
+) -> list[MailRelayhostSummary]:
+    service = MailService(request)
+    try:
+        hosts = await service.list_relayhosts()
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return [MailRelayhostSummary(**host) for host in hosts]
+
+
+@router.post("/mail/relayhosts", response_model=MailRelayhostCreateResponse)
+async def api_create_mail_relayhost(
+    payload: MailRelayhostCreateRequest,
+    request: Request,
+    _: AdminUser = Depends(require_platform_admin),
+) -> MailRelayhostCreateResponse:
+    """ESP relay credentials are a platform secret — platform admins only."""
+    service = MailService(request)
+    try:
+        relayhost_id = await service.create_relayhost(
+            hostname=payload.hostname, username=payload.username, password=payload.password
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return MailRelayhostCreateResponse(relayhost_id=relayhost_id)
 
 
 @router.get("/dns", response_model=DNSResponse)

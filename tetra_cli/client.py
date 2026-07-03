@@ -387,3 +387,65 @@ class TetraClient:
     # ── Usage ─────────────────────────────────────────────────────────────
     def usage(self) -> Any:
         return self._request("GET", "/usage")
+
+    # ── Mail (Phase 2) ────────────────────────────────────────────────────
+    def mail(self, refresh: bool = False) -> Any:
+        return self._request("GET", "/mail", params={"refresh": "1"} if refresh else None)
+
+    def create_mail_domain(
+        self, domain: str, *, description: str = "", quota_mb: int = 10240
+    ) -> Any:
+        return self._request(
+            "POST",
+            "/mail/domains",
+            json_body={"domain": domain, "description": description, "quota_mb": quota_mb},
+        )
+
+    def delete_mail_domain(self, domain: str) -> Any:
+        return self._request("DELETE", f"/mail/domains/{domain}")
+
+    def create_mailbox(
+        self,
+        local_part: str,
+        domain: str,
+        *,
+        password: str,
+        name: str = "",
+        quota_mb: int = 3072,
+    ) -> Any:
+        return self._request(
+            "POST",
+            "/mail/mailboxes",
+            json_body={
+                "local_part": local_part,
+                "domain": domain,
+                "password": password,
+                "name": name,
+                "quota_mb": quota_mb,
+            },
+        )
+
+    def delete_mailbox(self, username: str) -> Any:
+        return self._request("DELETE", f"/mail/mailboxes/{username}")
+
+    def mail_aliases(self, refresh: bool = False) -> Any:
+        return self._request("GET", "/mail/aliases", params={"refresh": "1"} if refresh else None)
+
+    def create_mail_alias(self, address: str, goto: str) -> Any:
+        return self._request("POST", "/mail/aliases", json_body={"address": address, "goto": goto})
+
+    def delete_mail_alias(self, alias_id: int | str) -> Any:
+        return self._request("DELETE", f"/mail/aliases/{alias_id}")
+
+    def mail_dkim(self, domain: str) -> Any:
+        return self._request("GET", f"/mail/domains/{domain}/dkim")
+
+    def list_mail_relayhosts(self) -> Any:
+        return self._request("GET", "/mail/relayhosts")
+
+    def create_mail_relayhost(self, hostname: str, username: str, password: str) -> Any:
+        return self._request(
+            "POST",
+            "/mail/relayhosts",
+            json_body={"hostname": hostname, "username": username, "password": password},
+        )

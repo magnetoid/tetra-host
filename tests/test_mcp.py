@@ -211,3 +211,63 @@ def test_call_explain_deployment_hits_endpoint():
     )
     assert response["result"]["isError"] is False
     assert "No Dockerfile" in response["result"]["content"][0]["text"]
+
+
+# ── Mail tools (Phase 2) ────────────────────────────────────────────────────
+
+
+def test_mail_tools_read_write_split():
+    server = MCPServer(_noop_client(), allow_writes=True)
+    tools = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert {"mail_overview", "list_mail_aliases", "get_mail_dkim"} <= tools
+    assert {"create_mail_domain", "delete_mail_domain", "create_mail_alias", "delete_mail_alias"} <= tools
+    # Mailbox creation is deliberately absent: passwords must not transit MCP.
+    assert not any("mailbox" in name for name in tools)
+
+
+def test_create_mail_domain_write_gated():
+    server = MCPServer(_noop_client())  # read-only
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "create_mail_domain",
+                            "arguments": {"domain": "acme.test", "confirm": True}})
+    )
+    assert response["result"]["isError"] is True
+
+
+def test_confirmed_create_mail_domain_calls_endpoint():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST" and request.url.path == "/api/v1/mail/domains"
+        assert json.loads(request.content)["domain"] == "acme.test"
+        return httpx.Response(200, json={"domain": "acme.test", "dns_records": []})
+
+    server = MCPServer(make_client(handler), allow_writes=True)
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "create_mail_domain",
+                            "arguments": {"domain": "acme.test", "confirm": True}})
+    )
+    assert response["result"].get("isError") is not True
+
+
+def test_get_mail_dkim_is_read_tool():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/mail/domains/acme.test/dkim"
+        return httpx.Response(200, json={"domain": "acme.test", "dkim_name": "n", "dkim_txt": "t"})
+
+    server = MCPServer(make_client(handler))  # read-only server can still call it
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "get_mail_dkim", "arguments": {"domain": "acme.test"}})
+    )
+    assert response["result"].get("isError") is not True
+
+
+def test_bad_typed_argument_is_tool_error_not_crash():
+    server = MCPServer(_noop_client(), allow_writes=True)
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "delete_mail_alias",
+                            "arguments": {"alias_id": "six", "confirm": True}})
+    )
+    result = response["result"]
+    assert result["isError"] is True
+    assert "Invalid argument" in result["content"][0]["text"]
+    # The server must still answer subsequent calls (loop survives).
+    assert server.handle_message(_rpc("ping"))["result"] == {}

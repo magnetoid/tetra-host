@@ -766,3 +766,95 @@ def test_main_ai_explain_renders(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert "Dependency conflict" in out and "commit a lockfile" in out and "ERESOLVE" in out
+
+
+# ── Mail (Phase 2) ──────────────────────────────────────────────────────────
+
+
+def test_create_mail_domain_posts_contract_shape():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST" and request.url.path == "/api/v1/mail/domains"
+        body = json.loads(request.content)
+        assert body == {"domain": "acme.test", "description": "Acme", "quota_mb": 10240}
+        return httpx.Response(
+            200,
+            json={
+                "domain": "acme.test", "dkim_name": "dkim._domainkey.acme.test",
+                "dkim_txt": "v=DKIM1;p=X", "relay_assigned": True,
+                "dns_zone": "acme.test", "dns_records": [],
+            },
+        )
+
+    body = make_client(handler).create_mail_domain("acme.test", description="Acme")
+    assert body["relay_assigned"] is True
+
+
+def test_delete_mail_domain_and_mailbox_paths():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        return httpx.Response(200, json={"ok": True, "message": "gone"})
+
+    client = make_client(handler)
+    client.delete_mail_domain("acme.test")
+    client.delete_mailbox("info@acme.test")
+    assert ("DELETE", "/api/v1/mail/domains/acme.test") in seen
+    assert ("DELETE", "/api/v1/mail/mailboxes/info@acme.test") in seen
+
+
+def test_create_mailbox_sends_password_in_body_only():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/mail/mailboxes"
+        body = json.loads(request.content)
+        assert body["local_part"] == "info" and body["password"] == "s3cret-pw"
+        return httpx.Response(200, json={"ok": True, "message": "created"})
+
+    make_client(handler).create_mailbox("info", "acme.test", password="s3cret-pw")
+
+
+def test_mail_alias_and_dkim_paths():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.url.path.endswith("/dkim"):
+            return httpx.Response(200, json={"domain": "acme.test", "dkim_name": "n", "dkim_txt": "t"})
+        return httpx.Response(200, json=[])
+
+    client = make_client(handler)
+    client.mail_aliases()
+    client.create_mail_alias("sales@acme.test", "info@acme.test")
+    client.delete_mail_alias(6)
+    client.mail_dkim("acme.test")
+    assert ("GET", "/api/v1/mail/aliases") in seen
+    assert ("POST", "/api/v1/mail/aliases") in seen
+    assert ("DELETE", "/api/v1/mail/aliases/6") in seen
+    assert ("GET", "/api/v1/mail/domains/acme.test/dkim") in seen
+
+
+def test_create_mail_relayhost_path():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST" and request.url.path == "/api/v1/mail/relayhosts"
+        body = json.loads(request.content)
+        assert body["hostname"] == "smtp.postmarkapp.com:587"
+        return httpx.Response(200, json={"ok": True, "relayhost_id": 3})
+
+    body = make_client(handler).create_mail_relayhost("smtp.postmarkapp.com:587", "u", "p")
+    assert body["relayhost_id"] == 3
+
+
+def test_mail_aliases_refresh_param():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params.get("refresh") == "1"
+        return httpx.Response(200, json=[])
+
+    make_client(handler).mail_aliases(refresh=True)
+
+
+def test_list_mail_relayhosts_path():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET" and request.url.path == "/api/v1/mail/relayhosts"
+        return httpx.Response(200, json=[{"id": 3, "hostname": "h", "username": "u"}])
+
+    assert make_client(handler).list_mail_relayhosts()[0]["id"] == 3
