@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { DeployLogStream } from "@/components/deploys/deploy-log-stream"
+import { ExplainButton } from "@/components/deploys/explain-button"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -137,7 +138,7 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
               key={deployment.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{deployment.project}</span>
                   <StatusBadge value={deployment.status} />
@@ -181,6 +182,11 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
                   </Button>
                 ) : null}
               </div>
+              {deployment.status === "error" ? (
+                <div className="mt-1 w-full">
+                  <ExplainButton deploymentId={deployment.id} />
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

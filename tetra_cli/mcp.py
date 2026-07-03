@@ -68,6 +68,17 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.deploy_status(a["deployment_id"]),
     },
     {
+        "name": "explain_deployment",
+        "description": "Diagnose a deployment's build/run outcome and get suggested fixes "
+                       "(heuristic analysis, AI-enriched when configured) — use this to explain a failed build.",
+        "inputSchema": _schema(
+            {"deployment_id": {"type": "string", "description": "Deployment id"}},
+            ["deployment_id"],
+        ),
+        "write": False,
+        "handler": lambda c, a: c.explain_deployment(a["deployment_id"]),
+    },
+    {
         "name": "app_logs",
         "description": "Runtime container logs for an app.",
         "inputSchema": _schema(_project_arg("App/project name"), ["project"]),

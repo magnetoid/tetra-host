@@ -231,6 +231,9 @@ class TetraClient:
     def native_deploys(self) -> Any:
         return self._request("GET", "/deploys")
 
+    def explain_deployment(self, deployment_id: str) -> Any:
+        return self._request("GET", f"/deploys/{deployment_id}/explain")
+
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 

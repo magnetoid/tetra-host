@@ -688,6 +688,28 @@ def cmd_mcp_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ai_explain(args: argparse.Namespace) -> int:
+    d = client_from_config().explain_deployment(args.deployment_id)
+    if not isinstance(d, dict):
+        return die("could not fetch diagnosis")
+    tint = {"high": "32", "medium": "33", "low": "90"}.get(d.get("confidence", ""), "90")
+    print(c(f"◆ {d.get('summary', '')}", "1;36"))
+    print(f"  category:   {d.get('category', '')}"
+          f"   confidence: {c(d.get('confidence', ''), tint)}"
+          f"   via {d.get('source', '')}")
+    causes = d.get("likely_causes") or []
+    if causes:
+        print(c("  likely causes:", "1"))
+        for cause in causes:
+            print(f"    • {cause}")
+    fixes = d.get("suggested_fixes") or []
+    if fixes:
+        print(c("  suggested fixes:", "1;32"))
+        for fix in fixes:
+            print(f"    → {fix}")
+    return 0
+
+
 def cmd_deploys_rollback(args: argparse.Namespace) -> int:
     result = client_from_config().rollback_deploy(args.deployment_id)
     new_id = result.get("deployment_id", "") if isinstance(result, dict) else ""
@@ -1089,6 +1111,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--allow-writes", dest="allow_writes", action="store_true",
                     help="expose write tools (each call still requires confirm=true)")
     sp.set_defaults(func=cmd_mcp_serve)
+
+    ai = sub.add_parser("ai", help="AI-assisted operations").add_subparsers(
+        dest="ai_cmd", required=True
+    )
+    sp = ai.add_parser("explain", help="explain a deployment's build outcome + suggest fixes")
+    sp.add_argument("deployment_id")
+    sp.set_defaults(func=cmd_ai_explain)
 
     previews = sub.add_parser(
         "previews", help="per-branch preview environments"

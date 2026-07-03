@@ -366,6 +366,19 @@ class DeployHookSummary(BaseModel):
     previews: bool = True
 
 
+class BuildDiagnosis(BaseModel):
+    """AI/heuristic diagnosis of a deployment's build outcome (``tetra ai explain``)."""
+
+    deployment_id: str
+    status: str
+    summary: str
+    category: str
+    likely_causes: list[str] = []
+    suggested_fixes: list[str] = []
+    confidence: str  # low | medium | high
+    source: str  # heuristic | ai
+
+
 class PreviewSummary(BaseModel):
     """A live per-branch preview environment (its own stack + subdomain)."""
 

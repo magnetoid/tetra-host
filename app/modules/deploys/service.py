@@ -11,6 +11,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 from secrets import token_hex
+from typing import TYPE_CHECKING
 
 import yaml
 from fastapi import Request
@@ -35,8 +36,15 @@ from app.services.limits import apply_resource_limits
 from app.services.quota import Allocation, QuotaService
 from app.services.secrets import decrypt, encrypt
 
+if TYPE_CHECKING:
+    from app.services.build_diagnostics import BuildDiagnoser
+
 
 _TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
+
+# Sentinel so explain_deployment can distinguish "use the default AI diagnoser" from an
+# explicit diagnoser=None (heuristic-only).
+_UNSET = object()
 
 # fetch() -> (status, log_text) for the deployment, or None if it is gone/inaccessible.
 DeploymentFetch = Callable[[], Awaitable[tuple[str, str] | None]]
@@ -634,6 +642,45 @@ class DeploysService:
         if deployment is not None and deployment.tenant_id == (tenant_id or ""):
             return deployment
         return None
+
+    async def diagnose_deployment(
+        self, deployment: Deployment, *, diagnoser: "BuildDiagnoser | None | object" = _UNSET
+    ):
+        """Diagnose an already-loaded deployment row (heuristic + optional AI enrichment).
+
+        The offline heuristic always runs. AI enrichment is attempted only for *failed*
+        deployments (a success has nothing to diagnose) and is best-effort — any error
+        falls back to the heuristic, so this never raises on the AI path. Pass
+        ``diagnoser=None`` to force heuristic-only.
+        """
+        from app.services.build_diagnostics import analyze_build_log, anthropic_diagnoser
+
+        heuristic = analyze_build_log(
+            deployment.log, status=deployment.status, error=deployment.error
+        )
+        fn = anthropic_diagnoser if diagnoser is _UNSET else diagnoser
+        # AI only makes sense for real failures; the heuristic already answers non-failures.
+        if fn is None or deployment.status != STATUS_ERROR:
+            return heuristic
+        try:
+            ai = await fn(deployment.log, deployment.status, deployment.error)
+        except Exception:  # AI enrichment is best-effort — never fail the endpoint
+            return heuristic
+        return ai or heuristic
+
+    async def explain_deployment(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        deployment_id: str,
+        *,
+        diagnoser: "BuildDiagnoser | None | object" = _UNSET,
+    ):
+        """Tenant-scoped diagnosis: load the deployment, then diagnose it (or None if absent)."""
+        deployment = await self.get_deployment_for_tenant(session, tenant_id, deployment_id)
+        if deployment is None:
+            return None
+        return await self.diagnose_deployment(deployment, diagnoser=diagnoser)
 
     async def list_deployments_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, limit: int = 20

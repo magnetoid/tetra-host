@@ -191,3 +191,23 @@ def test_serve_stdio_skips_malformed_lines():
     serve_stdio(_noop_client(), stdin=io.StringIO(lines), stdout=stdout)
     [response] = [json.loads(line) for line in stdout.getvalue().strip().split("\n")]
     assert response["id"] == 3 and response["result"] == {}
+
+
+def test_explain_deployment_is_a_read_tool():
+    server = MCPServer(_noop_client())
+    names = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert "explain_deployment" in names  # available without --allow-writes
+
+
+def test_call_explain_deployment_hits_endpoint():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/deploys/dep-9/explain"
+        return httpx.Response(200, json={"summary": "No Dockerfile", "category": "build-config",
+                                         "source": "heuristic"})
+
+    server = MCPServer(make_client(handler))
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "explain_deployment", "arguments": {"deployment_id": "dep-9"}})
+    )
+    assert response["result"]["isError"] is False
+    assert "No Dockerfile" in response["result"]["content"][0]["text"]

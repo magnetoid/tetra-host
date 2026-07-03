@@ -39,6 +39,7 @@ import {
   faTriangleExclamation,
   faUsers,
   faUserShield,
+  faWandSparkles,
 } from "@fortawesome/free-solid-svg-icons"
 
 export {
@@ -78,4 +79,5 @@ export {
   faTriangleExclamation,
   faUsers,
   faUserShield,
+  faWandSparkles,
 }

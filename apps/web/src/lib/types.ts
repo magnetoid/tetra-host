@@ -393,6 +393,17 @@ export interface AppEnvVar {
   is_build_time: boolean
 }
 
+export interface BuildDiagnosis {
+  deployment_id: string
+  status: string
+  summary: string
+  category: string
+  likely_causes: string[]
+  suggested_fixes: string[]
+  confidence: "low" | "medium" | "high" | string
+  source: "heuristic" | "ai" | string
+}
+
 export interface DeployHook {
   id: string
   project: string

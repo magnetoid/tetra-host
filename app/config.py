@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     glitchtip_token: str = ""
     glitchtip_org: str = ""
 
+    # AI-assisted build-failure diagnosis ("tetra ai explain", ADR 0013). Empty key =
+    # the deterministic heuristic analyzer only (no LLM). When set, failed-build logs are
+    # sent to the Anthropic Messages API for a richer diagnosis (best-effort, falls back
+    # to the heuristic on any error). See app/services/build_diagnostics.py.
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-opus-4-8"
+
     # Tetra Engine — independent Docker-native deployment (see docs/architecture/tetra-engine.md).
     docker_bin: str = "docker"
     nixpacks_bin: str = "nixpacks"

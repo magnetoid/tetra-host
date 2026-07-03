@@ -26,6 +26,7 @@ from app.api.contracts import (
     AppTemplateSummary,
     AuditEventSummary,
     AuthResponse,
+    BuildDiagnosis,
     BackupConfigSummary,
     BackupCreateRequest,
     CachePurgeRequest,
@@ -1233,6 +1234,31 @@ async def api_deploy_status(
     if deployment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
     return _deployment_status(deployment)
+
+
+@router.get("/deploys/{deployment_id}/explain", response_model=BuildDiagnosis)
+async def api_explain_deploy(
+    deployment_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> BuildDiagnosis:
+    """Diagnose why a deployment's build/run turned out the way it did.
+
+    Always runs the offline heuristic analyzer; enriches with the Anthropic API when
+    ANTHROPIC_API_KEY is configured (best-effort, falls back to the heuristic)."""
+    service = DeploysService(request)
+    deployment = await service.get_deployment_for_tenant(
+        session, current_admin.tenant_id, deployment_id
+    )
+    if deployment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
+    diagnosis = await service.diagnose_deployment(deployment)
+    return BuildDiagnosis(
+        deployment_id=deployment_id,
+        status=deployment.status,
+        **diagnosis.to_dict(),
+    )
 
 
 @router.get("/deploys/{deployment_id}/logs/stream")

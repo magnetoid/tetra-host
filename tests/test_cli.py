@@ -738,3 +738,31 @@ def test_main_deploys_list_renders(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert "blog" in out and "ready" in out and "blog.apps.test" in out
+
+
+def test_client_explain_deployment_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/deploys/dep-9/explain"
+        return httpx.Response(200, json={
+            "deployment_id": "dep-9", "status": "error", "summary": "No Dockerfile",
+            "category": "build-config", "likely_causes": ["no Dockerfile"],
+            "suggested_fixes": ["add a Dockerfile"], "confidence": "high", "source": "heuristic",
+        })
+
+    result = make_client(handler).explain_deployment("dep-9")
+    assert result["category"] == "build-config"
+
+
+def test_main_ai_explain_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "deployment_id": "dep-1", "status": "error", "summary": "Dependency conflict",
+            "category": "dependencies", "likely_causes": ["ERESOLVE"],
+            "suggested_fixes": ["commit a lockfile"], "confidence": "high", "source": "ai",
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["ai", "explain", "dep-1"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "Dependency conflict" in out and "commit a lockfile" in out and "ERESOLVE" in out
