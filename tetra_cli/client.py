@@ -228,6 +228,9 @@ class TetraClient:
             json_body={"git_url": git_url, "ref": ref, "name": name, "port": port},
         )
 
+    def native_deploys(self) -> Any:
+        return self._request("GET", "/deploys")
+
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 

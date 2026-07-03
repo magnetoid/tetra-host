@@ -723,3 +723,18 @@ def test_main_previews_renders(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert "blog" in out and "feat/login" in out and "blog-git-feat-login.apps.test" in out
+
+
+def test_main_deploys_list_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/deploys"
+        return httpx.Response(200, json=[
+            {"id": "dep-12345678", "project": "blog", "ref": "main", "status": "ready",
+             "domain": "blog.apps.test"},
+        ])
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["deploys", "list"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "blog" in out and "ready" in out and "blog.apps.test" in out

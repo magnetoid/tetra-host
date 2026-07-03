@@ -666,6 +666,28 @@ def cmd_deploys_git(args: argparse.Namespace) -> int:
     return die(status.get("error", "build failed") if isinstance(status, dict) else "build failed")
 
 
+def cmd_deploys_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().native_deploys()
+    if not isinstance(rows, list) or not rows:
+        print(c("no deployments", "90"))
+        return 0
+    for dep in rows:
+        state = dep.get("status", "")
+        tint = {"ready": "32", "error": "31", "building": "33"}.get(state, "90")
+        print(
+            f"{c(dep.get('id', '')[:8], '1;36')}  {dep.get('project', '')}"
+            f"  @{dep.get('ref', '')}  [{c(state, tint)}]  {c(dep.get('domain', ''), '90')}"
+        )
+    return 0
+
+
+def cmd_mcp_serve(args: argparse.Namespace) -> int:
+    from tetra_cli.mcp import serve_stdio
+
+    serve_stdio(client_from_config(), allow_writes=args.allow_writes)
+    return 0
+
+
 def cmd_deploys_rollback(args: argparse.Namespace) -> int:
     result = client_from_config().rollback_deploy(args.deployment_id)
     new_id = result.get("deployment_id", "") if isinstance(result, dict) else ""
@@ -980,6 +1002,8 @@ def build_parser() -> argparse.ArgumentParser:
     deploys = sub.add_parser("deploys", help="build & deploy git repos").add_subparsers(
         dest="deploys_cmd", required=True
     )
+    sp = deploys.add_parser("list", help="list recent deployments")
+    sp.set_defaults(func=cmd_deploys_list)
     sp = deploys.add_parser("git", help="build and deploy a git repo (Dockerfile or Nixpacks)")
     sp.add_argument("git_url")
     sp.add_argument("--name", required=True)
@@ -1057,6 +1081,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp = hook.add_parser("rm", help="delete a webhook")
     sp.add_argument("hook_id")
     sp.set_defaults(func=cmd_deploys_hook_rm)
+
+    mcp = sub.add_parser(
+        "mcp", help="Model Context Protocol server (AI-operable panel)"
+    ).add_subparsers(dest="mcp_cmd", required=True)
+    sp = mcp.add_parser("serve", help="serve MCP over stdio (reads open; writes gated)")
+    sp.add_argument("--allow-writes", dest="allow_writes", action="store_true",
+                    help="expose write tools (each call still requires confirm=true)")
+    sp.set_defaults(func=cmd_mcp_serve)
 
     previews = sub.add_parser(
         "previews", help="per-branch preview environments"
