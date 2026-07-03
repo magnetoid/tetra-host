@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     # Shared external Docker network the Caddy edge is attached to. Empty = edge disabled
     # (apps still deploy, just not routed). See app/services/edge.py.
     edge_network: str = ""
+    # Image registry for rollback durability (ADR 0014). Empty = disabled: built images
+    # stay local-only and rollback depends on them not being pruned. Set a host:port
+    # (e.g. 127.0.0.1:5000, see scripts/install-registry.sh) to push every successful
+    # non-preview build and record the registry-qualified ref so rollback can re-pull
+    # evicted images. keep_images bounds the per-project rollback window; older images
+    # are deleted locally and in the registry.
+    registry_url: str = ""
+    registry_keep_images: int = 5
 
     # Per-app resource allocation defaults used for plan coherence validation.
     default_app_cpu_millicores: int = 500

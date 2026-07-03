@@ -9,6 +9,7 @@ ENABLE_PROVIDER_ACTIONS.
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from secrets import token_hex
 from typing import TYPE_CHECKING
@@ -34,11 +35,14 @@ from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize
 from app.services.edge import apply_edge
 from app.services.limits import apply_resource_limits
 from app.services.quota import Allocation, QuotaService
+from app.services.registry import ImageRegistry, is_registry_qualified
 from app.services.secrets import decrypt, encrypt
 
 if TYPE_CHECKING:
     from app.services.build_diagnostics import BuildDiagnoser
 
+
+logger = logging.getLogger(__name__)
 
 _TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
 
@@ -136,6 +140,8 @@ class DeploysService:
         settings = get_settings()
         self.engine = DockerEngine(docker_bin=settings.docker_bin)
         self.builder = Builder(docker_bin=settings.docker_bin, nixpacks_bin=settings.nixpacks_bin)
+        self.registry = ImageRegistry(url=settings.registry_url, docker_bin=settings.docker_bin)
+        self.keep_images = settings.registry_keep_images
         self.base_domain = settings.apps_base_domain
         self.actions_enabled = settings.enable_provider_actions
 
@@ -216,8 +222,22 @@ class DeploysService:
             build = await self.builder.build_from_git(git_url, ref, project=project)
             effective_port = build.port or port
             log.append(f"✓ built {build.image} via {build.builder}")
+
+            # Push non-preview builds to the registry so rollback survives local
+            # eviction; record the registry-qualified ref so compose can re-pull it.
+            image_ref = build.image
+            if env_project is None and self.registry.enabled:
+                pushed = await self.registry.push(build.image)
+                if pushed:
+                    image_ref = pushed
+                    log.append(f"✓ pushed to registry as {pushed}")
+                else:
+                    log.append("⚠ registry push failed — image is local-only (rollback may not survive pruning)")
+
             log.append(f"→ starting container on port {effective_port}")
-            await self._set(deployment_id, log)
+            # Persist the ref NOW (row still BUILDING): retention's in-flight guard and
+            # failed-deploy cleanup both need to see which image this build owns.
+            await self._set(deployment_id, log, image=image_ref)
 
             env = await self.env_map_for_deploy(tenant_id, env_project or project)
             if env:
@@ -225,7 +245,7 @@ class DeploysService:
                 await self._set(deployment_id, log)
             extra_hosts = await self._custom_hosts(tenant_id, project)
             cpu, mem = await self._limits_for(tenant_id, project)
-            compose = compose_for_image(build.image, effective_port, env)
+            compose = compose_for_image(image_ref, effective_port, env)
             compose = apply_edge(
                 compose, project=project, port=str(effective_port), extra_hosts=extra_hosts
             )
@@ -237,9 +257,11 @@ class DeploysService:
             log.append(f"✓ live at https://{domain}" if domain else "✓ running")
             await self._set(
                 deployment_id, log, status=STATUS_READY,
-                image=build.image, builder=build.builder, commit=build.commit,
+                image=image_ref, builder=build.builder, commit=build.commit,
                 port=effective_port, domain=domain,
             )
+            if env_project is None:
+                await self._prune_old_images(tenant_id, project)
         except (BuildError, DockerEngineError) as exc:
             log.append(f"✗ {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
@@ -252,6 +274,106 @@ class DeploysService:
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             async with session_scope() as release_session:
                 await QuotaService(release_session, tenant_id or "").release(project)
+
+    async def _prune_old_images(self, tenant_id: str | None, project: str) -> None:
+        """Retention: keep the newest ``keep_images`` DISTINCT images of ``project``'s
+        ready deployments (that's the rollback window — distinct, because rollbacks
+        create duplicate rows re-pointing at old images and must not shrink the
+        window); delete older ones locally and in the registry. Failed deployments'
+        pushed images are cleaned up too. Best-effort and self-contained — it must
+        NEVER fail a live deploy, so every failure path is swallowed. Only runs when a
+        registry is configured: without one, local images are the only rollback copies
+        and are left alone. Registry blob space is reclaimed by the offline
+        ``garbage-collect --delete-untagged`` job (scripts/install-registry.sh).
+        """
+        keep = self.keep_images
+        if keep <= 0 or not self.registry.enabled:
+            return
+        try:
+            async with session_scope() as session:
+                # If ANY deployment of this project is in flight (a rollback mid-pull,
+                # a rebuild that hasn't recorded its ref yet), skip this cycle rather
+                # than race it — prune re-runs after the next successful deploy.
+                in_flight = await session.scalar(
+                    select(Deployment.id)
+                    .where(
+                        Deployment.tenant_id == (tenant_id or ""),
+                        Deployment.project == project,
+                        Deployment.status.in_((STATUS_QUEUED, STATUS_BUILDING)),
+                    )
+                    .limit(1)
+                )
+                if in_flight is not None:
+                    return
+                images = list(
+                    await session.scalars(
+                        select(Deployment.image)
+                        .where(
+                            Deployment.tenant_id == (tenant_id or ""),
+                            Deployment.project == project,
+                            Deployment.status == STATUS_READY,
+                            Deployment.image != "",
+                        )
+                        .order_by(Deployment.created_at.desc())
+                    )
+                )
+                # Window over DISTINCT images by most-recent reference: a rollback
+                # legitimately re-enters its target into the window without crowding
+                # the count below N.
+                ordered = list(dict.fromkeys(images))
+                keep_set = set(ordered[:keep])
+                # Images pushed for deployments that later FAILED are dead weight
+                # unless a ready row still references them.
+                error_images = list(
+                    await session.scalars(
+                        select(Deployment.image).where(
+                            Deployment.tenant_id == (tenant_id or ""),
+                            Deployment.project == project,
+                            Deployment.status == STATUS_ERROR,
+                            Deployment.image != "",
+                        )
+                    )
+                )
+                stale = [
+                    img
+                    for img in dict.fromkeys(ordered[keep:] + error_images)
+                    if img not in keep_set
+                ]
+                # Cross-tenant safety: image names are only per-tenant unique
+                # (tetra-<project>:<sha>) — never delete one another tenant references.
+                shared = set()
+                if stale:
+                    shared = set(
+                        await session.scalars(
+                            select(Deployment.image).where(
+                                Deployment.image.in_(stale),
+                                Deployment.tenant_id != (tenant_id or ""),
+                            )
+                        )
+                    )
+            deleted: list[str] = []
+            for image in stale:
+                if image in shared:
+                    continue
+                await self.registry.remove_local(image)
+                if not await self.registry.delete_remote(image):
+                    logger.warning("registry tag delete failed for %s (retention)", image)
+                deleted.append(image)
+            if deleted:
+                # Clear pruned refs off ERROR rows so later cycles don't re-delete them.
+                async with session_scope() as session:
+                    error_rows = await session.scalars(
+                        select(Deployment).where(
+                            Deployment.tenant_id == (tenant_id or ""),
+                            Deployment.project == project,
+                            Deployment.status == STATUS_ERROR,
+                            Deployment.image.in_(deleted),
+                        )
+                    )
+                    for row in error_rows:
+                        row.image = ""
+        except Exception:  # noqa: BLE001 — retention is best-effort by contract
+            return
 
     def stream_logs(
         self,
@@ -414,8 +536,8 @@ class DeploysService:
 
         Creates a new Deployment pinned to the old image and re-runs the stack with
         current env. Requires the target to be a ``ready`` deployment with a built image
-        and the app to still exist (no quota re-reservation). Caveat: the image must still
-        be present locally (registry push + retention is a later hardening step).
+        and the app to still exist (no quota re-reservation). Registry-qualified images
+        (ADR 0014) are re-pulled if evicted locally; local-only images must still exist.
         """
         self._require_actions()
         async with session_scope() as session:
@@ -460,6 +582,29 @@ class DeploysService:
         try:
             log.append(f"→ rolling back to {image}")
             await self._set(deployment_id, log, status=STATUS_BUILDING)
+            if not await self.registry.image_exists(image):
+                if is_registry_qualified(image):
+                    log.append("→ image not present locally — pulling from registry")
+                    await self._set(deployment_id, log)
+                    if not await self.registry.pull(image):
+                        raise DockerEngineError(
+                            message="Could not pull the rollback image from the registry — "
+                            "it may be outside the retention window or the registry may be "
+                            "unreachable; redeploy from git instead.",
+                            code=409,
+                        )
+                    log.append("✓ pulled")
+                else:
+                    reason = (
+                        "predates the registry"
+                        if self.registry.enabled
+                        else "no registry is configured to restore it"
+                    )
+                    raise DockerEngineError(
+                        message="Rollback image was evicted from the host and "
+                        f"{reason} — redeploy from git instead.",
+                        code=409,
+                    )
             env = await self.env_map_for_deploy(tenant_id, project)
             extra_hosts = await self._custom_hosts(tenant_id, project)
             cpu, mem = await self._limits_for(tenant_id, project)
