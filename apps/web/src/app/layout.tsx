@@ -2,8 +2,10 @@ import type { Metadata } from "next"
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google"
 import { config } from "@fortawesome/fontawesome-svg-core"
 import "@fortawesome/fontawesome-svg-core/styles.css"
+import { cookies } from "next/headers"
 
 import { APP_NAME } from "@/lib/env"
+import { THEME_COOKIE, normalizeTheme } from "@/lib/theme"
 
 import "./globals.css"
 
@@ -35,14 +37,17 @@ export const metadata: Metadata = {
   description: "Tetra AI Cloud — a multi-tenant hosting control plane for apps, databases, DNS, and mail.",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Resolve the theme server-side so `data-theme` is set before first paint (no flash).
+  const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value)
   return (
     <html
       lang="en"
+      data-theme={theme}
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

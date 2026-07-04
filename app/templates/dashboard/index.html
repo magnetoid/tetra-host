@@ -10,7 +10,9 @@
     </div>
     <div class="flex gap-2">
       <a href="/sites?refresh=1" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh providers</a>
+      {% if request.state.current_admin_role == 'platform_admin' %}
       <a href="/admin" class="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-zinc-900">Platform controls</a>
+      {% endif %}
     </div>
   </section>
 

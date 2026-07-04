@@ -12,6 +12,9 @@ class PluginMeta:
     nav_label: str
     nav_href: str
     enabled: bool = True
+    # When true, this plugin's nav entry is only shown to platform admins
+    # (filtered in inject_core_context by the current admin's role).
+    platform_admin_only: bool = False
 
 
 class TetraPlugin(Protocol):

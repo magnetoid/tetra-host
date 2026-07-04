@@ -30,6 +30,87 @@
   --radius: 0.5rem;
 }
 
+/* ── Light theme (opt-in via data-theme="light" on <html>) ─────────────────
+   The console was dark-only; this remaps the semantic tokens plus the handful of
+   fixed zinc utilities the components lean on, so a theme flip reads correctly. */
+[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: #18181b;
+  --muted: #f4f4f5;
+  --border: #e4e4e7;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --secondary: #e4e4e7;
+  --secondary-foreground: #18181b;
+  --muted-foreground: #52525b;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --input: #e4e4e7;
+  color-scheme: light;
+}
+
+/* Fixed zinc/white/black utilities → theme-aware equivalents in light mode.
+   Muted text and borders remap globally (safe); dark surfaces become light; white
+   text that sits on a now-light surface darkens (standalone white-on-color stays);
+   the white primary button inverts to a dark button. */
+[data-theme="light"] .text-zinc-100,
+[data-theme="light"] .text-zinc-200,
+[data-theme="light"] .text-zinc-300,
+[data-theme="light"] .hover\:text-zinc-200:hover,
+[data-theme="light"] .hover\:text-zinc-300:hover { color: #3f3f46; }
+[data-theme="light"] .text-zinc-400 { color: #52525b; }
+[data-theme="light"] .text-zinc-500,
+[data-theme="light"] .text-zinc-600 { color: #71717a; }
+[data-theme="light"] .border-zinc-500,
+[data-theme="light"] .border-zinc-600,
+[data-theme="light"] .border-zinc-700 { border-color: #d4d4d8; }
+[data-theme="light"] .bg-zinc-800,
+[data-theme="light"] .bg-zinc-900,
+[data-theme="light"] .bg-zinc-950 { background-color: #f4f4f5; }
+[data-theme="light"] .bg-zinc-500,
+[data-theme="light"] .bg-zinc-600 { background-color: #e4e4e7; }
+[data-theme="light"] .hover\:bg-zinc-800:hover,
+[data-theme="light"] .hover\:bg-zinc-900:hover,
+[data-theme="light"] .hover\:bg-zinc-950:hover { background-color: #e4e4e7; }
+[data-theme="light"] .bg-zinc-800 .text-white,
+[data-theme="light"] .bg-zinc-800.text-white,
+[data-theme="light"] .bg-zinc-900 .text-white,
+[data-theme="light"] .bg-zinc-900.text-white,
+[data-theme="light"] .hover\:text-white:hover { color: #18181b; }
+[data-theme="light"] .bg-white.text-black { background-color: #18181b; color: #ffffff; }
+[data-theme="light"] .bg-white.text-black.hover\:bg-zinc-200:hover { background-color: #27272a; }
+
+/* Terminal / log panes stay dark in light mode (code reads better dark); keep their
+   text light. Attribute selectors catch bg-black and its opacity variants. */
+[data-theme="light"] [class*="bg-black"] { background-color: #18181b; color: #e4e4e7; }
+[data-theme="light"] [class*="bg-black"] [class*="text-zinc"] { color: #d4d4d8; }
+
+/* Status badges/banners use dark-tint surfaces (bg-*-950) with light text (text-*-300).
+   Flip to light tints with dark text so they stay legible in light mode. Attribute
+   selectors cover the /40, /70 opacity variants too. */
+[data-theme="light"] [class*="bg-emerald-950"] { background-color: #ecfdf5; }
+[data-theme="light"] [class*="border-emerald-900"] { border-color: #a7f3d0; }
+[data-theme="light"] [class*="text-emerald-200"],
+[data-theme="light"] [class*="text-emerald-300"],
+[data-theme="light"] [class*="text-emerald-400"],
+[data-theme="light"] [class*="text-emerald-500"],
+[data-theme="light"] [class*="text-green-400"] { color: #047857; }
+[data-theme="light"] [class*="bg-red-950"] { background-color: #fef2f2; }
+[data-theme="light"] [class*="border-red-900"] { border-color: #fecaca; }
+[data-theme="light"] [class*="text-red-100"],
+[data-theme="light"] [class*="text-red-200"],
+[data-theme="light"] [class*="text-red-300"],
+[data-theme="light"] [class*="text-red-400"] { color: #b91c1c; }
+[data-theme="light"] [class*="bg-amber-950"] { background-color: #fffbeb; }
+[data-theme="light"] [class*="border-amber-900"] { border-color: #fde68a; }
+[data-theme="light"] [class*="text-amber-200"],
+[data-theme="light"] [class*="text-amber-300"],
+[data-theme="light"] [class*="text-amber-400"],
+[data-theme="light"] [class*="text-yellow-400"] { color: #b45309; }
+[data-theme="light"] [class*="text-sky-400"] { color: #0369a1; }
+
 @theme inline {
   /* Tetra AI Cloud core palette */
   --color-background: var(--background);

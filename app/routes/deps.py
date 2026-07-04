@@ -43,6 +43,7 @@ async def get_current_admin(
         return None
     request.state.current_admin_email = admin.email
     request.state.current_admin_name = admin.full_name
+    request.state.current_admin_role = admin.role
     request.state.current_tenant_id = admin.tenant_id
     request.state.current_tenant_slug = admin.tenant.slug if admin.tenant else None
     request.state.current_tenant_name = admin.tenant.name if admin.tenant else None

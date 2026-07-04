@@ -94,6 +94,7 @@ async def login(
     request.session["admin_user_id"] = admin.id
     request.session["admin_email"] = admin.email
     request.session["admin_name"] = admin.full_name
+    request.session["role"] = admin.role
     request.session["tenant_id"] = admin.tenant_id
     request.session["tenant_slug"] = admin.tenant.slug if admin.tenant else ""
     request.session["tenant_name"] = admin.tenant.name if admin.tenant else ""

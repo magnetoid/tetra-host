@@ -1,4 +1,5 @@
 from app.plugins import registry
+from app.modules.account.plugin import AccountPlugin
 from app.modules.admin.plugin import AdminPlugin
 from app.modules.auth.plugin import AuthPlugin
 from app.modules.dashboard.plugin import DashboardPlugin
@@ -26,4 +27,5 @@ def load_plugins() -> None:
     registry.add(DomainsPlugin())
     registry.add(MaintenancePlugin())
     registry.add(PlansPlugin())
+    registry.add(AccountPlugin())
     registry.add(AdminPlugin())

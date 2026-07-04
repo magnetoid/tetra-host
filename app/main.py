@@ -93,13 +93,17 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def inject_core_context(request: Request, call_next):
         request.state.settings = settings
+        session = request.scope.get("session", {})
+        # Full nav set (minus public/auth); the template filters platform_admin_only
+        # entries by request.state.current_admin_role, which get_current_admin sets
+        # authoritatively from the DB on protected routes (session role is the fallback).
         request.state.nav_items = [
             item for item in registry.nav_items() if item.name not in {"public", "auth"}
         ]
         request.state.plugins = registry.plugins()
-        session = request.scope.get("session", {})
         request.state.current_admin_email = session.get("admin_email") if isinstance(session, dict) else None
         request.state.current_admin_name = session.get("admin_name") if isinstance(session, dict) else None
+        request.state.current_admin_role = session.get("role") if isinstance(session, dict) else None
         request.state.current_tenant_id = session.get("tenant_id") if isinstance(session, dict) else None
         request.state.current_tenant_slug = session.get("tenant_slug") if isinstance(session, dict) else None
         request.state.current_tenant_name = session.get("tenant_name") if isinstance(session, dict) else None

@@ -43,7 +43,7 @@ def test_login_and_logout_flow(client):
 
     dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
-    assert "Logout" in dashboard.text
+    assert 'action="/auth/logout"' in dashboard.text  # logout affordance present
 
     page_token = extract_csrf_token(dashboard.text)
     logout_response = client.post(

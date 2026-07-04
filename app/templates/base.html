@@ -1,14 +1,68 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
   <title>{% block title %}Cloud Industry Hosting{% endblock %}</title>
+  <script>
+    // No-flash theme: set the class before first paint. Default is dark.
+    (function () {
+      try {
+        var t = localStorage.getItem('tetra-theme');
+        document.documentElement.classList.toggle('dark', t !== 'light');
+      } catch (e) { document.documentElement.classList.add('dark'); }
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { border: '#27272a', background: '#09090b', foreground: '#fafafa', muted: '#18181b', primary: '#7c3aed' }}}}
+    // Semantic tokens resolve to CSS variables (rgb channels) so both the base
+    // colors and Tailwind opacity utilities (e.g. bg-muted/40) flip with the theme.
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: {
+      border: 'rgb(var(--ci-border) / <alpha-value>)',
+      background: 'rgb(var(--ci-bg) / <alpha-value>)',
+      foreground: 'rgb(var(--ci-fg) / <alpha-value>)',
+      muted: 'rgb(var(--ci-muted) / <alpha-value>)',
+      primary: 'rgb(var(--ci-primary) / <alpha-value>)'
+    }}}}
   </script>
+  <style>
+    :root { color-scheme: light; --ci-bg: 255 255 255; --ci-fg: 24 24 27; --ci-muted: 244 244 245; --ci-border: 228 228 231; --ci-primary: 124 58 237; }
+    html.dark { color-scheme: dark; --ci-bg: 9 9 11; --ci-fg: 250 250 250; --ci-muted: 24 24 27; --ci-border: 39 39 42; --ci-primary: 124 58 237; }
+    /* Light-mode remap of the fixed Tailwind-CDN utilities the templates use, so
+       surfaces/text/borders/badges/terminals stay legible. !important guards against the
+       CDN's runtime injection order; attribute selectors also cover /40,/70 opacity forms. */
+    :root:not(.dark) [class*="text-zinc-100"] { color: rgb(39 39 42) !important; }
+    :root:not(.dark) [class*="text-zinc-200"], :root:not(.dark) [class*="text-zinc-300"] { color: rgb(63 63 70) !important; }
+    :root:not(.dark) [class*="text-zinc-400"] { color: rgb(82 82 91) !important; }
+    :root:not(.dark) [class*="text-zinc-500"], :root:not(.dark) [class*="text-zinc-600"] { color: rgb(113 113 122) !important; }
+    :root:not(.dark) [class*="border-zinc-500"], :root:not(.dark) [class*="border-zinc-600"], :root:not(.dark) [class*="border-zinc-700"] { border-color: rgb(212 212 216) !important; }
+    :root:not(.dark) [class*="bg-zinc-800"]:not([class*="hover:bg-zinc-800"]),
+    :root:not(.dark) [class*="bg-zinc-900"]:not([class*="hover:bg-zinc-900"]),
+    :root:not(.dark) [class*="bg-zinc-950"]:not([class*="hover:bg-zinc-950"]) { background-color: rgb(244 244 245) !important; }
+    :root:not(.dark) [class*="hover:bg-zinc-800"]:hover,
+    :root:not(.dark) [class*="hover:bg-zinc-900"]:hover,
+    :root:not(.dark) [class*="hover:bg-zinc-950"]:hover { background-color: rgb(228 228 231) !important; }
+    :root:not(.dark) [class*="bg-zinc-8"] .text-white, :root:not(.dark) [class*="bg-zinc-9"] .text-white,
+    :root:not(.dark) .bg-zinc-800.text-white, :root:not(.dark) .bg-zinc-900.text-white,
+    :root:not(.dark) .hover\:text-white:hover { color: rgb(24 24 27) !important; }
+    :root:not(.dark) .bg-white.text-black { background-color: rgb(24 24 27) !important; color: rgb(250 250 250) !important; }
+    :root:not(.dark) .bg-white.text-black.hover\:bg-zinc-200:hover { background-color: rgb(39 39 42) !important; }
+    /* Terminal / log panes stay dark (opacity forms like bg-black/40 are backdrops — leave them). */
+    :root:not(.dark) .bg-black { background-color: rgb(24 24 27) !important; color: rgb(228 228 231) !important; }
+    :root:not(.dark) .bg-black [class*="text-zinc"] { color: rgb(212 212 216) !important; }
+    /* Colored badges/banners -> light tints (surfaces are bg-*-9xx; solid -4xx/-5xx dots stay). */
+    :root:not(.dark) [class*="bg-emerald-9"] { background-color: #ecfdf5 !important; }
+    :root:not(.dark) [class*="bg-red-9"], :root:not(.dark) [class*="bg-rose-9"] { background-color: #fef2f2 !important; }
+    :root:not(.dark) [class*="bg-amber-9"] { background-color: #fffbeb !important; }
+    :root:not(.dark) [class*="border-emerald-"] { border-color: #a7f3d0 !important; }
+    :root:not(.dark) [class*="border-red-"], :root:not(.dark) [class*="border-rose-"] { border-color: #fecaca !important; }
+    :root:not(.dark) [class*="border-amber-"] { border-color: #fde68a !important; }
+    :root:not(.dark) [class*="text-emerald-"], :root:not(.dark) [class*="text-green-"] { color: #047857 !important; }
+    :root:not(.dark) [class*="text-red-"], :root:not(.dark) [class*="text-rose-"] { color: #b91c1c !important; }
+    :root:not(.dark) [class*="text-amber-"], :root:not(.dark) [class*="text-yellow-"] { color: #b45309 !important; }
+    summary::-webkit-details-marker { display: none; }
+    summary { list-style: none; }
+  </style>
   <script src="/static/js/htmx.min.js" defer></script>
 </head>
 <body class="min-h-screen bg-background text-foreground antialiased">
@@ -16,7 +70,7 @@
     {% if request.state.current_admin_email %}
     <aside class="hidden w-72 border-r border-border bg-muted/40 p-6 lg:block">
       <a href="/dashboard" class="flex items-center gap-3">
-        <div class="grid h-10 w-10 place-items-center rounded-xl bg-primary font-bold">CI</div>
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-primary font-bold text-white">CI</div>
         <div><div class="font-semibold">Cloud Industry</div><div class="text-xs text-zinc-400">Hosting Panel</div></div>
       </a>
       <div class="mt-6 rounded-2xl border border-border bg-background/60 p-4 text-sm">
@@ -26,7 +80,9 @@
       </div>
       <nav class="mt-8 space-y-1 text-sm">
         {% for item in request.state.nav_items %}
+        {% if not item.platform_admin_only or request.state.current_admin_role == 'platform_admin' %}
         <a class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white" href="{{ item.nav_href }}">{{ item.nav_label }}</a>
+        {% endif %}
         {% endfor %}
       </nav>
     </aside>
@@ -38,16 +94,42 @@
           <div class="text-xs text-zinc-500">Request ID: {{ request.state.request_id }}</div>
         </div>
         {% if request.state.current_admin_email %}
-        <div class="flex items-center gap-3">
-          <div class="hidden text-right sm:block">
-            <div class="text-sm font-medium">{{ request.state.current_admin_name }}</div>
-            <div class="text-xs text-zinc-500">{{ request.state.current_admin_email }}</div>
+        <details class="relative" id="account-menu">
+          <summary class="flex cursor-pointer items-center gap-2 rounded-md border border-border px-2 py-1.5 text-sm hover:bg-zinc-800">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-white">{{ (request.state.current_admin_name or request.state.current_admin_email)[0] | upper }}</span>
+            <span class="hidden text-left sm:block">
+              <span class="block text-sm font-medium leading-tight">{{ request.state.current_admin_name }}</span>
+              <span class="block text-xs text-zinc-500 leading-tight">{{ request.state.current_tenant_name or request.state.current_admin_email }}</span>
+            </span>
+            <svg class="h-4 w-4 text-zinc-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+          </summary>
+          <div class="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-muted shadow-2xl">
+            <div class="border-b border-border px-4 py-3">
+              <div class="text-sm font-medium">{{ request.state.current_admin_name }}</div>
+              <div class="text-xs text-zinc-500">{{ request.state.current_admin_email }}</div>
+              {% if request.state.current_tenant_name %}<div class="mt-1 text-xs text-zinc-500">{{ request.state.current_tenant_name }}</div>{% endif %}
+            </div>
+            <div class="p-1.5">
+              <a href="/account" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-zinc-800">Account</a>
+              {% if request.state.current_admin_role == 'platform_admin' %}
+              <a href="/admin" class="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-zinc-800">
+                <span>Super Admin</span>
+                <span class="ml-auto rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">PLATFORM</span>
+              </a>
+              {% endif %}
+              <button type="button" onclick="tetraToggleTheme()" class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-800">
+                <span>Theme</span>
+                <span class="text-xs text-zinc-500"><span class="hidden dark:inline">Switch to light</span><span class="inline dark:hidden">Switch to dark</span></span>
+              </button>
+            </div>
+            <div class="border-t border-border p-1.5">
+              <form method="post" action="/auth/logout">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+                <button class="w-full rounded-md px-3 py-2 text-left text-sm text-red-400 hover:bg-zinc-800">Log out</button>
+              </form>
+            </div>
           </div>
-          <form method="post" action="/auth/logout">
-            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
-            <button class="rounded-md border border-border px-3 py-2 text-sm hover:bg-zinc-800">Logout</button>
-          </form>
-        </div>
+        </details>
         {% else %}
         <a href="/auth/login" class="rounded-md border border-border px-3 py-2 text-sm hover:bg-zinc-800">Login</a>
         {% endif %}
@@ -55,5 +137,20 @@
       <section class="p-6 lg:p-10">{% block content %}{% endblock %}</section>
     </main>
   </div>
+  <script>
+    function tetraToggleTheme() {
+      var toDark = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', toDark);
+      try { localStorage.setItem('tetra-theme', toDark ? 'dark' : 'light'); } catch (e) {}
+    }
+    // Native <details> doesn't close on outside click — wire that up for the menu.
+    document.addEventListener('click', function (e) {
+      var menu = document.getElementById('account-menu');
+      if (menu && menu.open && !menu.contains(e.target)) menu.open = false;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { var m = document.getElementById('account-menu'); if (m) m.open = false; }
+    });
+  </script>
 </body>
 </html>

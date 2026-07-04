@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { ConsoleNav } from "@/components/shell/console-nav"
 import { PendingGate } from "@/components/shell/pending-gate"
+import { UserMenu } from "@/components/ui/user-menu"
 import { APP_ENV, APP_NAME } from "@/lib/env"
 import type { AdminRecord } from "@/lib/types"
 
@@ -54,20 +55,7 @@ export function AppShell({
             </div>
             <div className="text-xs text-zinc-500">Cloud Industry control plane</div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <div className="text-sm font-medium">{admin.full_name}</div>
-              <div className="text-xs text-zinc-500">{admin.email}</div>
-            </div>
-            <form action="/api/auth/logout" method="post">
-              <button
-                type="submit"
-                className="rounded-md border border-border px-3 py-2 text-sm transition hover:bg-zinc-800"
-              >
-                Logout
-              </button>
-            </form>
-          </div>
+          <UserMenu admin={admin} />
         </header>
         <section className="p-6 lg:p-10">{children}</section>
       </main>
