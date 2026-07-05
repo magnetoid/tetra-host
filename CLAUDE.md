@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Tetra Host is a Cloud Industry branded multi-tenant hosting control panel. It orchestrates third-party
-infrastructure providers — **Coolify** (sites/apps), **Mailcow** (mail), **Cloudflare** (DNS) — behind a
-single admin/tenant surface.
+infrastructure providers — **Coolify** (sites/apps), **Mailcow** (mail), **Cloudflare** (DNS),
+**Hetzner Cloud** (own-infra compute provisioning), plus **Umami**/**GlitchTip** observability sidecars —
+behind a single admin/tenant surface.
 
 The repo contains **two independent applications**:
 
@@ -45,6 +46,7 @@ Ops scripts: `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh
 - `tetra login --url https://panel.cloud-industry.com` saves a token to `~/.config/tetra-host/config.json` (override with `TETRA_API_URL` / `TETRA_TOKEN` env).
 - `tetra sites`, `tetra deploy <id> --follow` (streams build logs live), `tetra logs <site> <dep>`, `tetra deployments <id>`, `tetra dns zones|records|add|rm`, `tetra env list|set|rm`, `tetra dashboard`.
 - It's a thin client over [tetra_cli/client.py](tetra_cli/client.py) (injectable httpx transport → tested in-process with `httpx.MockTransport`). **When you add a dashboard feature, add the matching CLI command.**
+- `tetra mcp serve` ([tetra_cli/mcp.py](tetra_cli/mcp.py)) exposes the **third parity surface**: a hand-rolled MCP (JSON-RPC over stdio, no new deps) wrapping the same `/api/v1` contract so an AI agent sees exactly what a human does. Writes are double-gated — `--allow-writes` at startup **and** `confirm=true` per call; billable/admin ops (Hetzner, plans, tenants) and DNS writes are not exposed at all (ADR 0012).
 
 ## Backend architecture (`app/`)
 
@@ -56,18 +58,29 @@ Ops scripts: `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh
 existing modules.
 
 A module typically has: `routes.py` (thin handlers), `service.py` (business/provider logic), `plugin.py`,
-and sometimes `schemas.py`. Current modules: `public`, `auth`, `dashboard`, `sites`, `databases`, `servers`,
-`mail`, `dns`, `maintenance`, `admin`.
+and sometimes `schemas.py`. Registered plugins (order matters, see `load_plugins()`): `public`, `auth`,
+`dashboard`, `projects`, `databases`, `servers`, `mail`, `dns`, `domains`, `maintenance`, `plans`,
+`account`, `admin`.
+
+**Not every module has a plugin.** Several modules are **service-only** — `apps`, `analytics`, `deploys`,
+`errors` (and the now-hollow `sites`) ship just a `service.py` with no `plugin.py`, consumed by the
+`projects` plugin and by [app/api/routes.py](app/api/routes.py). `projects` is the **composite surface**:
+one plugin that renders sites/apps/deployments/metrics/errors as tabs (templates still live under
+`templates/sites/`). So "add a feature" means: a new plugin module when it needs its own nav entry + routes;
+a service-only module when it's domain logic surfaced through an existing plugin or the API.
 
 **Layering (enforce this).** Route handlers stay thin; all provider and domain logic lives in service
 classes (`app/modules/*/service.py` and `app/services/`). Provider clients —
-`app/services/{coolify,mailcow,cloudflare}.py` — go through the shared retrying HTTP helper
+`app/services/{coolify,mailcow,cloudflare,hetzner,umami,glitchtip}.py`, plus supporting services
+(`builder`, `registry`, `docker_engine`, `edge`, `github_webhook`, `secrets`, `quota`, `limits`) —
+go through the shared retrying HTTP helper
 [app/services/http.py](app/services/http.py) (`request_json`, raises `ProviderAPIError`). Catch
 `ProviderAPIError` in routes for user-facing errors.
 
-**Two entry surfaces share the same services:**
+**Three entry surfaces share the same services:**
 - Server-rendered HTML/HTMX routes (the `app/modules/*` routers) — session-cookie auth, `require_admin`.
-- A JSON contract API at `/api/v1` ([app/api/routes.py](app/api/routes.py), Pydantic models in `app/api/contracts.py`, token auth in `app/api/security.py`) — this is what `apps/web` consumes.
+- A JSON contract API at `/api/v1` ([app/api/routes.py](app/api/routes.py), Pydantic models in `app/api/contracts.py`, token auth in `app/api/security.py`) — this is what `apps/web`, the `tetra` CLI, and the MCP server all consume.
+- The MCP server (`tetra mcp serve`) — a thin AI-agent surface over the same `/api/v1` contract (see Tetra CLI above). Dashboard ↔ CLI ↔ MCP parity is a charter rule.
 
 **App wiring** is in [app/main.py](app/main.py) `create_app()`: middleware (signed `SessionMiddleware`,
 gzip, security headers, optional `TrustedHost`/HTTPS-redirect), plugin loading, and a `inject_core_context`
