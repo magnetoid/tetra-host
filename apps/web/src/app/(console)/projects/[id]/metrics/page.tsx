@@ -1,5 +1,5 @@
-import { AreaChart, type AreaPoint } from "@/components/charts/area-chart"
-import { BarList } from "@/components/charts/bar-list"
+import { AreaChart } from "@/components/tremor/area-chart"
+import { BarList } from "@/components/tremor/bar-list"
 import { Card, CardHeader } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader } from "@/components/ui/page-header"
@@ -58,8 +58,10 @@ export default async function MetricsPage({ params }: { params: Promise<{ id: st
   }
 
   const { summary } = analytics
-  const chartData: AreaPoint[] = analytics.series.map((p) => ({
-    date: p.date,
+  // Pre-slice the x-axis dates here (server) so we don't pass a formatter function
+  // across the server→client boundary into the chart.
+  const chartData = analytics.series.map((p) => ({
+    date: p.date.slice(5),
     pageviews: p.pageviews,
     sessions: p.sessions,
   }))
@@ -69,14 +71,14 @@ export default async function MetricsPage({ params }: { params: Promise<{ id: st
       {header}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={faUsers} label="Visitors" value={summary.visitors} accent="text-sky-400" />
-        <StatCard icon={faChartBar} label="Pageviews" value={summary.pageviews} accent="text-emerald-400" />
-        <StatCard icon={faGaugeHigh} label="Bounce rate" value={`${summary.bounce_rate}%`} accent="text-amber-400" />
+        <StatCard icon={faUsers} label="Visitors" value={summary.visitors} accent="text-status-live" />
+        <StatCard icon={faChartBar} label="Pageviews" value={summary.pageviews} accent="text-status-ok" />
+        <StatCard icon={faGaugeHigh} label="Bounce rate" value={`${summary.bounce_rate}%`} accent="text-status-warn" />
         <StatCard
           icon={faHourglassHalf}
           label="Avg. visit"
           value={fmtDuration(summary.avg_seconds)}
-          accent="text-violet-400"
+          accent="text-primary"
         />
       </section>
 
@@ -85,10 +87,11 @@ export default async function MetricsPage({ params }: { params: Promise<{ id: st
         <div className="mt-4">
           <AreaChart
             data={chartData}
-            series={[
-              { key: "pageviews", label: "Pageviews", color: "#38bdf8" },
-              { key: "sessions", label: "Sessions", color: "#a78bfa" },
-            ]}
+            index="date"
+            categories={["pageviews", "sessions"]}
+            categoryLabels={{ pageviews: "Pageviews", sessions: "Sessions" }}
+            colors={["var(--chart-2)", "var(--chart-1)"]}
+            emptyMessage="No traffic recorded in this window."
           />
         </div>
       </Card>
@@ -98,7 +101,7 @@ export default async function MetricsPage({ params }: { params: Promise<{ id: st
           <CardHeader title="Top pages" />
           <div className="mt-4">
             {analytics.top_pages.length === 0 ? (
-              <p className="text-sm text-zinc-500">No page data yet.</p>
+              <p className="text-sm text-muted-foreground">No page data yet.</p>
             ) : (
               <BarList data={analytics.top_pages.map((p) => ({ name: p.label, value: p.count }))} />
             )}
@@ -108,7 +111,7 @@ export default async function MetricsPage({ params }: { params: Promise<{ id: st
           <CardHeader title="Top referrers" />
           <div className="mt-4">
             {analytics.top_referrers.length === 0 ? (
-              <p className="text-sm text-zinc-500">No referrer data yet.</p>
+              <p className="text-sm text-muted-foreground">No referrer data yet.</p>
             ) : (
               <BarList
                 data={analytics.top_referrers.map((r) => ({ name: r.label, value: r.count }))}

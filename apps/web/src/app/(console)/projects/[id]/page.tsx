@@ -45,7 +45,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
         <StatusBadge value={project.status} />
         {project.primary_domain ? (
           <a
-            className="text-zinc-400 hover:text-zinc-200"
+            className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
             href={`https://${project.primary_domain}`}
             target="_blank"
             rel="noreferrer"
@@ -54,38 +54,40 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           </a>
         ) : null}
         {project.repository ? (
-          <span className="text-zinc-600">&middot; {project.repository}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            &middot; {project.repository}
+          </span>
         ) : null}
       </div>
 
       {/* Latest deployment card */}
       <Card>
-        <h3 className="mb-3 text-sm font-medium text-zinc-400">Latest deployment</h3>
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">Latest deployment</h3>
         {latestDeployment ? (
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm text-zinc-200">
+                <span className="font-mono text-sm text-foreground">
                   {latestDeployment.commit
                     ? latestDeployment.commit.slice(0, 7)
                     : latestDeployment.id.slice(0, 7)}
                 </span>
                 <StatusBadge value={latestDeployment.status} />
               </div>
-              <div className="text-xs text-zinc-500">
-                {latestDeployment.branch ? `Branch: ${latestDeployment.branch} · ` : ""}
+              <div className="font-mono text-xs text-muted-foreground">
+                {latestDeployment.branch ? `${latestDeployment.branch} · ` : ""}
                 {formatRelativeLabel(latestDeployment.created_at)}
               </div>
             </div>
             <Link
               href={`/projects/${id}/deployments`}
-              className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-900"
+              className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
             >
               View all deployments
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">No deployments yet.</p>
+          <p className="text-sm text-muted-foreground">No deployments yet.</p>
         )}
       </Card>
 
@@ -93,31 +95,31 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
           href={`/projects/${id}/deployments`}
-          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-900"
+          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm transition-colors hover:border-primary/30 hover:bg-accent"
         >
           <span className="font-medium">Deployments</span>
-          <span className="text-zinc-500">Trigger &amp; view build logs &rarr;</span>
+          <span className="text-muted-foreground">Trigger &amp; view build logs &rarr;</span>
         </Link>
         <Link
           href={`/projects/${id}/env`}
-          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-900"
+          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm transition-colors hover:border-primary/30 hover:bg-accent"
         >
           <span className="font-medium">Environment variables</span>
-          <span className="text-zinc-500">Manage secrets &rarr;</span>
+          <span className="text-muted-foreground">Manage secrets &rarr;</span>
         </Link>
         <Link
           href={`/projects/${id}/domains`}
-          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-900"
+          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm transition-colors hover:border-primary/30 hover:bg-accent"
         >
           <span className="font-medium">Domains</span>
-          <span className="text-zinc-500">Primary domain &amp; DNS &rarr;</span>
+          <span className="text-muted-foreground">Primary domain &amp; DNS &rarr;</span>
         </Link>
         <Link
           href={`/projects/${id}/settings`}
-          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-900"
+          className="flex items-center justify-between rounded-xl border border-border bg-muted p-4 text-sm transition-colors hover:border-primary/30 hover:bg-accent"
         >
           <span className="font-medium">Settings</span>
-          <span className="text-zinc-500">Deploy &amp; restart actions &rarr;</span>
+          <span className="text-muted-foreground">Deploy &amp; restart actions &rarr;</span>
         </Link>
       </div>
     </div>

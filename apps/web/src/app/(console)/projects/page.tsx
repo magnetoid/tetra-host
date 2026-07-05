@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { ProjectActions } from "@/components/projects/project-actions"
+import { Card } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { StatusBadge } from "@/components/ui/status-badge"
@@ -44,22 +45,22 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           projects.map((project) => (
             <article
               key={project.id}
-              className="rounded-2xl border border-border bg-zinc-950/70 p-5 transition hover:border-zinc-700"
+              className="rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/30"
             >
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background text-sm font-semibold">
+                  <div className="grid size-10 place-items-center rounded-xl border border-border bg-background font-mono text-sm font-semibold">
                     {project.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <h2 className="font-semibold">{project.name}</h2>
                     <a
-                      className="text-sm text-zinc-500 hover:text-zinc-300"
+                      className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
                       href={`https://${project.primary_domain}`}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      {project.primary_domain}
+                      {project.primary_domain || "no domain"}
                     </a>
                   </div>
                 </div>
@@ -70,31 +71,20 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               </div>
 
               <div className="mt-5 grid gap-3 text-sm md:grid-cols-4">
-                <div>
-                  <div className="text-zinc-500">Repository</div>
-                  <div className="mt-1 truncate">{project.repository || "Not linked"}</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">Environment</div>
-                  <div className="mt-1">{project.environment || "Production"}</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">Last update</div>
-                  <div className="mt-1">{formatRelativeLabel(project.updated_at)}</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">Health checks</div>
-                  <div className="mt-1">
-                    {project.healthcheck_enabled ? "Enabled" : "Unavailable"}
-                  </div>
-                </div>
+                <Field label="Repository" value={project.repository || "Not linked"} mono />
+                <Field label="Environment" value={project.environment || "Production"} />
+                <Field label="Last update" value={formatRelativeLabel(project.updated_at)} />
+                <Field
+                  label="Health checks"
+                  value={project.healthcheck_enabled ? "Enabled" : "Unavailable"}
+                />
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <ProjectActions applicationId={project.id} />
                 <Link
                   href={`/projects/${project.id}`}
-                  className="rounded-lg border border-border px-3 py-2 text-sm text-zinc-200 transition hover:bg-zinc-900"
+                  className="rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-accent"
                 >
                   Open deploy console
                 </Link>
@@ -110,36 +100,48 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       </section>
 
       {params.app ? (
-        <section className="rounded-2xl border border-border bg-zinc-950/70 p-5">
+        <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="font-semibold">Recent deployments</h2>
-              <p className="mt-1 text-sm text-zinc-500">Application: {params.app}</p>
+              <h2 className="font-display text-lg font-semibold">Recent deployments</h2>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">{params.app}</p>
             </div>
-            <Link href="/projects" className="text-sm text-zinc-400 hover:text-zinc-200">
+            <Link
+              href="/projects"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
               Clear
             </Link>
           </div>
           <div className="mt-4 space-y-3 text-sm">
             {deployments.length > 0 ? (
               deployments.map((deployment) => (
-                <div key={deployment.id} className="rounded-xl border border-border p-3">
+                <div key={deployment.id} className="rounded-xl border border-border bg-background p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">{deployment.id}</div>
+                    <div className="font-mono text-xs">{deployment.id}</div>
                     <StatusBadge value={deployment.status} />
                   </div>
-                  <div className="mt-2 text-zinc-500">
-                    Branch: {deployment.branch || "n/a"} · Commit: {deployment.commit || "n/a"} ·
-                    Created: {formatRelativeLabel(deployment.created_at)}
+                  <div className="mt-2 font-mono text-xs text-muted-foreground">
+                    {deployment.branch || "n/a"} · {deployment.commit || "n/a"} ·{" "}
+                    {formatRelativeLabel(deployment.created_at)}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-zinc-400">No deployments found for this application.</div>
+              <div className="text-muted-foreground">No deployments found for this application.</div>
             )}
           </div>
-        </section>
+        </Card>
       ) : null}
+    </div>
+  )
+}
+
+function Field({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="text-muted-foreground">{label}</div>
+      <div className={`mt-1 truncate ${mono ? "font-mono text-xs" : ""}`}>{value}</div>
     </div>
   )
 }

@@ -47,25 +47,25 @@ describe("ProjectSubNav", () => {
   it("marks Overview active on the exact root path", () => {
     setup(`/projects/${projectId}`)
     const overviewLink = screen.getByRole("link", { name: /overview/i })
-    expect(overviewLink).toHaveClass("bg-zinc-800")
+    expect(overviewLink).toHaveClass("bg-accent")
   })
 
   it("does NOT mark Overview active on a sub-path", () => {
     setup(`/projects/${projectId}/deployments`)
     const overviewLink = screen.getByRole("link", { name: /overview/i })
-    expect(overviewLink).not.toHaveClass("bg-zinc-800")
+    expect(overviewLink).not.toHaveClass("bg-accent")
   })
 
   it("marks Deployments active on its sub-path", () => {
     setup(`/projects/${projectId}/deployments`)
     const deploymentsLink = screen.getByRole("link", { name: /deployments/i })
-    expect(deploymentsLink).toHaveClass("bg-zinc-800")
+    expect(deploymentsLink).toHaveClass("bg-accent")
   })
 
   it("marks Logs active on its sub-path", () => {
     setup(`/projects/${projectId}/logs`)
     const logsLink = screen.getByRole("link", { name: /logs/i })
-    expect(logsLink).toHaveClass("bg-zinc-800")
+    expect(logsLink).toHaveClass("bg-accent")
   })
 
   it("links point to the correct project URLs", () => {

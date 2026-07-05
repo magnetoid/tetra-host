@@ -26,13 +26,13 @@ export function ProjectSubNav({
       <div className="mb-2 flex items-center gap-3 px-1">
         <Link
           href="/projects"
-          className="text-xs text-zinc-400 transition hover:text-white"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
           aria-label="Back to projects"
         >
           ← Projects
         </Link>
-        <span className="text-zinc-600">/</span>
-        <h2 className="truncate text-sm font-semibold text-zinc-100">{projectName}</h2>
+        <span className="text-muted-foreground">/</span>
+        <h2 className="truncate text-sm font-semibold text-foreground">{projectName}</h2>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto pb-1">
@@ -43,13 +43,13 @@ export function ProjectSubNav({
               key={item.href}
               href={item.href}
               className={cn(
-                "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-zinc-300 transition hover:bg-zinc-800 hover:text-white",
-                active && "bg-zinc-800 text-white",
+                "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                active && "bg-accent font-medium text-foreground",
               )}
             >
               <FontAwesomeIcon
                 icon={item.icon}
-                className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-zinc-500")}
+                className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")}
                 fixedWidth
               />
               {item.label}
