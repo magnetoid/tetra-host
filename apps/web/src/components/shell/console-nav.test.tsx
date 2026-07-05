@@ -36,7 +36,7 @@ describe("ConsoleNav context switch", () => {
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Cool App")
     const logs = screen.getByRole("link", { name: /logs/i })
     expect(logs).toHaveAttribute("href", "/projects/proj-1/logs")
-    expect(logs).toHaveClass("bg-zinc-800")
+    expect(logs).toHaveClass("bg-accent")
   })
 
   it("falls back to 'Project' when the id is not in the known list", () => {

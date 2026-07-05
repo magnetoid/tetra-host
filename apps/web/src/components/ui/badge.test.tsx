@@ -14,7 +14,7 @@ describe("Badge", () => {
   it("applies the success variant classes", () => {
     render(<Badge variant="success">Active</Badge>)
     const el = screen.getByText("Active")
-    expect(el.className).toContain("text-emerald-300")
+    expect(el.className).toContain("text-status-ok")
   })
 
   it("applies the destructive variant classes", () => {

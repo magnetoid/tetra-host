@@ -25,14 +25,14 @@ function NavRow({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-zinc-300 transition hover:bg-zinc-800 hover:text-white",
-        active && "bg-zinc-800 text-white",
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition hover:bg-accent hover:text-foreground",
+        active && "bg-accent font-medium text-foreground",
       )}
     >
       {icon ? (
         <FontAwesomeIcon
           icon={icon}
-          className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-zinc-500")}
+          className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")}
           fixedWidth
         />
       ) : null}
@@ -93,13 +93,15 @@ export function ConsoleNav({
         <div className="w-1/2 shrink-0 pl-px text-sm" inert={!inProject || undefined}>
           <Link
             href="/projects"
-            className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
+            className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition hover:bg-accent hover:text-foreground"
           >
             <span aria-hidden>←</span> Projects
           </Link>
           <div className="mb-2 px-3">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Project</p>
-            <h2 className="mt-1 truncate text-sm font-semibold text-zinc-100">{projectName}</h2>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Project
+            </p>
+            <h2 className="mt-1 truncate text-sm font-semibold text-foreground">{projectName}</h2>
           </div>
           <nav className="space-y-1">
             {projectItems.map((item) => (

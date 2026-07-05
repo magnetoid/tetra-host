@@ -17,15 +17,15 @@ export function StatCard({
   accent?: string
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-zinc-950/70 p-5 shadow-sm">
-      <div className="flex items-center gap-2 text-sm text-zinc-500">
-        <span className={cn("grid h-7 w-7 place-items-center rounded-lg bg-background", accent)}>
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/30">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className={cn("grid size-7 place-items-center rounded-lg bg-background", accent)}>
           <FontAwesomeIcon icon={icon} className="h-4 w-4" />
         </span>
         {label}
       </div>
-      <div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div>
-      {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
+      <div className="mt-3 font-mono text-3xl font-semibold tracking-tight tabular-nums">{value}</div>
+      {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
     </div>
   )
 }

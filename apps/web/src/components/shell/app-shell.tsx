@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { ConsoleNav } from "@/components/shell/console-nav"
 import { PendingGate } from "@/components/shell/pending-gate"
+import { StatusSpine } from "@/components/shell/status-spine"
 import { UserMenu } from "@/components/ui/user-menu"
 import { APP_ENV, APP_NAME } from "@/lib/env"
 import type { AdminRecord } from "@/lib/types"
@@ -23,23 +24,30 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-72 border-r border-border bg-muted/40 p-6 lg:block">
+      <aside className="hidden w-72 shrink-0 border-r border-border bg-muted/40 p-6 lg:block">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-sm font-bold">
+          <div className="grid size-10 place-items-center rounded-xl bg-primary font-display text-sm font-bold text-primary-foreground">
             CI
           </div>
           <div>
-            <div className="font-semibold">{APP_NAME}</div>
-            <div className="text-xs text-zinc-400">Hosting Panel</div>
+            <div className="font-display font-semibold leading-tight">{APP_NAME}</div>
+            <div className="text-xs text-muted-foreground">Control plane</div>
           </div>
         </Link>
 
-        <div className="mt-6 rounded-2xl border border-border bg-background/60 p-4 text-sm">
-          <div className="text-zinc-400">Environment</div>
-          <div className="mt-2 font-medium capitalize">{APP_ENV}</div>
+        <div className="mt-6 rounded-xl border border-border bg-background/60 p-4 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+              Environment
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono text-xs capitalize">
+              <span className="size-1.5 rounded-full bg-status-ok" />
+              {APP_ENV}
+            </span>
+          </div>
           {admin.tenant_name ? (
-            <div className="mt-3 text-xs text-zinc-500">
-              Tenant: {admin.tenant_name}
+            <div className="mt-2 truncate text-xs text-muted-foreground">
+              Tenant: <span className="text-foreground">{admin.tenant_name}</span>
             </div>
           ) : null}
         </div>
@@ -47,16 +55,15 @@ export function AppShell({
         <ConsoleNav adminRole={admin.role} projects={projects} />
       </aside>
 
-      <main className="flex-1">
-        <header className="flex h-16 items-center justify-between border-b border-border px-6">
-          <div>
-            <div className="text-sm text-zinc-400">
-              Python core · Coolify · Mailcow · Cloudflare
-            </div>
-            <div className="text-xs text-zinc-500">Cloud Industry control plane</div>
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border px-6">
+          <div className="min-w-0">
+            <div className="font-display text-sm font-medium leading-tight">Cloud Industry</div>
+            <div className="truncate text-xs text-muted-foreground">Hosting control plane</div>
           </div>
           <UserMenu admin={admin} />
         </header>
+        <StatusSpine />
         <section className="p-6 lg:p-10">{children}</section>
       </main>
     </div>

@@ -2,9 +2,10 @@ import Link from "next/link"
 
 import { faEnvelope, faGlobe, faServer, faTriangleExclamation, faUsers } from "@/lib/icons"
 
-import { BarList } from "@/components/charts/bar-list"
-import { ChartLegend, DonutChart, type DonutSlice } from "@/components/charts/donut-chart"
 import { ZoneTraffic } from "@/components/dns/zone-traffic"
+import { BarList } from "@/components/tremor/bar-list"
+import { DonutChart, DonutLegend } from "@/components/tremor/donut-chart"
+import { Card } from "@/components/ui/card"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { StatCard } from "@/components/ui/stat-card"
@@ -17,6 +18,9 @@ import type {
   ProjectRecord,
   ZoneAnalytics,
 } from "@/lib/types"
+
+// Provider-health donut: connected → ok, degraded → warn, unconfigured → muted grid.
+const HEALTH_COLORS = ["var(--status-ok)", "var(--status-warn)", "var(--chart-grid)"]
 
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
@@ -43,24 +47,24 @@ export default async function DashboardPage() {
         searchParams: { days: "7" },
       }).catch(() => null)
     : null
-  const primaryZoneName =
-    dns.zones.find((zone) => zone.id === primaryZone)?.name ?? primaryZone
+  const primaryZoneName = dns.zones.find((zone) => zone.id === primaryZone)?.name ?? primaryZone
 
   const m = dashboard.metrics
   const providerCount = (status: string) =>
     dashboard.providers.filter((p) => p.status === status).length
+  const connected = providerCount("connected")
 
-  const health: DonutSlice[] = [
-    { name: "Connected", value: providerCount("connected"), color: "#34d399" },
-    { name: "Degraded", value: providerCount("degraded"), color: "#fbbf24" },
-    { name: "Not configured", value: providerCount("not_configured"), color: "#52525b" },
+  const health = [
+    { name: "Connected", value: connected },
+    { name: "Degraded", value: providerCount("degraded") },
+    { name: "Not configured", value: providerCount("not_configured") },
   ]
 
   const resources = [
-    { name: "Projects", value: m.projects, color: "bg-violet-500/40" },
-    { name: "Mail domains", value: m.mail_domains, color: "bg-emerald-500/40" },
-    { name: "DNS zones", value: m.dns_zones, color: "bg-amber-500/40" },
-    { name: "Admins", value: m.admins, color: "bg-sky-500/40" },
+    { name: "Projects", value: m.projects },
+    { name: "Mail domains", value: m.mail_domains },
+    { name: "DNS zones", value: m.dns_zones },
+    { name: "Admins", value: m.admins },
   ]
 
   return (
@@ -74,7 +78,7 @@ export default async function DashboardPage() {
             <RefreshLink href="/dashboard" label="Refresh providers" />
             <Link
               href="/admin"
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-zinc-900"
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-accent"
             >
               Platform controls
             </Link>
@@ -83,68 +87,67 @@ export default async function DashboardPage() {
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={faServer} label="Projects" value={m.projects} hint={`${m.unhealthy_projects} need attention`} accent="text-violet-400" />
-        <StatCard icon={faTriangleExclamation} label="Unhealthy" value={m.unhealthy_projects} hint="Degraded apps" accent="text-red-400" />
-        <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-emerald-400" />
-        <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-amber-400" />
-        <StatCard icon={faUsers} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-sky-400" />
+        <StatCard icon={faServer} label="Projects" value={m.projects} hint={`${m.unhealthy_projects} need attention`} accent="text-primary" />
+        <StatCard icon={faTriangleExclamation} label="Unhealthy" value={m.unhealthy_projects} hint="Degraded apps" accent="text-status-err" />
+        <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-status-ok" />
+        <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-status-warn" />
+        <StatCard icon={faUsers} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-status-live" />
       </section>
 
       {analytics && analytics.points.length > 0 ? (
-        <section className="rounded-2xl border border-border bg-muted p-6">
+        <Card>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Traffic</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h2 className="font-display text-lg font-semibold">Traffic</h2>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
                 {primaryZoneName} · Cloudflare · last 7 days
               </p>
             </div>
-            <Link href="/dns" className="text-sm text-zinc-400 hover:text-white">
+            <Link href="/dns" className="text-sm text-muted-foreground transition hover:text-foreground">
               All zones
             </Link>
           </div>
           <div className="mt-4">
             <ZoneTraffic analytics={analytics} />
           </div>
-        </section>
+        </Card>
       ) : null}
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-muted p-6">
-          <h2 className="text-lg font-semibold">Provider health</h2>
+        <Card>
+          <h2 className="font-display text-lg font-semibold">Provider health</h2>
           <div className="mt-4">
             <DonutChart
               data={health}
-              centerLabel={`${providerCount("connected")}/${dashboard.providers.length}`}
-              centerSublabel="healthy"
+              colors={HEALTH_COLORS}
+              centerValue={`${connected}/${dashboard.providers.length}`}
+              centerLabel="healthy"
             />
           </div>
-          <div className="mt-4">
-            <ChartLegend data={health} />
-          </div>
-        </div>
+          <DonutLegend data={health} colors={HEALTH_COLORS} className="mt-4" />
+        </Card>
 
-        <div className="rounded-2xl border border-border bg-muted p-6">
-          <h2 className="text-lg font-semibold">Resource mix</h2>
+        <Card>
+          <h2 className="font-display text-lg font-semibold">Resource mix</h2>
           <div className="mt-5">
             <BarList data={resources} />
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl border border-border bg-muted p-6">
-          <h2 className="text-lg font-semibold">Connectivity</h2>
+        <Card>
+          <h2 className="font-display text-lg font-semibold">Connectivity</h2>
           <div className="mt-4 space-y-3">
             {dashboard.providers.map((provider) => (
               <ProviderCard key={provider.name} provider={provider} />
             ))}
           </div>
-        </div>
+        </Card>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
         <PreviewPanel title="Recent projects" href="/projects" empty="No Coolify applications available yet.">
           {projects.slice(0, 3).map((project) => (
-            <PreviewItem key={project.id} title={project.name} subtitle={project.primary_domain} />
+            <PreviewItem key={project.id} title={project.name} subtitle={project.primary_domain} mono />
           ))}
         </PreviewPanel>
         <PreviewPanel title="Mail domains" href="/mail" empty="Mailcow returned no domains.">
@@ -162,6 +165,7 @@ export default async function DashboardPage() {
               key={zone.id}
               title={zone.name}
               subtitle={[zone.status, zone.account_name].filter(Boolean).join(" · ")}
+              mono
             />
           ))}
         </PreviewPanel>
@@ -185,10 +189,10 @@ function PreviewPanel({
   const hasItems = items.some(Boolean)
 
   return (
-    <div className="rounded-2xl border border-border bg-muted p-6">
+    <Card>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <Link href={href} className="text-sm text-zinc-400 hover:text-white">
+        <h2 className="font-display text-lg font-semibold">{title}</h2>
+        <Link href={href} className="text-sm text-muted-foreground transition hover:text-foreground">
           View all
         </Link>
       </div>
@@ -196,20 +200,30 @@ function PreviewPanel({
         {hasItems ? (
           children
         ) : (
-          <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">
+          <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
             {empty}
           </div>
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
-function PreviewItem({ title, subtitle }: { title: string; subtitle: string }) {
+function PreviewItem({
+  title,
+  subtitle,
+  mono = false,
+}: {
+  title: string
+  subtitle: string
+  mono?: boolean
+}) {
   return (
-    <div className="rounded-xl border border-border bg-background p-4">
+    <div className="rounded-xl border border-border bg-background p-4 transition-colors hover:border-primary/30">
       <div className="font-medium">{title}</div>
-      <div className="mt-1 text-sm text-zinc-500">{subtitle}</div>
+      <div className={`mt-1 text-sm text-muted-foreground ${mono ? "font-mono text-xs" : ""}`}>
+        {subtitle || "—"}
+      </div>
     </div>
   )
 }

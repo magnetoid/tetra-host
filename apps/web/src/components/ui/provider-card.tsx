@@ -8,7 +8,7 @@ export function ProviderCard({ provider }: { provider: ProviderSummary }) {
         <div className="font-medium">{provider.name}</div>
         <StatusBadge value={provider.status} />
       </div>
-      <p className="mt-2 text-sm text-zinc-500">{provider.detail}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{provider.detail}</p>
     </div>
   )
 }

@@ -23,10 +23,14 @@ export function PageHeader({
       )}
     >
       <div>
-        {eyebrow ? <div className="text-sm text-zinc-500">{eyebrow}</div> : null}
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight">{title}</h1>
+        {eyebrow ? (
+          <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {eyebrow}
+          </div>
+        ) : null}
+        <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">{title}</h1>
         {description ? (
-          <p className="mt-3 max-w-2xl text-zinc-400">{description}</p>
+          <p className="mt-3 max-w-2xl text-muted-foreground">{description}</p>
         ) : null}
       </div>
       {action}
@@ -44,7 +48,7 @@ export function RefreshLink({
   return (
     <Link
       href={href}
-      className="inline-flex rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+      className="inline-flex rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:bg-foreground/90"
     >
       {label}
     </Link>

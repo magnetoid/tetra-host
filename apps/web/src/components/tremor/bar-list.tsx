@@ -1,6 +1,8 @@
+"use client"
+
 // Tremor BarList [v1.0.0] — vendored from github.com/tremorlabs/tremor (MIT),
-// brand-tuned to the Tetra palette (violet bars, explicit colors for the dark-only
-// console) instead of Tremor's default blue + `dark:` classes.
+// brand-tuned to the Tetra palette (violet bars). Client component: it uses
+// useMemo and attaches an onClick handler, so it can't render on the server.
 import React from "react"
 
 import { cx, focusRing } from "./utils"
@@ -69,7 +71,7 @@ function BarListInner<T>(
             className={cx(
               "group w-full rounded-sm",
               focusRing,
-              onValueChange ? ["-m-0! cursor-pointer", "hover:bg-white/5"] : "",
+              onValueChange ? ["-m-0! cursor-pointer", "hover:bg-foreground/5"] : "",
             )}
           >
             <div
@@ -121,7 +123,12 @@ function BarListInner<T>(
               index === sortedData.length - 1 ? "mb-0" : "mb-1.5",
             )}
           >
-            <p className={cx("truncate whitespace-nowrap text-sm leading-none", "text-zinc-300")}>
+            <p
+              className={cx(
+                "truncate whitespace-nowrap font-mono text-sm leading-none tabular-nums",
+                "text-muted-foreground",
+              )}
+            >
               {valueFormatter(item.value)}
             </p>
           </div>
