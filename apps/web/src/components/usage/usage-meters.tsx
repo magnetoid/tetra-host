@@ -24,10 +24,10 @@ function MeterBar({
   const fill = pct(used, limit)
   const overLimit = used > limit && limit > 0
   const barColor = overLimit
-    ? "bg-red-500"
+    ? "bg-status-err"
     : enforced
       ? "bg-primary"
-      : "bg-zinc-500"
+      : "bg-muted-foreground"
 
   const usedLabel = unit ? `${used.toLocaleString()} ${unit}` : used.toLocaleString()
   const limitLabel = unit ? `${limit.toLocaleString()} ${unit}` : limit.toLocaleString()
@@ -36,9 +36,9 @@ function MeterBar({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-zinc-200">{label}</span>
+          <span className="text-sm font-medium text-foreground">{label}</span>
           {!enforced && (
-            <span className="inline-flex items-center rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
+            <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               advisory — not yet enforced
             </span>
           )}
@@ -48,11 +48,11 @@ function MeterBar({
             </span>
           )}
         </div>
-        <span className="shrink-0 text-xs text-zinc-400">
+        <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
           {usedLabel} / {limitLabel}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={`h-full rounded-full transition-all ${barColor}`}
           style={{ width: `${fill}%` }}
@@ -72,7 +72,7 @@ export function UsageMeters({ usage }: { usage: Usage }) {
         title="Quota usage"
         action={
           usage.plan_key ? (
-            <span className="font-mono text-xs text-zinc-400">{usage.plan_key}</span>
+            <span className="font-mono text-xs text-muted-foreground">{usage.plan_key}</span>
           ) : undefined
         }
       />

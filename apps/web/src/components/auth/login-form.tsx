@@ -53,7 +53,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
     <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
       <label className="block text-sm">
-        <span className="mb-2 block font-medium text-zinc-300">Email</span>
+        <span className="mb-2 block font-medium text-muted-foreground">Email</span>
         <input
           aria-label="Email"
           name="email"
@@ -67,7 +67,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
         />
       </label>
       <label className="block text-sm">
-        <span className="mb-2 block font-medium text-zinc-300">Password</span>
+        <span className="mb-2 block font-medium text-muted-foreground">Password</span>
         <div className="relative">
           <input
             aria-label="Password"
@@ -85,7 +85,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
             aria-label={showPassword ? "Hide password" : "Show password"}
             aria-pressed={showPassword}
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-zinc-500 transition hover:bg-white/5 hover:text-zinc-200"
+            className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             {showPassword ? (
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">

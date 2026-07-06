@@ -19,7 +19,7 @@ export function ZoneSelector({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <label htmlFor="zone-select" className="text-sm text-zinc-400">
+      <label htmlFor="zone-select" className="text-sm text-muted-foreground">
         Zone
       </label>
       <select
@@ -30,7 +30,7 @@ export function ZoneSelector({
           const zoneId = event.target.value
           startTransition(() => router.push(`/dns?zone=${zoneId}`))
         }}
-        className="min-w-64 rounded-lg border border-border bg-background px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none disabled:opacity-60"
+        className="min-w-64 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none disabled:opacity-60"
       >
         {zones.length === 0 ? (
           <option value="">No zones</option>
@@ -43,11 +43,11 @@ export function ZoneSelector({
         )}
       </select>
       {current ? (
-        <span className="text-sm text-zinc-500">
+        <span className="text-sm text-muted-foreground">
           {[current.status, current.account_name].filter(Boolean).join(" · ")}
         </span>
       ) : null}
-      {pending ? <span className="text-xs text-zinc-600">loading…</span> : null}
+      {pending ? <span className="text-xs text-muted-foreground">loading…</span> : null}
     </div>
   )
 }

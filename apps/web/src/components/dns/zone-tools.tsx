@@ -10,7 +10,7 @@ const SSL_MODES = ["off", "flexible", "full", "strict"]
 const SECURITY_LEVELS = ["off", "essentially_off", "low", "medium", "high", "under_attack"]
 
 const selectClass =
-  "rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none disabled:opacity-60"
+  "rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-60"
 
 export function ZoneTools({ zoneId, settings }: { zoneId: string; settings: ZoneSettings }) {
   const router = useRouter()
@@ -99,7 +99,7 @@ export function ZoneTools({ zoneId, settings }: { zoneId: string; settings: Zone
             type="button"
             disabled={pending !== null}
             onClick={() => call("purge", { everything: true }, "purge", "POST")}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-200 transition hover:bg-zinc-900 disabled:opacity-60"
+            className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:opacity-60"
           >
             {pending === "purge" ? "Purging…" : "Purge everything"}
           </button>
@@ -113,7 +113,7 @@ export function ZoneTools({ zoneId, settings }: { zoneId: string; settings: Zone
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm text-zinc-400">
+    <label className="flex flex-col gap-1.5 text-sm text-muted-foreground">
       {label}
       {children}
     </label>
@@ -132,7 +132,7 @@ function Toggle({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-zinc-300">
+    <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
       {label}
       <input
         type="checkbox"

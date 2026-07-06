@@ -69,7 +69,7 @@ export function DomainsManager({
         className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
       >
         <label className="block text-sm">
-          <span className="mb-2 block text-zinc-400">App</span>
+          <span className="mb-2 block text-muted-foreground">App</span>
           <select
             aria-label="App"
             value={project}
@@ -86,7 +86,7 @@ export function DomainsManager({
           </select>
         </label>
         <label className="block flex-1 text-sm">
-          <span className="mb-2 block text-zinc-400">Domain</span>
+          <span className="mb-2 block text-muted-foreground">Domain</span>
           <input
             aria-label="Domain"
             value={hostname}
@@ -113,10 +113,10 @@ export function DomainsManager({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{domain.hostname}</span>
+                    <span className="font-mono font-medium">{domain.hostname}</span>
                     <StatusBadge value={domain.status} />
                   </div>
-                  <div className="mt-1 text-sm text-zinc-500">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     → {domain.project}
                   </div>
                 </div>
@@ -148,8 +148,8 @@ export function DomainsManager({
               </div>
 
               {domain.status !== "verified" ? (
-                <div className="mt-3 rounded-xl border border-border bg-background/70 p-3 font-mono text-xs text-zinc-400">
-                  <div className="mb-1 text-zinc-500">Publish these DNS records, then hit Verify:</div>
+                <div className="mt-3 rounded-xl border border-border bg-background/70 p-3 font-mono text-xs text-muted-foreground">
+                  <div className="mb-1 text-muted-foreground">Publish these DNS records, then hit Verify:</div>
                   <div>
                     TXT&nbsp;&nbsp;&nbsp;{domain.txt_name} = &quot;{domain.txt_value}&quot;
                   </div>
@@ -158,7 +158,7 @@ export function DomainsManager({
                   </div>
                 </div>
               ) : (
-                <div className="mt-2 text-xs text-zinc-500">
+                <div className="mt-2 text-xs text-muted-foreground">
                   Redeploy the app to route this domain at the edge.
                 </div>
               )}

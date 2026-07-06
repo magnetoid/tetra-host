@@ -18,7 +18,7 @@ export default async function PlansPage() {
           description="Manage subscription plans available to tenants."
         />
         <Card>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-muted-foreground">
             Plan management is restricted to platform administrators.
           </p>
         </Card>

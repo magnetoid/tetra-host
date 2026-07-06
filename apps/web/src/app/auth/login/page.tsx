@@ -52,7 +52,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <Link href="/">
             <TetraWordmark />
           </Link>
-          <span className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-zinc-600">
+          <span className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             control&nbsp;plane
           </span>
         </div>
@@ -78,7 +78,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               one plane.
             </span>
           </h1>
-          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-zinc-400">
+          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
             Applications, databases, DNS, and mail — orchestrated behind a single, tenant-aware
             control plane.
           </p>
@@ -87,11 +87,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             {PLANES.map((plane, i) => (
               <div key={plane.code} className="flex items-center gap-2.5">
                 <span
-                  className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                  className="h-1.5 w-1.5 rounded-full bg-status-ok"
                   style={{ animation: `tetraPulse 2.4s ${i * 0.6}s ease-in-out infinite` }}
                 />
-                <span className="text-zinc-300">{plane.code}</span>
-                <span className="text-zinc-600">{plane.provider}</span>
+                <span className="text-foreground">{plane.code}</span>
+                <span className="text-muted-foreground">{plane.provider}</span>
               </div>
             ))}
           </div>
@@ -107,41 +107,41 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </Link>
           </div>
 
-          <div className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-violet-300">
+          <div className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-primary">
             Admin access
           </div>
           <h2 className="mt-2 font-[family-name:var(--font-space-grotesk)] text-3xl font-semibold tracking-tight">
             Sign in
           </h2>
-          <p className="mt-2 text-sm text-zinc-500">Access your Tetra AI Cloud control plane.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Access your Tetra AI Cloud control plane.</p>
 
           <LoginForm nextPath={nextPath} />
 
           <div className="mt-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="font-[family-name:var(--font-jetbrains-mono)] text-[10px] uppercase tracking-[0.2em] text-zinc-600">
+            <span className="font-[family-name:var(--font-jetbrains-mono)] text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
               Secured
             </span>
             <div className="h-px flex-1 bg-border" />
           </div>
-          <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 font-[family-name:var(--font-jetbrains-mono)] text-[11px] text-zinc-500">
+          <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 font-[family-name:var(--font-jetbrains-mono)] text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="h-1 w-1 rounded-full bg-emerald-500" />
+              <span className="h-1 w-1 rounded-full bg-status-ok" />
               CSRF protected
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-1 w-1 rounded-full bg-emerald-500" />
+              <span className="h-1 w-1 rounded-full bg-status-ok" />
               Rate limited
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-1 w-1 rounded-full bg-emerald-500" />
+              <span className="h-1 w-1 rounded-full bg-status-ok" />
               Signed sessions
             </span>
           </div>
 
-          <p className="mt-10 text-center text-xs text-zinc-600">
+          <p className="mt-10 text-center text-xs text-muted-foreground">
             New here?{" "}
-            <Link href="/auth/register" className="text-zinc-300 hover:underline">
+            <Link href="/auth/register" className="text-foreground hover:underline">
               Create an account
             </Link>
           </p>

@@ -40,7 +40,7 @@ export default async function RegisterPage() {
           <Link href="/">
             <TetraWordmark />
           </Link>
-          <span className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-zinc-600">
+          <span className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             control&nbsp;plane
           </span>
         </div>
@@ -64,7 +64,7 @@ export default async function RegisterPage() {
               one platform.
             </span>
           </h1>
-          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-zinc-400">
+          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
             Deploy applications, manage DNS, and run mail — through a unified, tenant-aware control
             plane built for serious teams.
           </p>
@@ -72,10 +72,10 @@ export default async function RegisterPage() {
           <div className="mt-8 grid max-w-md gap-y-3 font-[family-name:var(--font-jetbrains-mono)] text-[12px]">
             {CAPABILITIES.map((cap) => (
               <div key={cap.code} className="flex items-start gap-3">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400" />
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-status-live" />
                 <span>
-                  <span className="text-zinc-300">{cap.code}</span>{" "}
-                  <span className="text-zinc-600">{cap.copy}</span>
+                  <span className="text-foreground">{cap.code}</span>{" "}
+                  <span className="text-muted-foreground">{cap.copy}</span>
                 </span>
               </div>
             ))}
@@ -92,21 +92,21 @@ export default async function RegisterPage() {
             </Link>
           </div>
 
-          <div className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-violet-300">
+          <div className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-primary">
             Get started
           </div>
           <h2 className="mt-2 font-[family-name:var(--font-space-grotesk)] text-3xl font-semibold tracking-tight">
             Create an account
           </h2>
-          <p className="mt-2 text-sm text-zinc-500">
+          <p className="mt-2 text-sm text-muted-foreground">
             Your account is reviewed by an admin before you get access.
           </p>
 
           <RegisterForm />
 
-          <p className="mt-10 text-center text-xs text-zinc-600">
+          <p className="mt-10 text-center text-xs text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/auth/login" className="text-zinc-300 hover:underline">
+            <Link href="/auth/login" className="text-foreground hover:underline">
               Sign in
             </Link>
           </p>

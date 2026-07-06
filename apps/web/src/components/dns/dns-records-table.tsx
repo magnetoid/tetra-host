@@ -26,12 +26,12 @@ export function DnsRecordsTable({ zoneId, records }: { zoneId: string; records: 
           placeholder="Search type / name / content…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+          className="w-56 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
         />
       </div>
       <div className="mt-4 overflow-hidden rounded-2xl border border-border">
         <table className="min-w-full divide-y divide-border text-sm">
-          <thead className="bg-background/60 text-left text-zinc-500">
+          <thead className="bg-background/60 text-left text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Name</th>
@@ -52,15 +52,15 @@ export function DnsRecordsTable({ zoneId, records }: { zoneId: string; records: 
                   </tr>
                 ) : (
                   <tr key={record.id}>
-                    <td className="px-4 py-3">{record.type}</td>
-                    <td className="px-4 py-3 text-zinc-300">{record.name}</td>
-                    <td className="px-4 py-3 text-zinc-400">{record.content}</td>
-                    <td className="px-4 py-3 text-zinc-400">{record.ttl === 1 ? "Auto" : record.ttl}</td>
+                    <td className="px-4 py-3 font-mono">{record.type}</td>
+                    <td className="px-4 py-3 font-mono text-foreground">{record.name}</td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">{record.content}</td>
+                    <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{record.ttl === 1 ? "Auto" : record.ttl}</td>
                     <td className="px-4 py-3">
                       {record.proxied ? (
-                        <span className="text-amber-400">● Proxied</span>
+                        <span className="text-status-live">● Proxied</span>
                       ) : (
-                        <span className="text-zinc-500">DNS only</span>
+                        <span className="text-muted-foreground">DNS only</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -68,7 +68,7 @@ export function DnsRecordsTable({ zoneId, records }: { zoneId: string; records: 
                         <button
                           type="button"
                           onClick={() => setEditingId(record.id)}
-                          className="rounded-md border border-border px-2 py-1 text-xs text-zinc-300 transition hover:bg-zinc-900"
+                          className="rounded-md border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent"
                         >
                           Edit
                         </button>
@@ -80,7 +80,7 @@ export function DnsRecordsTable({ zoneId, records }: { zoneId: string; records: 
               )
             ) : (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-zinc-500">
+                <td colSpan={6} className="px-4 py-6 text-muted-foreground">
                   {records.length > 0 ? "No records match your search." : "Select a zone to browse records."}
                 </td>
               </tr>

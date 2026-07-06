@@ -6,10 +6,10 @@ import { requireConsoleSession } from "@/lib/auth"
 import type { TenantRecord } from "@/lib/types"
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "text-green-400",
-  pending: "text-yellow-400",
-  suspended: "text-orange-400",
-  rejected: "text-red-400",
+  active: "text-status-ok",
+  pending: "text-status-warn",
+  suspended: "text-status-warn",
+  rejected: "text-status-err",
 }
 
 export default async function TenantsPage() {
@@ -24,7 +24,7 @@ export default async function TenantsPage() {
           description="Manage tenant organisations on the platform."
         />
         <Card>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-muted-foreground">
             Tenant management is restricted to platform administrators.
           </p>
         </Card>
@@ -51,11 +51,11 @@ export default async function TenantsPage() {
         />
         <div className="mt-4">
           {tenants.length === 0 ? (
-            <p className="text-sm text-zinc-500">No tenants yet.</p>
+            <p className="text-sm text-muted-foreground">No tenants yet.</p>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border">
               <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-zinc-500">
+                <thead className="bg-background/60 text-left text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Slug</th>
@@ -68,19 +68,19 @@ export default async function TenantsPage() {
                   {tenants.map((tenant) => (
                     <tr key={tenant.id}>
                       <td className="px-4 py-3 font-medium">{tenant.name}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-400">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                         {tenant.slug}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={`text-xs font-medium capitalize ${
-                            STATUS_COLORS[tenant.status ?? "active"] ?? "text-zinc-400"
+                            STATUS_COLORS[tenant.status ?? "active"] ?? "text-muted-foreground"
                           }`}
                         >
                           {tenant.status ?? "active"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-zinc-500">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                         {tenant.plan_key ?? "—"}
                       </td>
                       <td className="px-4 py-3 text-right">

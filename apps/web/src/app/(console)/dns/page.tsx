@@ -62,7 +62,7 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4">
         <ZoneSelector zones={dns.zones} selected={dns.selected_zone} />
-        <span className="text-sm text-zinc-500">{dns.zones.length} zones</span>
+        <span className="text-sm text-muted-foreground">{dns.zones.length} zones</span>
       </div>
 
       {dns.selected_zone ? (
@@ -71,7 +71,7 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
             <div className="rounded-2xl border border-border bg-muted p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Traffic</h2>
-                <span className="text-sm text-zinc-500">{selectedZoneName} · last 7 days</span>
+                <span className="font-mono text-sm text-muted-foreground">{selectedZoneName} · last 7 days</span>
               </div>
               <div className="mt-4">
                 <ZoneTraffic analytics={analytics} />

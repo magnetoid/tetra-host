@@ -6,7 +6,7 @@ import { useRef, useState } from "react"
 import { AlertBanner } from "@/components/ui/alert-banner"
 
 const buttonClass =
-  "rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-200 transition hover:bg-zinc-900 disabled:opacity-60"
+  "rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:opacity-60"
 
 /** Bulk BIND import (upload) + export (download) for a zone's DNS records. */
 export function DnsImportExport({ zoneId, zoneName }: { zoneId: string; zoneName: string }) {
@@ -72,7 +72,7 @@ export function DnsImportExport({ zoneId, zoneName }: { zoneId: string; zoneName
     <div className="space-y-4 rounded-2xl border border-border bg-muted p-6">
       <div>
         <h2 className="text-lg font-semibold">Bulk records</h2>
-        <p className="mt-1 text-sm text-zinc-500">Import or export this zone as a BIND zone file.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Import or export this zone as a BIND zone file.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={exportZone} disabled={pending !== null} className={buttonClass}>

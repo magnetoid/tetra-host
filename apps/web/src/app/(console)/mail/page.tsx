@@ -40,14 +40,14 @@ export default async function MailPage({ searchParams }: MailPageProps) {
         <div className="rounded-2xl border border-border bg-muted p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Mail domains</h2>
-            <span className="text-sm text-zinc-500">{mail.domains.length} total</span>
+            <span className="text-sm text-muted-foreground">{mail.domains.length} total</span>
           </div>
           <div className="mt-4 space-y-3">
             {mail.domains.length > 0 ? (
               mail.domains.map((domain) => (
                 <div key={domain.domain_name} className="rounded-xl border border-border bg-background p-4">
-                  <div className="font-medium">{domain.domain_name}</div>
-                  <div className="mt-1 text-sm text-zinc-500">
+                  <div className="font-mono font-medium">{domain.domain_name}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">
                     {domain.mailboxes} mailboxes · {domain.aliases} aliases
                   </div>
                 </div>
@@ -61,11 +61,11 @@ export default async function MailPage({ searchParams }: MailPageProps) {
         <div className="rounded-2xl border border-border bg-muted p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Recent mailboxes</h2>
-            <span className="text-sm text-zinc-500">{mail.mailboxes.length} shown</span>
+            <span className="text-sm text-muted-foreground">{mail.mailboxes.length} shown</span>
           </div>
           <div className="mt-4 overflow-hidden rounded-2xl border border-border">
             <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="bg-background/60 text-left text-zinc-500">
+              <thead className="bg-background/60 text-left text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Mailbox</th>
                   <th className="px-4 py-3 font-medium">Name</th>
@@ -77,9 +77,9 @@ export default async function MailPage({ searchParams }: MailPageProps) {
                 {mail.mailboxes.length > 0 ? (
                   mail.mailboxes.map((mailbox) => (
                     <tr key={mailbox.username}>
-                      <td className="px-4 py-3">{mailbox.username}</td>
-                      <td className="px-4 py-3 text-zinc-400">{mailbox.name || "Mailbox user"}</td>
-                      <td className="px-4 py-3 text-zinc-400">{formatBytes(mailbox.quota_bytes)}</td>
+                      <td className="px-4 py-3 font-mono">{mailbox.username}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{mailbox.name || "Mailbox user"}</td>
+                      <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">{formatBytes(mailbox.quota_bytes)}</td>
                       <td className="px-4 py-3">
                         <StatusBadge value={mailbox.active ? "Active" : "Inactive"} />
                       </td>
@@ -87,7 +87,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-zinc-500">
+                    <td colSpan={4} className="px-4 py-6 text-muted-foreground">
                       No mailboxes returned.
                     </td>
                   </tr>

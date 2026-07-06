@@ -15,8 +15,8 @@ function formatPrice(cents: number, currency: string) {
 
 function ResourceBadge({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">
-      <span className="text-zinc-500">{label}</span>
+    <span className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 font-mono text-xs tabular-nums text-foreground">
+      <span className="text-muted-foreground">{label}</span>
       {value}
     </span>
   )
@@ -26,13 +26,13 @@ export function PlansTable({ plans }: { plans: Plan[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
 
   if (plans.length === 0) {
-    return <p className="text-sm text-zinc-500">No plans yet. Create one above.</p>
+    return <p className="text-sm text-muted-foreground">No plans yet. Create one above.</p>
   }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border">
       <table className="min-w-full divide-y divide-border text-sm">
-        <thead className="bg-background/60 text-left text-zinc-500">
+        <thead className="bg-background/60 text-left text-muted-foreground">
           <tr>
             <th className="px-4 py-3 font-medium">Key</th>
             <th className="px-4 py-3 font-medium">Name</th>
@@ -48,7 +48,7 @@ export function PlansTable({ plans }: { plans: Plan[] }) {
             editingId === plan.id ? (
               <tr key={plan.id}>
                 <td colSpan={7} className="p-4">
-                  <div className="mb-2 text-sm font-medium text-zinc-300">
+                  <div className="mb-2 text-sm font-medium text-foreground">
                     Editing: {plan.name}
                   </div>
                   <PlanForm plan={plan} onDone={() => setEditingId(null)} />
@@ -56,17 +56,17 @@ export function PlansTable({ plans }: { plans: Plan[] }) {
               </tr>
             ) : (
               <tr key={plan.id} className={plan.is_archived ? "opacity-50" : undefined}>
-                <td className="px-4 py-3 font-mono text-xs text-zinc-400">{plan.key}</td>
+                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{plan.key}</td>
                 <td className="px-4 py-3">
                   <div className="font-medium">{plan.name}</div>
                   {plan.description ? (
-                    <div className="text-xs text-zinc-500">{plan.description}</div>
+                    <div className="text-xs text-muted-foreground">{plan.description}</div>
                   ) : null}
                 </td>
-                <td className="px-4 py-3 text-zinc-300">
+                <td className="px-4 py-3 font-mono tabular-nums text-foreground">
                   {formatPrice(plan.price_cents, plan.currency)}
                 </td>
-                <td className="px-4 py-3 text-zinc-400">
+                <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">
                   {plan.max_apps} / {plan.max_domains}
                 </td>
                 <td className="px-4 py-3">
@@ -80,8 +80,8 @@ export function PlansTable({ plans }: { plans: Plan[] }) {
                   <span
                     className={
                       plan.is_archived
-                        ? "text-xs text-zinc-500"
-                        : "text-xs font-medium text-green-400"
+                        ? "text-xs text-muted-foreground"
+                        : "text-xs font-medium text-status-ok"
                     }
                   >
                     {plan.is_archived ? "Archived" : "Active"}

@@ -38,7 +38,7 @@ export default async function SuperAdminPage() {
           description="The platform operator command center."
         />
         <Card>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-muted-foreground">
             The super-admin command center is restricted to platform administrators.
           </p>
         </Card>
@@ -61,11 +61,11 @@ export default async function SuperAdminPage() {
 
       {/* Headline totals */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard icon={faUsers} label="Tenants" value={totals.tenants} accent="text-sky-400" />
-        <StatCard icon={faUserShield} label="Admins" value={totals.admins} accent="text-violet-400" />
-        <StatCard icon={faBox} label="Apps" value={totals.apps} accent="text-emerald-400" />
-        <StatCard icon={faDatabase} label="Databases" value={totals.databases} accent="text-amber-400" />
-        <StatCard icon={faLayerGroup} label="Plans" value={totals.plans} accent="text-rose-400" />
+        <StatCard icon={faUsers} label="Tenants" value={totals.tenants} accent="text-status-live" />
+        <StatCard icon={faUserShield} label="Admins" value={totals.admins} accent="text-primary" />
+        <StatCard icon={faBox} label="Apps" value={totals.apps} accent="text-status-ok" />
+        <StatCard icon={faDatabase} label="Databases" value={totals.databases} accent="text-status-warn" />
+        <StatCard icon={faLayerGroup} label="Plans" value={totals.plans} accent="text-status-err" />
       </section>
 
       {/* Tenant status breakdown */}
@@ -73,7 +73,7 @@ export default async function SuperAdminPage() {
         <CardHeader
           title="Tenant status"
           action={
-            <Link href="/tenants" className="transition-colors hover:text-zinc-300">
+            <Link href="/tenants" className="transition-colors hover:text-foreground">
               Manage tenants →
             </Link>
           }
@@ -120,7 +120,7 @@ export default async function SuperAdminPage() {
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border">
               <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-zinc-500">
+                <thead className="bg-background/60 text-left text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Slug</th>
@@ -132,8 +132,8 @@ export default async function SuperAdminPage() {
                   {pending_tenants.map((tenant) => (
                     <tr key={tenant.id}>
                       <td className="px-4 py-3 font-medium">{tenant.name}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-400">{tenant.slug}</td>
-                      <td className="px-4 py-3 text-zinc-400">{tenant.plan_key || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tenant.slug}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tenant.plan_key || "—"}</td>
                       <td className="px-4 py-3">
                         <TenantRowActions tenant={tenant} />
                       </td>
@@ -158,7 +158,7 @@ export default async function SuperAdminPage() {
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border">
               <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-zinc-500">
+                <thead className="bg-background/60 text-left text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">When</th>
                     <th className="px-4 py-3 font-medium">Action</th>
@@ -169,14 +169,14 @@ export default async function SuperAdminPage() {
                 <tbody className="divide-y divide-border bg-background">
                   {recent_events.map((event, i) => (
                     <tr key={`${event.action}-${event.created_at}-${i}`}>
-                      <td className="whitespace-nowrap px-4 py-3 text-zinc-400">
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
                         {formatWhen(event.created_at)}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge value={event.action} />
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">{event.actor_email}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-400">{event.target}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{event.actor_email}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{event.target}</td>
                     </tr>
                   ))}
                 </tbody>

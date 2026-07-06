@@ -24,13 +24,13 @@ export default async function AdminPage() {
         <div className="rounded-2xl border border-border bg-muted p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Tenants</h2>
-            <span className="text-sm text-zinc-500">{tenants.length} records</span>
+            <span className="text-sm text-muted-foreground">{tenants.length} records</span>
           </div>
           <div className="mt-4 space-y-3">
             {tenants.map((tenant) => (
               <div key={tenant.id} className="rounded-xl border border-border bg-background p-4">
                 <div className="font-medium">{tenant.name}</div>
-                <div className="mt-1 text-sm text-zinc-500">{tenant.slug}</div>
+                <div className="mt-1 font-mono text-xs text-muted-foreground">{tenant.slug}</div>
                 <div className="mt-2">
                   <StatusBadge value={tenant.is_active ? "Active" : "Inactive"} />
                 </div>
@@ -42,7 +42,7 @@ export default async function AdminPage() {
         <div className="rounded-2xl border border-border bg-muted p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Provider readiness</h2>
-            <span className="text-sm text-zinc-500">Current environment</span>
+            <span className="text-sm text-muted-foreground">Current environment</span>
           </div>
           <div className="mt-4 space-y-3">
             {adminData.providers.map((provider) => (
@@ -55,11 +55,11 @@ export default async function AdminPage() {
       <section className="rounded-2xl border border-border bg-muted p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Administrators</h2>
-          <span className="text-sm text-zinc-500">{adminData.admins.length} records</span>
+          <span className="text-sm text-muted-foreground">{adminData.admins.length} records</span>
         </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-border">
           <table className="min-w-full divide-y divide-border text-sm">
-            <thead className="bg-background/60 text-left text-zinc-500">
+            <thead className="bg-background/60 text-left text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Email</th>
@@ -71,8 +71,8 @@ export default async function AdminPage() {
               {adminData.admins.map((admin) => (
                 <tr key={admin.id}>
                   <td className="px-4 py-3">{admin.full_name}</td>
-                  <td className="px-4 py-3 text-zinc-400">{admin.email}</td>
-                  <td className="px-4 py-3 text-zinc-400">{admin.tenant_name ?? admin.tenant_slug}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{admin.email}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{admin.tenant_name ?? admin.tenant_slug}</td>
                   <td className="px-4 py-3">
                     <StatusBadge value={admin.is_active ? "Active" : "Inactive"} />
                   </td>

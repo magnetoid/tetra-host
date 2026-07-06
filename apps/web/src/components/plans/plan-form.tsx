@@ -47,8 +47,8 @@ function initState(plan?: Plan): FormState {
 
 function fieldClass(extra?: string) {
   return [
-    "w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-zinc-100",
-    "placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none",
+    "w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground",
+    "placeholder:text-muted-foreground focus:border-primary focus:outline-none",
     extra,
   ]
     .filter(Boolean)
@@ -56,7 +56,7 @@ function fieldClass(extra?: string) {
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs font-medium text-zinc-400">{children}</label>
+  return <label className="block text-xs font-medium text-muted-foreground">{children}</label>
 }
 
 export function PlanForm({ plan, onDone }: PlanFormProps) {
@@ -298,7 +298,7 @@ export function PlanForm({ plan, onDone }: PlanFormProps) {
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">
+        <p role="alert" className="rounded-lg bg-status-err/10 px-3 py-2 text-sm text-status-err">
           {error}
         </p>
       ) : null}

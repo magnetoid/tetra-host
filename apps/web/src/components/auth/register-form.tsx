@@ -51,7 +51,7 @@ export function RegisterForm() {
     <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
       <label className="block text-sm">
-        <span className="mb-2 block font-medium text-zinc-300">Organisation name</span>
+        <span className="mb-2 block font-medium text-muted-foreground">Organisation name</span>
         <input
           aria-label="Organisation name"
           name="org_name"
@@ -65,7 +65,7 @@ export function RegisterForm() {
         />
       </label>
       <label className="block text-sm">
-        <span className="mb-2 block font-medium text-zinc-300">Work email</span>
+        <span className="mb-2 block font-medium text-muted-foreground">Work email</span>
         <input
           aria-label="Email"
           name="email"
@@ -79,7 +79,7 @@ export function RegisterForm() {
         />
       </label>
       <label className="block text-sm">
-        <span className="mb-2 block font-medium text-zinc-300">Password</span>
+        <span className="mb-2 block font-medium text-muted-foreground">Password</span>
         <input
           aria-label="Password"
           name="password"

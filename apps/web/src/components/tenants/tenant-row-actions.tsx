@@ -43,7 +43,7 @@ export function TenantRowActions({ tenant }: { tenant: TenantRecord }) {
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      {error ? <span className="text-xs text-red-400">{error}</span> : null}
+      {error ? <span className="text-xs text-status-err">{error}</span> : null}
 
       {/* pending → approve or reject */}
       {status === "pending" && (
