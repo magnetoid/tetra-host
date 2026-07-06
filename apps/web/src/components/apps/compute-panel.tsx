@@ -59,15 +59,15 @@ export function ComputePanel({
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       <div className="flex items-center justify-between">
-        <div className="text-sm text-zinc-500">Live per-container CPU, memory &amp; network</div>
+        <div className="text-sm text-muted-foreground">Live per-container CPU, memory &amp; network</div>
         <button
           type="button"
           onClick={() => setLive((v) => !v)}
-          className="rounded-lg border border-border px-3 py-1.5 text-xs text-zinc-400 transition hover:text-zinc-200"
+          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           {live ? (
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="h-1.5 w-1.5 rounded-full bg-status-ok" />
               Live
             </span>
           ) : (
@@ -81,17 +81,17 @@ export function ComputePanel({
           icon={faGaugeHigh}
           label="CPU"
           value={`${metrics?.cpu_percent ?? 0}%`}
-          accent="text-violet-400"
+          accent="text-primary"
           hint="summed across containers"
         />
         <StatCard
           icon={faServer}
           label="Memory"
           value={`${metrics?.mem_used_mb ?? 0} MB`}
-          accent="text-cyan-400"
+          accent="text-status-live"
           hint="resident set size"
         />
-        <StatCard icon={faLayerGroup} label="Containers" value={samples.length} accent="text-emerald-400" />
+        <StatCard icon={faLayerGroup} label="Containers" value={samples.length} accent="text-status-ok" />
       </section>
 
       {samples.length === 0 ? (

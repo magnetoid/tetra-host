@@ -36,7 +36,7 @@ export function PreviewsManager({ previews }: { previews: PreviewRecord[] }) {
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       {previews.length === 0 ? (
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           No preview environments — push any branch of a hooked repository and it gets its own
           URL. Deleting the branch tears the preview down.
         </p>
@@ -49,13 +49,13 @@ export function PreviewsManager({ previews }: { previews: PreviewRecord[] }) {
             >
               <div className="flex min-w-0 items-center gap-3 text-sm">
                 <span className="font-medium">{preview.project}</span>
-                <span className="font-mono text-xs text-zinc-500">@{preview.branch}</span>
+                <span className="font-mono text-xs text-muted-foreground">@{preview.branch}</span>
                 {preview.domain ? (
                   <a
                     href={`https://${preview.domain}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="truncate font-mono text-xs text-cyan-400 hover:underline"
+                    className="truncate font-mono text-xs text-status-live hover:underline"
                   >
                     {preview.domain}
                   </a>

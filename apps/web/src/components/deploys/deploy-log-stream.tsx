@@ -8,10 +8,10 @@ type StreamPhase = "connecting" | "streaming" | "done" | "error"
 
 function statusTone(status: string): string {
   const normalized = status.toLowerCase()
-  if (/(error|fail)/.test(normalized)) return "border-red-900 bg-red-950 text-red-200"
-  if (/ready/.test(normalized)) return "border-emerald-900 bg-emerald-950 text-emerald-300"
-  if (/(build|queue)/.test(normalized)) return "border-amber-900 bg-amber-950 text-amber-200"
-  return "border-border bg-background text-zinc-400"
+  if (/(error|fail)/.test(normalized)) return "border-status-err/25 bg-status-err/10 text-status-err"
+  if (/ready/.test(normalized)) return "border-status-ok/25 bg-status-ok/10 text-status-ok"
+  if (/(build|queue)/.test(normalized)) return "border-status-warn/25 bg-status-warn/10 text-status-warn"
+  return "border-border bg-background text-muted-foreground"
 }
 
 /** Live SSE build-log view for a native (Tetra Engine) deployment.
@@ -58,7 +58,7 @@ export function DeployLogStream({ deploymentId }: { deploymentId: string }) {
         <span className={cn("rounded-full border px-2 py-0.5", statusTone(status))}>
           {status || "connecting…"}
         </span>
-        {phase === "error" ? <span className="text-red-300">stream interrupted</span> : null}
+        {phase === "error" ? <span className="text-status-err">stream interrupted</span> : null}
       </div>
       <div
         ref={scrollRef}

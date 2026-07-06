@@ -70,7 +70,7 @@ export function DeployConsole({
           type="button"
           disabled={pending !== null}
           onClick={() => triggerDeploy(false)}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending === "deploy" ? "Deploying…" : "Deploy"}
         </button>
@@ -78,7 +78,7 @@ export function DeployConsole({
           type="button"
           disabled={pending !== null}
           onClick={() => triggerDeploy(true)}
-          className="rounded-lg border border-border px-4 py-2 text-sm text-zinc-200 transition hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending === "redeploy" ? "Rebuilding…" : "Force rebuild"}
         </button>
@@ -86,7 +86,7 @@ export function DeployConsole({
           type="button"
           disabled={pending !== null}
           onClick={() => router.refresh()}
-          className="rounded-lg border border-border px-4 py-2 text-sm text-zinc-400 transition hover:bg-zinc-900 disabled:opacity-60"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent disabled:opacity-60"
         >
           Refresh
         </button>
@@ -97,9 +97,9 @@ export function DeployConsole({
 
       <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-400">Deployments</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">Deployments</h3>
           {initialDeployments.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-4 text-sm text-zinc-500">
+            <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
               No deployments yet. Trigger one to see it stream here.
             </p>
           ) : (
@@ -109,10 +109,10 @@ export function DeployConsole({
                 <div
                   key={deployment.id}
                   className={cn(
-                    "rounded-xl border p-3 transition",
+                    "rounded-xl border p-3 transition-colors",
                     selected
-                      ? "border-zinc-500 bg-zinc-900"
-                      : "border-border hover:border-zinc-700 hover:bg-zinc-950",
+                      ? "border-primary bg-accent"
+                      : "border-border hover:border-primary/30 hover:bg-accent",
                   )}
                 >
                   <button
@@ -121,12 +121,12 @@ export function DeployConsole({
                     className="w-full text-left"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs text-zinc-400">
+                      <span className="font-mono text-xs text-muted-foreground">
                         {deployment.commit ? deployment.commit.slice(0, 7) : deployment.id.slice(0, 7)}
                       </span>
                       <StatusBadge value={deployment.status} />
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
+                    <div className="mt-2 flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
                       <span>{deployment.branch || "—"}</span>
                       <span>{formatRelativeLabel(deployment.created_at)}</span>
                     </div>
@@ -136,7 +136,7 @@ export function DeployConsole({
                       type="button"
                       disabled={pending !== null}
                       onClick={() => void cancelDeployment(deployment.id)}
-                      className="mt-2 inline-flex rounded-md border border-red-900 px-2 py-1 text-xs text-red-300 transition hover:bg-red-950 disabled:opacity-60"
+                      className="mt-2 inline-flex rounded-md border border-status-err/25 px-2 py-1 text-xs text-status-err transition-colors hover:bg-status-err/10 disabled:opacity-60"
                     >
                       {pending === `cancel:${deployment.id}` ? "Cancelling…" : "Cancel"}
                     </button>
@@ -151,7 +151,7 @@ export function DeployConsole({
           {selectedId ? (
             <LogStream key={selectedId} applicationId={applicationId} deploymentId={selectedId} />
           ) : (
-            <div className="grid h-full min-h-[12rem] place-items-center rounded-2xl border border-dashed border-border text-sm text-zinc-500">
+            <div className="grid h-full min-h-[12rem] place-items-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
               Select a deployment to view its build logs.
             </div>
           )}

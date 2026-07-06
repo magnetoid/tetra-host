@@ -68,7 +68,7 @@ export function EnvManager({ project, vars }: { project: string; vars: AppEnvVar
         className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
       >
         <label className="block text-sm">
-          <span className="mb-2 block text-zinc-400">Key</span>
+          <span className="mb-2 block text-muted-foreground">Key</span>
           <input
             aria-label="Key"
             value={key}
@@ -79,7 +79,7 @@ export function EnvManager({ project, vars }: { project: string; vars: AppEnvVar
           />
         </label>
         <label className="block flex-1 text-sm">
-          <span className="mb-2 block text-zinc-400">Value</span>
+          <span className="mb-2 block text-muted-foreground">Value</span>
           <input
             aria-label="Value"
             value={value}
@@ -89,7 +89,7 @@ export function EnvManager({ project, vars }: { project: string; vars: AppEnvVar
             required
           />
         </label>
-        <label className="mb-2.5 flex items-center gap-2 text-sm text-zinc-400">
+        <label className="mb-2.5 flex items-center gap-2 text-sm text-muted-foreground">
           <input
             aria-label="Secret"
             type="checkbox"
@@ -119,10 +119,10 @@ export function EnvManager({ project, vars }: { project: string; vars: AppEnvVar
               }`}
             >
               <div className="flex min-w-0 items-center gap-3 font-mono text-sm">
-                <span className="font-medium text-zinc-200">{row.key}</span>
-                <span className="truncate text-zinc-500">{row.value}</span>
+                <span className="font-medium text-foreground">{row.key}</span>
+                <span className="truncate text-muted-foreground">{row.value}</span>
                 {row.is_secret ? (
-                  <span className="flex items-center gap-1 rounded-full border border-amber-900 bg-amber-950 px-2 py-0.5 text-[10px] text-amber-300">
+                  <span className="flex items-center gap-1 rounded-full border border-status-warn/25 bg-status-warn/10 px-2 py-0.5 text-[10px] text-status-warn">
                     <FontAwesomeIcon icon={faKey} className="h-2.5 w-2.5" />
                     secret
                   </span>
@@ -144,7 +144,7 @@ export function EnvManager({ project, vars }: { project: string; vars: AppEnvVar
         </div>
       )}
 
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-muted-foreground">
         Changes apply on the next deploy or rollback of <span className="font-mono">{project}</span>.
       </p>
     </div>

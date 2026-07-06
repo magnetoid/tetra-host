@@ -84,7 +84,7 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
       >
         <label className="block flex-1 text-sm">
-          <span className="mb-2 block text-zinc-400">Git repository</span>
+          <span className="mb-2 block text-muted-foreground">Git repository</span>
           <input
             aria-label="Git repository"
             value={gitUrl}
@@ -95,7 +95,7 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-2 block text-zinc-400">Name</span>
+          <span className="mb-2 block text-muted-foreground">Name</span>
           <input
             aria-label="Name"
             value={name}
@@ -106,7 +106,7 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-2 block text-zinc-400">Branch</span>
+          <span className="mb-2 block text-muted-foreground">Branch</span>
           <input
             aria-label="Branch"
             value={ref}
@@ -142,18 +142,18 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{deployment.project}</span>
                   <StatusBadge value={deployment.status} />
-                  <span className="font-mono text-xs text-zinc-600">
+                  <span className="font-mono text-xs text-muted-foreground">
                     {deployment.ref}
                     {deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""}
                   </span>
                 </div>
-                <div className="mt-1 text-sm text-zinc-500">
+                <div className="mt-1 text-sm text-muted-foreground">
                   {deployment.domain ? (
                     <a
                       href={`https://${deployment.domain}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="hover:text-zinc-300"
+                      className="font-mono text-xs transition-colors hover:text-foreground"
                     >
                       {deployment.domain}
                     </a>

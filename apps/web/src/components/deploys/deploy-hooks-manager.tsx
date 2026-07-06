@@ -76,7 +76,7 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
         className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
       >
         <label className="block text-sm">
-          <span className="mb-2 block text-zinc-400">App</span>
+          <span className="mb-2 block text-muted-foreground">App</span>
           <input
             aria-label="Webhook app"
             value={project}
@@ -87,7 +87,7 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
           />
         </label>
         <label className="block flex-1 text-sm">
-          <span className="mb-2 block text-zinc-400">Git repository</span>
+          <span className="mb-2 block text-muted-foreground">Git repository</span>
           <input
             aria-label="Webhook git repository"
             value={gitUrl}
@@ -98,7 +98,7 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-2 block text-zinc-400">Branch</span>
+          <span className="mb-2 block text-muted-foreground">Branch</span>
           <input
             aria-label="Webhook branch"
             value={ref}
@@ -112,26 +112,26 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
       </form>
 
       {created ? (
-        <div className="rounded-2xl border border-emerald-900 bg-emerald-950/40 p-4 text-sm">
-          <div className="font-medium text-emerald-300">
+        <div className="rounded-2xl border border-status-ok/25 bg-status-ok/10 p-4 text-sm">
+          <div className="font-medium text-status-ok">
             Webhook created — add it to GitHub now. The secret is shown only once.
           </div>
-          <div className="mt-3 space-y-1 font-mono text-xs text-zinc-300">
+          <div className="mt-3 space-y-1 font-mono text-xs text-foreground">
             <div>
-              <span className="text-zinc-500">Payload URL:&nbsp;</span>
+              <span className="text-muted-foreground">Payload URL:&nbsp;</span>
               {created.url}
             </div>
             <div>
-              <span className="text-zinc-500">Secret:&nbsp;</span>
+              <span className="text-muted-foreground">Secret:&nbsp;</span>
               {created.secret}
             </div>
-            <div className="text-zinc-500">Content type: application/json · Events: push</div>
+            <div className="text-muted-foreground">Content type: application/json · Events: push</div>
           </div>
         </div>
       ) : null}
 
       {hooks.length === 0 ? (
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           No push-to-deploy webhooks yet — create one and a <span className="font-mono">git push</span> will
           redeploy the app.
         </p>
@@ -144,8 +144,8 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
             >
               <div className="flex min-w-0 items-center gap-3 text-sm">
                 <span className="font-medium">{hook.project}</span>
-                <span className="font-mono text-xs text-zinc-500">@{hook.ref}</span>
-                <span className="truncate font-mono text-xs text-zinc-600">{hook.git_url}</span>
+                <span className="font-mono text-xs text-muted-foreground">@{hook.ref}</span>
+                <span className="truncate font-mono text-xs text-muted-foreground">{hook.git_url}</span>
               </div>
               <Button
                 size="sm"

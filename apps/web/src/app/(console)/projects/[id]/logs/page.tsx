@@ -38,7 +38,7 @@ export default async function LogsPage({ params }: LogsPageProps) {
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Runtime</h2>
-          <p className="text-sm text-zinc-500">Live output from the running container.</p>
+          <p className="text-sm text-muted-foreground">Live output from the running container.</p>
         </div>
         <RuntimeLogs projectId={id} />
       </section>
@@ -46,7 +46,7 @@ export default async function LogsPage({ params }: LogsPageProps) {
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Build logs</h2>
-          <p className="text-sm text-zinc-500">Select a deployment to stream its build output.</p>
+          <p className="text-sm text-muted-foreground">Select a deployment to stream its build output.</p>
         </div>
         <DeployConsole applicationId={id} initialDeployments={deployments} />
       </section>

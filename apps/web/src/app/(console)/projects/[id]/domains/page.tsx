@@ -33,32 +33,32 @@ export default async function DomainsPage({ params }: DomainsPageProps) {
       />
 
       <Card>
-        <h3 className="mb-3 text-sm font-medium text-zinc-400">Primary domain</h3>
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">Primary domain</h3>
         {project.primary_domain ? (
           <div className="flex items-center justify-between gap-4">
             <a
               href={`https://${project.primary_domain}`}
               target="_blank"
               rel="noreferrer"
-              className="font-mono text-sm text-zinc-200 underline-offset-2 hover:text-white hover:underline"
+              className="font-mono text-sm text-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               {project.primary_domain}
             </a>
             <Link
               href="/dns"
-              className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-900"
+              className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
             >
               Manage DNS &rarr;
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">No primary domain configured for this project.</p>
+          <p className="text-sm text-muted-foreground">No primary domain configured for this project.</p>
         )}
       </Card>
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-muted-foreground">
         DNS records for this domain are managed globally in the{" "}
-        <Link href="/dns" className="text-zinc-300 underline underline-offset-2 hover:text-white">
+        <Link href="/dns" className="text-foreground underline underline-offset-2 hover:text-foreground">
           DNS section
         </Link>
         .

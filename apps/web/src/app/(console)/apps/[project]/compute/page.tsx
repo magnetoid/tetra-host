@@ -20,7 +20,7 @@ export default async function AppComputePage({
 
   return (
     <div className="space-y-6">
-      <Link href="/apps" className="text-sm text-zinc-500 hover:text-zinc-300">
+      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
         ← Apps
       </Link>
       <PageHeader

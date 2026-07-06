@@ -53,9 +53,9 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
               <span className="font-medium">{app.name}</span>
               <StatusBadge value={app.status} />
             </div>
-            <div className="mt-1 text-sm text-zinc-500">
+            <div className="mt-1 text-sm text-muted-foreground">
               {app.domain ? (
-                <a href={`https://${app.domain}`} target="_blank" rel="noreferrer" className="hover:text-zinc-300">
+                <a href={`https://${app.domain}`} target="_blank" rel="noreferrer" className="font-mono hover:text-foreground">
                   {app.domain}
                 </a>
               ) : (
@@ -66,13 +66,13 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
           <div className="flex items-center gap-2">
             <Link
               href={`/apps/${app.project}/compute`}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5"
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
             >
               Compute
             </Link>
             <Link
               href={`/apps/${app.project}/env`}
-              className="rounded-md border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5"
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
             >
               Env
             </Link>

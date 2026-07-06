@@ -17,7 +17,7 @@ function envId(env: EnvVar): string {
 }
 
 const inputClass =
-  "rounded-lg border border-border bg-background px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+  "rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
 
 export function EnvManager({
   applicationId,
@@ -79,7 +79,7 @@ export function EnvManager({
           <button
             type="button"
             onClick={() => setReveal((current) => !current)}
-            className="text-sm text-zinc-400 hover:text-zinc-200"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             {reveal ? "Hide values" : "Reveal values"}
           </button>
@@ -106,7 +106,7 @@ export function EnvManager({
         <button
           type="submit"
           disabled={pending !== null}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-60"
+          className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:opacity-60"
         >
           {pending === "add" ? "Saving…" : "Add"}
         </button>
@@ -116,15 +116,15 @@ export function EnvManager({
 
       <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
         {initialEnvs.length === 0 ? (
-          <div className="p-4 text-sm text-zinc-500">No environment variables yet.</div>
+          <div className="p-4 text-sm text-muted-foreground">No environment variables yet.</div>
         ) : (
           initialEnvs.map((env, index) => {
             const id = envId(env)
             return (
               <div key={id || index} className="flex items-center justify-between gap-3 bg-background p-3">
                 <div className="min-w-0">
-                  <div className="font-mono text-sm text-zinc-200">{env.key}</div>
-                  <div className="truncate font-mono text-xs text-zinc-500">
+                  <div className="font-mono text-sm text-foreground">{env.key}</div>
+                  <div className="truncate font-mono text-xs text-muted-foreground">
                     {reveal ? env.value ?? "" : "••••••••"}
                   </div>
                 </div>
@@ -132,7 +132,7 @@ export function EnvManager({
                   type="button"
                   disabled={pending !== null || !id}
                   onClick={() => remove(id)}
-                  className="shrink-0 rounded-md border border-red-900 px-2 py-1 text-xs text-red-300 transition hover:bg-red-950 disabled:opacity-60"
+                  className="shrink-0 rounded-md border border-status-err/25 px-2 py-1 text-xs text-status-err transition-colors hover:bg-status-err/10 disabled:opacity-60"
                 >
                   {pending === id ? "…" : "Delete"}
                 </button>

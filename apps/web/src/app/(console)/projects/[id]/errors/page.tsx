@@ -64,11 +64,11 @@ export default async function ErrorsPage({ params }: { params: Promise<{ id: str
         <CardHeader title="Unresolved issues" action={`${errors.issues.length} open`} />
         <div className="mt-4">
           {errors.issues.length === 0 ? (
-            <p className="text-sm text-zinc-400">No unresolved errors. 🎉</p>
+            <p className="text-sm text-muted-foreground">No unresolved errors. 🎉</p>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border">
               <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-zinc-500">
+                <thead className="bg-background/60 text-left text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Level</th>
                     <th className="px-4 py-3 font-medium">Issue</th>
@@ -89,22 +89,22 @@ export default async function ErrorsPage({ params }: { params: Promise<{ id: str
                             href={issue.permalink}
                             target="_blank"
                             rel="noreferrer"
-                            className="font-medium text-zinc-200 hover:text-white"
+                            className="font-medium text-foreground hover:text-foreground"
                           >
                             {issue.title}
                           </a>
                         ) : (
-                          <span className="font-medium text-zinc-200">{issue.title}</span>
+                          <span className="font-medium text-foreground">{issue.title}</span>
                         )}
                         {issue.culprit ? (
-                          <div className="mt-0.5 font-mono text-xs text-zinc-500">{issue.culprit}</div>
+                          <div className="mt-0.5 font-mono text-xs text-muted-foreground">{issue.culprit}</div>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-zinc-300">{issue.count}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-zinc-400">
+                      <td className="px-4 py-3 text-right font-mono tabular-nums text-foreground">{issue.count}</td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums text-muted-foreground">
                         {issue.user_count}
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-400">
+                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                         {issue.last_seen ? formatRelativeLabel(issue.last_seen) : "—"}
                       </td>
                     </tr>

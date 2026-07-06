@@ -47,7 +47,7 @@ export function ProjectActions({ applicationId }: { applicationId: string }) {
             type="button"
             disabled={pendingAction !== null}
             onClick={() => runAction(action)}
-            className="rounded-lg border border-border px-3 py-2 text-sm text-zinc-200 transition hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pendingAction === action
               ? "Working..."

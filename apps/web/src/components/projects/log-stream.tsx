@@ -10,15 +10,15 @@ type StreamPhase = "connecting" | "streaming" | "done" | "error"
 function statusTone(status: string): string {
   const normalized = status.toLowerCase()
   if (/(fail|error|cancel)/.test(normalized)) {
-    return "border-red-900 bg-red-950 text-red-200"
+    return "border-status-err/25 bg-status-err/10 text-status-err"
   }
   if (/(finish|success|succeed|deployed)/.test(normalized)) {
-    return "border-emerald-900 bg-emerald-950 text-emerald-300"
+    return "border-status-ok/25 bg-status-ok/10 text-status-ok"
   }
   if (/(build|progress|queue|running|deploy|start)/.test(normalized)) {
-    return "border-amber-900 bg-amber-950 text-amber-200"
+    return "border-status-warn/25 bg-status-warn/10 text-status-warn"
   }
-  return "border-border bg-background text-zinc-400"
+  return "border-border bg-background text-muted-foreground"
 }
 
 export function LogStream({
@@ -85,14 +85,14 @@ export function LogStream({
   const isLive = phase === "connecting" || phase === "streaming"
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-zinc-950">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           {isLive ? (
-            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" aria-hidden />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-status-warn" aria-hidden />
           ) : null}
-          <span className="text-sm font-medium text-zinc-200">Build logs</span>
-          <span className="font-mono text-xs text-zinc-500">{deploymentId.slice(0, 12)}</span>
+          <span className="text-sm font-medium text-foreground">Build logs</span>
+          <span className="font-mono text-xs text-muted-foreground">{deploymentId.slice(0, 12)}</span>
         </div>
         <span
           className={cn(
@@ -110,10 +110,10 @@ export function LogStream({
       <div
         ref={scrollRef}
         data-testid="log-output"
-        className="max-h-[28rem] overflow-y-auto px-4 py-3 font-mono text-xs leading-relaxed"
+        className="max-h-[28rem] overflow-y-auto bg-black px-4 py-3 font-mono text-xs leading-relaxed"
       >
         {lines.length === 0 ? (
-          <p className="text-zinc-600">
+          <p className="text-muted-foreground">
             {phase === "error" ? "Could not load logs for this deployment." : "Waiting for output…"}
           </p>
         ) : (

@@ -74,16 +74,16 @@ export function RuntimeLogs({ projectId }: { projectId: string }) {
           type="button"
           onClick={() => setLive((v) => !v)}
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition",
+            "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
             live
-              ? "border-emerald-900 bg-emerald-950 text-emerald-300"
-              : "border-border text-zinc-400 hover:bg-zinc-900",
+              ? "border-status-ok/25 bg-status-ok/10 text-status-ok"
+              : "border-border text-muted-foreground hover:bg-accent",
           )}
         >
           <span
             className={cn(
               "h-2 w-2 rounded-full",
-              live ? "animate-pulse bg-emerald-400" : "bg-zinc-600",
+              live ? "animate-pulse bg-status-ok" : "bg-muted-foreground",
             )}
           />
           {live ? "Live" : "Paused"}
@@ -91,7 +91,7 @@ export function RuntimeLogs({ projectId }: { projectId: string }) {
         <select
           value={lines}
           onChange={(e) => setLines(Number(e.target.value))}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-zinc-300"
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
           aria-label="Number of log lines"
         >
           {LINE_CHOICES.map((n) => (

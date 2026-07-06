@@ -7,9 +7,9 @@ import { faWandSparkles } from "@/lib/icons"
 import type { BuildDiagnosis } from "@/lib/types"
 
 const CONFIDENCE_TONE: Record<string, string> = {
-  high: "text-emerald-400",
-  medium: "text-amber-400",
-  low: "text-zinc-500",
+  high: "text-status-ok",
+  medium: "text-status-warn",
+  low: "text-muted-foreground",
 }
 
 /** Fetches and shows an AI/heuristic diagnosis for one deployment ("Explain"). */
@@ -44,20 +44,20 @@ export function ExplainButton({ deploymentId }: { deploymentId: string }) {
         {pending ? "Diagnosing…" : "Explain"}
       </Button>
 
-      {error ? <p className="mt-2 text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-status-err">{error}</p> : null}
 
       {diagnosis ? (
-        <div className="mt-3 w-full rounded-2xl border border-violet-900/60 bg-violet-950/30 p-4 text-sm">
+        <div className="mt-3 w-full rounded-2xl border border-primary/25 bg-primary/10 p-4 text-sm">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-violet-200">{diagnosis.summary}</span>
+            <span className="font-medium text-foreground">{diagnosis.summary}</span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
-              category <span className="font-mono text-zinc-400">{diagnosis.category}</span>
+              category <span className="font-mono text-muted-foreground">{diagnosis.category}</span>
             </span>
             <span>
               confidence{" "}
-              <span className={CONFIDENCE_TONE[diagnosis.confidence] ?? "text-zinc-400"}>
+              <span className={CONFIDENCE_TONE[diagnosis.confidence] ?? "text-muted-foreground"}>
                 {diagnosis.confidence}
               </span>
             </span>
@@ -68,10 +68,10 @@ export function ExplainButton({ deploymentId }: { deploymentId: string }) {
 
           {diagnosis.likely_causes.length > 0 ? (
             <div className="mt-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Likely causes
               </div>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-zinc-300">
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-foreground">
                 {diagnosis.likely_causes.map((cause, index) => (
                   <li key={index}>{cause}</li>
                 ))}
@@ -81,10 +81,10 @@ export function ExplainButton({ deploymentId }: { deploymentId: string }) {
 
           {diagnosis.suggested_fixes.length > 0 ? (
             <div className="mt-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-emerald-500">
+              <div className="text-xs font-medium uppercase tracking-wide text-status-ok">
                 Suggested fixes
               </div>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-zinc-300">
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-foreground">
                 {diagnosis.suggested_fixes.map((fix, index) => (
                   <li key={index}>{fix}</li>
                 ))}
