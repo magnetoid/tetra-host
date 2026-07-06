@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 import { DeployLogStream } from "@/components/deploys/deploy-log-stream"
 import { ExplainButton } from "@/components/deploys/explain-button"
@@ -9,8 +10,9 @@ import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { faArrowsRotate, faRocket, faTerminal } from "@/lib/icons"
+import { faArrowsRotate, faChevronDown, faRocket } from "@/lib/icons"
 import type { DeploymentRecord } from "@/lib/types"
+import { cn, formatRelativeLabel } from "@/lib/utils"
 
 const INPUT_CLASS =
   "rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
@@ -22,7 +24,8 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
   const [ref, setRef] = useState("main")
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [streamId, setStreamId] = useState<string | null>(null)
+  // Which deployment card is expanded (accordion). Its info + live logs render inline.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   async function deploy(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -44,7 +47,8 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
       }
       setGitUrl("")
       setName("")
-      if (payload.deployment_id) setStreamId(payload.deployment_id)
+      // Open the new deployment's card so its build log streams inline once it lands.
+      if (payload.deployment_id) setExpandedId(payload.deployment_id)
       router.refresh()
     } catch {
       setError("Unable to reach the control plane.")
@@ -66,7 +70,7 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         setError(payload.detail ?? "Rollback failed to start.")
         return
       }
-      if (payload.deployment_id) setStreamId(payload.deployment_id)
+      if (payload.deployment_id) setExpandedId(payload.deployment_id)
       router.refresh()
     } catch {
       setError("Unable to reach the control plane.")
@@ -119,13 +123,6 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         </Button>
       </form>
 
-      {streamId ? (
-        <div className="rounded-2xl border border-border bg-muted p-4">
-          <div className="mb-3 text-sm font-medium">Build log</div>
-          <DeployLogStream key={streamId} deploymentId={streamId} />
-        </div>
-      ) : null}
-
       {deployments.length === 0 ? (
         <EmptyState
           title="No deployments yet"
@@ -133,64 +130,106 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         />
       ) : (
         <div className="space-y-3">
-          {deployments.map((deployment) => (
-            <div
-              key={deployment.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{deployment.project}</span>
-                  <StatusBadge value={deployment.status} />
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {deployment.ref}
-                    {deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""}
-                  </span>
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {deployment.domain ? (
-                    <a
-                      href={`https://${deployment.domain}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-mono text-xs transition-colors hover:text-foreground"
-                    >
-                      {deployment.domain}
-                    </a>
-                  ) : (
-                    <span className="font-mono text-xs">{deployment.error || deployment.id.slice(0, 8)}</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  icon={faTerminal}
-                  disabled={pending !== null}
-                  onClick={() => setStreamId(deployment.id)}
-                >
-                  Logs
-                </Button>
-                {deployment.status === "ready" && deployment.image ? (
-                  <Button
-                    size="sm"
-                    icon={faArrowsRotate}
-                    disabled={pending !== null}
-                    onClick={() => rollback(deployment.id)}
+          {deployments.map((deployment) => {
+            const expanded = expandedId === deployment.id
+            const canRollback = deployment.status === "ready" && Boolean(deployment.image)
+            return (
+              <div
+                key={deployment.id}
+                className={cn(
+                  "overflow-hidden rounded-2xl border bg-muted transition-colors",
+                  expanded ? "border-primary/40" : "border-border hover:border-primary/30",
+                )}
+              >
+                {/* Header row — the expand trigger + always-visible actions (no nested buttons) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : deployment.id)}
+                    aria-expanded={expanded}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
-                    {pending === `rollback:${deployment.id}` ? "…" : "Rollback to this"}
-                  </Button>
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className={cn(
+                        "h-3 w-3 shrink-0 text-muted-foreground transition-transform",
+                        expanded && "rotate-180",
+                      )}
+                    />
+                    <span className="truncate font-medium">{deployment.project}</span>
+                    <StatusBadge value={deployment.status} />
+                    <span className="truncate font-mono text-xs text-muted-foreground">
+                      {deployment.ref}
+                      {deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""}
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-3">
+                    {deployment.domain ? (
+                      <a
+                        href={`https://${deployment.domain}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {deployment.domain}
+                      </a>
+                    ) : null}
+                    {canRollback ? (
+                      <Button
+                        size="sm"
+                        icon={faArrowsRotate}
+                        disabled={pending !== null}
+                        onClick={() => rollback(deployment.id)}
+                      >
+                        {pending === `rollback:${deployment.id}` ? "…" : "Rollback to this"}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Expanded body — details + inline scrollable build log */}
+                {expanded ? (
+                  <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
+                      <Detail label="Commit" value={deployment.commit || "—"} mono />
+                      <Detail label="Branch" value={deployment.ref || "—"} mono />
+                      <Detail label="Builder" value={deployment.builder || "—"} />
+                      <Detail label="Port" value={deployment.port ? String(deployment.port) : "—"} mono />
+                      <Detail label="Image" value={deployment.image || "not built"} mono />
+                      <Detail label="Created" value={formatRelativeLabel(deployment.created_at)} />
+                      <Detail label="Deployment" value={deployment.id} mono />
+                      {deployment.git_url ? <Detail label="Repository" value={deployment.git_url} mono /> : null}
+                    </dl>
+
+                    {deployment.error ? (
+                      <div className="space-y-2">
+                        <AlertBanner tone="error">{deployment.error}</AlertBanner>
+                        <ExplainButton deploymentId={deployment.id} />
+                      </div>
+                    ) : null}
+
+                    <div>
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Build log
+                      </div>
+                      <DeployLogStream deploymentId={deployment.id} />
+                    </div>
+                  </div>
                 ) : null}
               </div>
-              {deployment.status === "error" ? (
-                <div className="mt-1 w-full">
-                  <ExplainButton deploymentId={deployment.id} />
-                </div>
-              ) : null}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
+    </div>
+  )
+}
+
+function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={cn("mt-0.5 truncate", mono && "font-mono text-xs")}>{value}</dd>
     </div>
   )
 }
