@@ -46,8 +46,76 @@
   </a>
   {% endif %}
 
-  <div class="mt-4 rounded-2xl border border-border bg-muted/40 p-5 text-sm text-zinc-400">
-    Password change and notification preferences are coming to this page shortly.
-  </div>
+  {% set profile_ok = request.query_params.get('profile') %}
+  {% set profile_error = request.query_params.get('profile_error') %}
+  {% set password_ok = request.query_params.get('password') %}
+  {% set password_error = request.query_params.get('password_error') %}
+
+  {# ── Profile ─────────────────────────────────────────────── #}
+  <form method="post" action="/account/profile"
+        class="mt-4 rounded-2xl border border-border bg-muted/40 p-6">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+    <h2 class="text-lg font-medium">Profile</h2>
+    <p class="mt-1 text-sm text-zinc-400">Update the name and email on your account.</p>
+    {% if profile_ok %}
+    <div class="mt-4 rounded-lg border border-status-ok/40 bg-status-ok/10 px-3 py-2 text-sm text-status-ok">Profile updated.</div>
+    {% elif profile_error %}
+    <div class="mt-4 rounded-lg border border-status-err/40 bg-status-err/10 px-3 py-2 text-sm text-status-err">{{ profile_error }}</div>
+    {% endif %}
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="block">
+        <span class="text-xs uppercase tracking-wide text-zinc-500">Full name</span>
+        <input name="full_name" value="{{ admin.full_name }}" required
+               class="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+      </label>
+      <label class="block">
+        <span class="text-xs uppercase tracking-wide text-zinc-500">Email</span>
+        <input name="email" type="email" value="{{ admin.email }}" required
+               class="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+      </label>
+    </div>
+    <div class="mt-4">
+      <button type="submit"
+              class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-background transition hover:opacity-90 active:scale-[0.98]">
+        Save profile
+      </button>
+    </div>
+  </form>
+
+  {# ── Password ────────────────────────────────────────────── #}
+  <form method="post" action="/account/password"
+        class="mt-4 rounded-2xl border border-border bg-muted/40 p-6">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+    <h2 class="text-lg font-medium">Change password</h2>
+    <p class="mt-1 text-sm text-zinc-400">Minimum 10 characters. You'll need your current password.</p>
+    {% if password_ok %}
+    <div class="mt-4 rounded-lg border border-status-ok/40 bg-status-ok/10 px-3 py-2 text-sm text-status-ok">Password changed.</div>
+    {% elif password_error %}
+    <div class="mt-4 rounded-lg border border-status-err/40 bg-status-err/10 px-3 py-2 text-sm text-status-err">{{ password_error }}</div>
+    {% endif %}
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <label class="block">
+        <span class="text-xs uppercase tracking-wide text-zinc-500">Current</span>
+        <input name="current_password" type="password" required autocomplete="current-password"
+               class="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+      </label>
+      <label class="block">
+        <span class="text-xs uppercase tracking-wide text-zinc-500">New</span>
+        <input name="new_password" type="password" required minlength="10" autocomplete="new-password"
+               class="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+      </label>
+      <label class="block">
+        <span class="text-xs uppercase tracking-wide text-zinc-500">Confirm new</span>
+        <input name="confirm_password" type="password" required minlength="10" autocomplete="new-password"
+               class="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+      </label>
+    </div>
+    <div class="mt-4">
+      <button type="submit"
+              class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-background transition hover:opacity-90 active:scale-[0.98]">
+        Change password
+      </button>
+    </div>
+  </form>
 </div>
 {% endblock %}

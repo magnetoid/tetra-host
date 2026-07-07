@@ -34,6 +34,16 @@ class AuthResponse(BaseModel):
     admin: AdminSummary
 
 
+class AccountUpdateRequest(BaseModel):
+    full_name: str
+    email: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class ProviderSummary(BaseModel):
     name: str
     status: str

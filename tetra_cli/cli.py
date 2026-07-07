@@ -97,6 +97,36 @@ def cmd_whoami(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_account(args: argparse.Namespace) -> int:
+    a = client_from_config().me()
+    print(f"{c('name', '90')}    {a.get('full_name', '')}")
+    print(f"{c('email', '90')}   {a.get('email', '')}")
+    print(f"{c('role', '90')}    {a.get('role', '')}")
+    print(f"{c('tenant', '90')}  {a.get('tenant_name', '')} ({a.get('tenant_slug', '')})")
+    return 0
+
+
+def cmd_account_update(args: argparse.Namespace) -> int:
+    current = client_from_config().me()
+    full_name = args.name if args.name is not None else current.get("full_name", "")
+    email = args.email if args.email is not None else current.get("email", "")
+    a = client_from_config().account_update(full_name, email)
+    print(c("✓", "32") + f" account updated: {a.get('full_name', '')} <{a.get('email', '')}>")
+    return 0
+
+
+def cmd_account_password(args: argparse.Namespace) -> int:
+    current = getpass.getpass("Current password: ")
+    new = getpass.getpass("New password (min 10 chars): ")
+    confirm = getpass.getpass("Confirm new password: ")
+    if new != confirm:
+        print(c("passwords do not match", "31"))
+        return 1
+    client_from_config().account_password(current, new)
+    print(c("✓", "32") + " password changed")
+    return 0
+
+
 def cmd_dashboard(args: argparse.Namespace) -> int:
     data = client_from_config().dashboard()
     m = data.get("metrics", {})
@@ -1008,6 +1038,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_login)
 
     sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
+
+    account = sub.add_parser("account", help="your profile + password").add_subparsers(
+        dest="account_cmd", required=True
+    )
+    account.add_parser("show", help="show your account").set_defaults(func=cmd_account)
+    sp = account.add_parser("update", help="update your name/email")
+    sp.add_argument("--name", help="new full name")
+    sp.add_argument("--email", help="new email address")
+    sp.set_defaults(func=cmd_account_update)
+    account.add_parser("password", help="change your password (prompts, never argv)").set_defaults(
+        func=cmd_account_password
+    )
     sub.add_parser("dashboard", help="show platform metrics").set_defaults(func=cmd_dashboard)
     sub.add_parser("usage", help="show quota usage vs plan limits").set_defaults(func=cmd_usage)
     sub.add_parser("projects", help="list projects").set_defaults(func=cmd_projects)

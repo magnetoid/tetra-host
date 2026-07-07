@@ -684,6 +684,25 @@ def test_client_infra_provision_posts_body():
     assert result["server"]["id"] == 42
 
 
+def test_client_account_update_patches_profile():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH" and request.url.path == "/api/v1/account"
+        assert json.loads(request.content) == {"full_name": "New Name", "email": "new@x.test"}
+        return httpx.Response(200, json={"full_name": "New Name", "email": "new@x.test"})
+
+    result = make_client(handler).account_update("New Name", "new@x.test")
+    assert result["email"] == "new@x.test"
+
+
+def test_client_account_password_posts_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST" and request.url.path == "/api/v1/account/password"
+        assert json.loads(request.content) == {"current_password": "old", "new_password": "brandnewsecret1"}
+        return httpx.Response(200, json={"ok": True})
+
+    assert make_client(handler).account_password("old", "brandnewsecret1")["ok"] is True
+
+
 def test_client_infra_provision_mail_role_posts_hostname():
     def handler(request: httpx.Request) -> httpx.Response:
         assert json.loads(request.content) == {

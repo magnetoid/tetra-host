@@ -19,6 +19,7 @@ from app.api.contracts import (
     InfraServerCreateRequest,
     InfraServerCreated,
     InfraServerSummary,
+    AccountUpdateRequest,
     AdminResponse,
     AdminSummary,
     AppActionResponse,
@@ -61,6 +62,7 @@ from app.api.contracts import (
     MailRelayhostCreateResponse,
     MailRelayhostSummary,
     MailResponse,
+    PasswordChangeRequest,
     PlanCreateRequest,
     PlanSummary,
     PlanUpdateRequest,
@@ -416,6 +418,40 @@ async def api_signup(
 @router.get("/auth/me", response_model=AdminSummary)
 async def api_me(current_admin: AdminUser = Depends(get_current_api_admin)) -> AdminSummary:
     return _admin_summary(current_admin)
+
+
+@router.patch("/account", response_model=AdminSummary)
+async def api_account_update(
+    payload: AccountUpdateRequest,
+    current_admin: AdminUser = Depends(get_current_api_admin),
+    session: AsyncSession = Depends(get_db_session),
+) -> AdminSummary:
+    """Update the signed-in admin's own name/email."""
+    try:
+        admin = await AuthService(session).update_profile(
+            current_admin, full_name=payload.full_name, email=payload.email
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _admin_summary(admin)
+
+
+@router.post("/account/password")
+async def api_account_password(
+    payload: PasswordChangeRequest,
+    current_admin: AdminUser = Depends(get_current_api_admin),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, bool]:
+    """Change the signed-in admin's own password (verifies the current one)."""
+    try:
+        await AuthService(session).change_password(
+            current_admin,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.get("/dashboard", response_model=DashboardResponse)

@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { AccountSettingsForm } from "@/components/account/account-settings-form"
 import { PageHeader } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
 
@@ -57,9 +58,7 @@ export default async function AccountPage() {
         </Link>
       ) : null}
 
-      <div className="rounded-2xl border border-border bg-muted/40 p-5 text-sm text-muted-foreground">
-        Password change and notification preferences are coming to this page shortly.
-      </div>
+      <AccountSettingsForm fullName={admin.full_name} email={admin.email} />
     </div>
   )
 }

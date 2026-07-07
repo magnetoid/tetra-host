@@ -80,6 +80,43 @@ class AuthService:
         if len(password) < 10:
             raise ValueError("Password must be at least 10 characters long.")
 
+    async def update_profile(
+        self, admin: AdminUser, *, full_name: str, email: str
+    ) -> AdminUser:
+        """Update the admin's own name/email. Raises ValueError on a blank name or an
+        email already taken by another admin. Returns the reloaded admin."""
+        new_name = full_name.strip()
+        if not new_name:
+            raise ValueError("Name cannot be empty.")
+        new_email = self.normalize_email(email)
+        if not new_email or "@" not in new_email:
+            raise ValueError("A valid email address is required.")
+        if new_email != admin.email:
+            existing = await self.get_admin_by_email(new_email)
+            if existing is not None and existing.id != admin.id:
+                raise ValueError("That email address is already in use.")
+        admin.full_name = new_name
+        admin.email = new_email
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            await self.session.rollback()
+            raise ValueError("That email address is already in use.") from None
+        return await self.get_admin_by_id(admin.id)
+
+    async def change_password(
+        self, admin: AdminUser, *, current_password: str, new_password: str
+    ) -> None:
+        """Change the admin's own password after verifying the current one. Raises
+        ValueError if the current password is wrong or the new one fails policy."""
+        if not self.verify_password(current_password, admin.password_hash):
+            raise ValueError("Current password is incorrect.")
+        self.validate_password(new_password)
+        if new_password == current_password:
+            raise ValueError("New password must differ from the current one.")
+        admin.password_hash = self.hash_password(new_password)
+        await self.session.flush()
+
     async def _unique_slug(self, base: str) -> str:
         """Return a slug derived from base that is not already taken."""
         slug = self.normalize_slug(base)

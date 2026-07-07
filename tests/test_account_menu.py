@@ -11,7 +11,14 @@ from app.db import session_scope
 from app.models import AdminUser, Tenant
 from app.models.admin import ROLE_OWNER
 from app.modules.auth.service import AuthService
-from tests.conftest import extract_csrf_token
+
+
+def _extract_csrf(html: str) -> str:
+    # NB: a module-level `from tests.conftest import …` duplicates conftest as a
+    # separate module and corrupts shared DB/limiter state (see test_html_isolation).
+    match = re.search(r'name="csrf_token" value="([^"]+)"', html)
+    assert match is not None
+    return match.group(1)
 
 
 async def _seed_owner(slug: str, email: str, password: str = "owner-pass") -> None:
@@ -33,7 +40,7 @@ async def _seed_owner(slug: str, email: str, password: str = "owner-pass") -> No
 
 
 def _login(client, email: str, password: str):
-    csrf = extract_csrf_token(client.get("/auth/login").text)
+    csrf = _extract_csrf(client.get("/auth/login").text)
     resp = client.post(
         "/auth/login",
         data={"email": email, "password": password, "csrf_token": csrf, "next_url": "/dashboard"},

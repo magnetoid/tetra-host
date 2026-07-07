@@ -69,6 +69,17 @@ class TetraClient:
     def me(self) -> Any:
         return self._request("GET", "/auth/me")
 
+    def account_update(self, full_name: str, email: str) -> Any:
+        return self._request(
+            "PATCH", "/account", json_body={"full_name": full_name, "email": email}
+        )
+
+    def account_password(self, current_password: str, new_password: str) -> Any:
+        return self._request(
+            "POST", "/account/password",
+            json_body={"current_password": current_password, "new_password": new_password},
+        )
+
     def dashboard(self) -> Any:
         return self._request("GET", "/dashboard")
 
