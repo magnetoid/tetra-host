@@ -116,7 +116,12 @@ from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
 from app.services.github_webhook import branch_from_ref, push_ref, verify_signature
-from app.services.hetzner import DEFAULT_CLOUD_INIT, HetznerClient, normalize_server
+from app.services.hetzner import (
+    DEFAULT_CLOUD_INIT,
+    HetznerClient,
+    mailcow_cloud_init,
+    normalize_server,
+)
 from app.services.quota import QuotaService
 from app.services.secrets import decrypt
 
@@ -1506,6 +1511,10 @@ async def api_rollback_deploy(
 
 
 # ── Own infrastructure (Hetzner Cloud, platform-admin only) ───────────────
+# Mailcow recommends >= 6GB RAM; a dedicated mail host defaults to an 8GB box.
+MAIL_HOST_SERVER_TYPE = "cx32"
+
+
 def _hetzner(request: Request) -> HetznerClient:
     return HetznerClient.from_settings(
         http_client=request.app.state.http_client, cache=request.app.state.cache
@@ -1540,11 +1549,16 @@ async def api_infra_provision(
     request: Request,
     _: AdminUser = Depends(require_platform_admin),
 ) -> InfraServerCreated:
-    """Provision a Hetzner server (billable!) with the Docker cloud-init bootstrap.
+    """Provision a Hetzner server (billable!) with a cloud-init bootstrap.
+
+    ``role="docker"`` (default) brings up bare Docker; ``role="mail"`` stands up a
+    dedicated Mailcow host (requires ``mail_hostname``, defaults to an 8GB box) —
+    the automated form of ``scripts/install-mailcow.sh``.
 
     cloud-init is fire-and-forget: the returned action covers VM creation only; the
-    Docker install continues after boot and must be confirmed before attaching the
-    box to the deploy plane.
+    bootstrap (Docker, or the ~15-min Mailcow install) continues after boot and must
+    be confirmed before use. For mail, then create an API key in the Mailcow UI and
+    set ``MAILCOW_URL`` / ``MAILCOW_API_KEY`` to activate the mail surface.
     """
     settings = get_settings()
     if not settings.enable_provider_actions:
@@ -1552,14 +1566,30 @@ async def api_infra_provision(
     client = _hetzner(request)
     if not client.is_configured():
         raise HTTPException(status_code=503, detail="Hetzner is not configured (HETZNER_API_TOKEN).")
+    role = (payload.role or "docker").strip().lower()
+    if role not in {"docker", "mail"}:
+        raise HTTPException(status_code=422, detail="role must be 'docker' or 'mail'.")
+    if role == "mail":
+        mail_hostname = payload.mail_hostname.strip().lower()
+        # Mailcow needs a real FQDN (MX target) and >= 6GB RAM — default to an 8GB box.
+        if not mail_hostname or mail_hostname.count(".") < 2:
+            raise HTTPException(
+                status_code=422,
+                detail="role 'mail' requires a FQDN mail_hostname like mail.example.com.",
+            )
+        user_data = mailcow_cloud_init(mail_hostname)
+        default_server_type = MAIL_HOST_SERVER_TYPE
+    else:
+        user_data = DEFAULT_CLOUD_INIT
+        default_server_type = settings.hetzner_server_type
     try:
         result = await client.create_server(
             name=payload.name.strip(),
-            server_type=payload.server_type or settings.hetzner_server_type,
+            server_type=payload.server_type or default_server_type,
             image=payload.image or settings.hetzner_image,
             location=payload.location or settings.hetzner_location,
-            user_data=DEFAULT_CLOUD_INIT,
-            labels={"managed-by": "tetra"},
+            user_data=user_data,
+            labels={"managed-by": "tetra", "role": role},
         )
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc

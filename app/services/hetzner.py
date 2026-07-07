@@ -30,6 +30,43 @@ runcmd:
 """
 
 
+def mailcow_cloud_init(hostname: str, *, tz: str = "Etc/UTC") -> str:
+    """cloud-init for a DEDICATED Mailcow host: Docker + mailcow-dockerized brought up
+    on the standard mail ports (25/465/587/143/993/995) and 80/443.
+
+    This is the automated form of ``scripts/install-mailcow.sh`` (the canonical manual
+    installer). A fresh Hetzner box owns every port, so that script's shared-box port
+    guards are unnecessary here. Like ``DEFAULT_CLOUD_INIT`` it is fire-and-forget: the
+    create Action returns once the VM exists, but the ~15-minute image pull continues
+    after boot — poll/SSH to confirm, then create an API key in the Mailcow UI and set
+    ``MAILCOW_URL`` / ``MAILCOW_API_KEY`` to activate the (already shipped) mail surface.
+
+    ``hostname``/``tz`` are operator-supplied config (validated at the route), embedded
+    into a heredoc'd install script so a value can't break out of a runcmd string.
+    """
+    return f"""#cloud-config
+package_update: true
+packages:
+  - git
+  - curl
+write_files:
+  - path: /opt/tetra-install-mailcow.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      curl -fsSL https://get.docker.com | sh
+      systemctl enable --now docker
+      git clone https://github.com/mailcow/mailcow-dockerized /opt/mailcow-dockerized
+      cd /opt/mailcow-dockerized
+      MAILCOW_HOSTNAME={hostname} MAILCOW_TZ={tz} ./generate_config.sh
+      docker compose pull
+      docker compose up -d
+runcmd:
+  - [ bash, /opt/tetra-install-mailcow.sh ]
+"""
+
+
 class HetznerServer(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -170,5 +207,6 @@ __all__ = [
     "HetznerClient",
     "HetznerServer",
     "ProviderAPIError",
+    "mailcow_cloud_init",
     "normalize_server",
 ]

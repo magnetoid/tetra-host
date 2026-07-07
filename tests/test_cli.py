@@ -676,11 +676,26 @@ def test_client_infra_provision_posts_body():
         assert request.url.path == "/api/v1/infra/servers"
         assert json.loads(request.content) == {
             "name": "worker-1", "server_type": "cx23", "image": "", "location": "",
+            "role": "docker", "mail_hostname": "",
         }
         return httpx.Response(200, json={"server": {"id": 42}, "action_status": "success"})
 
     result = make_client(handler).infra_provision("worker-1", server_type="cx23")
     assert result["server"]["id"] == 42
+
+
+def test_client_infra_provision_mail_role_posts_hostname():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content) == {
+            "name": "mail-1", "server_type": "", "image": "", "location": "",
+            "role": "mail", "mail_hostname": "mail.cloud-industry.com",
+        }
+        return httpx.Response(200, json={"server": {"id": 43}, "action_status": "success"})
+
+    result = make_client(handler).infra_provision(
+        "mail-1", role="mail", mail_hostname="mail.cloud-industry.com"
+    )
+    assert result["server"]["id"] == 43
 
 
 def test_client_previews_list_and_delete():

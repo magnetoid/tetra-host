@@ -305,11 +305,15 @@ class TetraClient:
         return self._request("GET", "/infra/servers")
 
     def infra_provision(
-        self, name: str, server_type: str = "", image: str = "", location: str = ""
+        self, name: str, server_type: str = "", image: str = "", location: str = "",
+        role: str = "docker", mail_hostname: str = "",
     ) -> Any:
         return self._request(
             "POST", "/infra/servers",
-            json_body={"name": name, "server_type": server_type, "image": image, "location": location},
+            json_body={
+                "name": name, "server_type": server_type, "image": image,
+                "location": location, "role": role, "mail_hostname": mail_hostname,
+            },
         )
 
     def infra_destroy(self, server_id: int) -> Any:

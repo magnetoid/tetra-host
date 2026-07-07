@@ -380,9 +380,11 @@ class AppComputeResponse(BaseModel):
 
 class InfraServerCreateRequest(BaseModel):
     name: str
-    server_type: str = ""  # empty = platform default
+    server_type: str = ""  # empty = platform default (role-aware)
     image: str = ""
     location: str = ""
+    role: str = "docker"  # "docker" (bare Docker bootstrap) | "mail" (dedicated Mailcow host)
+    mail_hostname: str = ""  # required when role == "mail" — the MX-target FQDN, e.g. mail.example.com
 
 
 class InfraServerSummary(BaseModel):

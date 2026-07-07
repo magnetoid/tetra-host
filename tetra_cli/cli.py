@@ -756,12 +756,19 @@ def cmd_infra_list(args: argparse.Namespace) -> int:
 
 
 def cmd_infra_provision(args: argparse.Namespace) -> int:
+    role = getattr(args, "role", "docker") or "docker"
     result = client_from_config().infra_provision(
-        args.name, server_type=args.type or "", image=args.image or "", location=args.location or ""
+        args.name, server_type=args.type or "", image=args.image or "",
+        location=args.location or "", role=role,
+        mail_hostname=getattr(args, "mail_hostname", "") or "",
     )
     server = result.get("server", {}) if isinstance(result, dict) else {}
     print(c("✓ server provisioning", "1;32") + f"  {server.get('name', '')} (id {server.get('id', '')})  {server.get('ipv4', '')}")
-    print(f"  create action: {result.get('action_status', '')}  (Docker bootstrap continues via cloud-init)")
+    bootstrap = "Mailcow" if role == "mail" else "Docker"
+    print(f"  create action: {result.get('action_status', '')}  ({bootstrap} bootstrap continues via cloud-init)")
+    if role == "mail":
+        print(c("  mailcow install runs ~15 min; then set DNS/rDNS, create an API key in the Mailcow UI,", "90"))
+        print(c("  and set MAILCOW_URL / MAILCOW_API_KEY / MAIL_HOSTNAME to activate the mail surface.", "90"))
     if result.get("root_password"):
         print(c(f"  root password: {result['root_password']}  (shown once — store it now)", "33"))
     return 0
@@ -1252,11 +1259,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp = infra.add_parser("list", help="list Hetzner servers")
     sp.set_defaults(func=cmd_infra_list)
-    sp = infra.add_parser("provision", help="provision a server (billable) with Docker bootstrap")
+    sp = infra.add_parser("provision", help="provision a server (billable); --role mail stands up a dedicated Mailcow host")
     sp.add_argument("name")
-    sp.add_argument("--type", help="server type (default from platform config)")
+    sp.add_argument("--type", help="server type (default from platform config; cx32/8GB for --role mail)")
     sp.add_argument("--image")
     sp.add_argument("--location")
+    sp.add_argument("--role", choices=["docker", "mail"], default="docker",
+                    help="'docker' bare bootstrap (default) or 'mail' for a dedicated Mailcow host")
+    sp.add_argument("--mail-hostname", dest="mail_hostname",
+                    help="MX-target FQDN (required for --role mail), e.g. mail.cloud-industry.com")
     sp.set_defaults(func=cmd_infra_provision)
     sp = infra.add_parser("rm", help="delete a server (stops billing)")
     sp.add_argument("server_id", type=int)

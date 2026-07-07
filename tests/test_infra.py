@@ -11,7 +11,12 @@ from app.db import session_scope
 from app.models import AdminUser, Plan, Tenant
 from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
 from app.modules.auth.service import AuthService
-from app.services.hetzner import DEFAULT_CLOUD_INIT, HetznerClient, HetznerServer
+from app.services.hetzner import (
+    DEFAULT_CLOUD_INIT,
+    HetznerClient,
+    HetznerServer,
+    mailcow_cloud_init,
+)
 
 _SERVER_ITEM = {
     "id": 42, "name": "worker-1", "status": "running", "created": "2026-07-02T10:00:00+00:00",
@@ -64,6 +69,16 @@ def test_create_server_posts_bootstrap_user_data():
         )
     )
     assert result["root_password"] == "pw-once"
+
+
+def test_mailcow_cloud_init_embeds_hostname_and_installer():
+    ci = mailcow_cloud_init("mail.cloud-industry.com")
+    assert ci.startswith("#cloud-config")
+    assert "mailcow-dockerized" in ci
+    assert "MAILCOW_HOSTNAME=mail.cloud-industry.com" in ci
+    assert "docker compose up -d" in ci
+    # distinct from the bare Docker bootstrap
+    assert "get.docker.com" in ci and ci != DEFAULT_CLOUD_INIT
 
 
 def test_unconfigured_client_lists_nothing():
@@ -143,4 +158,50 @@ def test_platform_admin_provisions_with_defaults(client, monkeypatch):
     # platform defaults filled in + bootstrap attached
     assert captured["server_type"] == get_settings().hetzner_server_type
     assert "get.docker.com" in captured["user_data"]
-    assert captured["labels"] == {"managed-by": "tetra"}
+    assert captured["user_data"] == DEFAULT_CLOUD_INIT  # bare Docker for the default role
+    assert captured["labels"] == {"managed-by": "tetra", "role": "docker"}
+
+
+def test_platform_admin_provisions_mail_host(client, monkeypatch):
+    asyncio.run(_seed(slug="im", email="m@im.test", role=ROLE_PLATFORM_ADMIN))
+    headers = _login(client, "m@im.test")
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+    monkeypatch.setattr(get_settings(), "hetzner_api_token", "tok")
+
+    captured: dict = {}
+
+    async def fake_create(self, **kwargs):
+        captured.update(kwargs)
+        return {"server": _SERVER_ITEM, "action": {"id": 7, "status": "running"}, "root_password": "pw"}
+
+    async def fake_wait(self, action_id, **_):
+        return "success"
+
+    monkeypatch.setattr(HetznerClient, "create_server", fake_create)
+    monkeypatch.setattr(HetznerClient, "wait_action", fake_wait)
+
+    r = client.post(
+        "/api/v1/infra/servers", headers=headers,
+        json={"name": "mail-1", "role": "mail", "mail_hostname": "mail.cloud-industry.com"},
+    )
+    assert r.status_code == 200, r.text
+    # mail role → Mailcow cloud-init, 8GB default box, role label
+    assert "mailcow-dockerized" in captured["user_data"]
+    assert "MAILCOW_HOSTNAME=mail.cloud-industry.com" in captured["user_data"]
+    assert captured["server_type"] == "cx32"
+    assert captured["labels"] == {"managed-by": "tetra", "role": "mail"}
+
+
+def test_provision_mail_role_requires_fqdn_hostname(client, monkeypatch):
+    asyncio.run(_seed(slug="in", email="n@in.test", role=ROLE_PLATFORM_ADMIN))
+    headers = _login(client, "n@in.test")
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+    monkeypatch.setattr(get_settings(), "hetzner_api_token", "tok")
+    # role=mail without a hostname (and with a non-FQDN) → 422 before any provider call
+    assert client.post(
+        "/api/v1/infra/servers", headers=headers, json={"name": "m", "role": "mail"},
+    ).status_code == 422
+    assert client.post(
+        "/api/v1/infra/servers", headers=headers,
+        json={"name": "m", "role": "mail", "mail_hostname": "notfqdn"},
+    ).status_code == 422
