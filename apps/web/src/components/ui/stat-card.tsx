@@ -17,7 +17,7 @@ export function StatCard({
   accent?: string
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/30">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/30">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className={cn("grid size-7 place-items-center rounded-lg bg-background", accent)}>
           <FontAwesomeIcon icon={icon} className="h-4 w-4" />
