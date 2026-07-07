@@ -334,7 +334,7 @@ def test_git_deploy_duplicate_name_returns_409(client, monkeypatch):
     monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
 
     # app-writer is already seeded as a TenantResource in _seed_apps_tenant().
-    async def fake_build(self, git_url, ref, *, project):
+    async def fake_build(self, git_url, ref, *, project, on_line=None):
         raise AssertionError("build should not be reached when duplicate is detected")
 
     async def fake_deploy(self, project, compose_yaml, env=None):

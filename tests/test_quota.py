@@ -512,7 +512,7 @@ def test_git_deploy_over_quota_returns_402(client: TestClient, monkeypatch):
     monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
 
     # Mock the builder and engine so they never run — quota check happens before them.
-    async def fake_build(self, git_url, ref, *, project):
+    async def fake_build(self, git_url, ref, *, project, on_line=None):
         raise AssertionError("build should not be reached when quota is exceeded")
 
     async def fake_deploy(self, project, compose_yaml, env=None):

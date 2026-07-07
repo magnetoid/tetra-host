@@ -206,7 +206,7 @@ class FakeBuilder:
     def __init__(self, image: str = "tetra-blog:abc123"):
         self.image = image
 
-    async def build_from_git(self, git_url, ref, *, project):
+    async def build_from_git(self, git_url, ref, *, project, on_line=None):
         return BuildResult(image=self.image, builder="dockerfile", commit="c" * 12, port=3000)
 
 

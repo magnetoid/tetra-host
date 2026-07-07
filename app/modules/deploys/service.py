@@ -8,6 +8,7 @@ ENABLE_PROVIDER_ACTIONS.
 """
 
 import asyncio
+import time
 import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -219,7 +220,22 @@ class DeploysService:
             log.append(f"→ cloning {git_url} @ {ref}")
             await self._set(deployment_id, log, status=STATUS_BUILDING)
 
-            build = await self.builder.build_from_git(git_url, ref, project=project)
+            # Stream real build output into the log as it is produced, throttling DB
+            # writes to ~1/sec so a chatty build doesn't hammer the row. Without this
+            # the log froze between "cloning" and "built" for the whole build.
+            last_flush = time.monotonic()
+
+            async def _on_build_line(line: str) -> None:
+                nonlocal last_flush
+                log.append(line)
+                now = time.monotonic()
+                if now - last_flush >= 1.0:
+                    last_flush = now
+                    await self._set(deployment_id, log)
+
+            build = await self.builder.build_from_git(
+                git_url, ref, project=project, on_line=_on_build_line
+            )
             effective_port = build.port or port
             log.append(f"✓ built {build.image} via {build.builder}")
 

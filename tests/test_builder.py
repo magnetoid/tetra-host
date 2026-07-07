@@ -50,6 +50,25 @@ def test_detect_port_reads_first_expose():
     assert asyncio.run(Builder(runner=runner).detect_port("img:1")) == 3000
 
 
+def test_build_streams_output_lines_to_sink():
+    """When on_line is given, the build step forwards each output line live."""
+    rec: list[list[str]] = []
+
+    async def stream_runner(argv, cwd, sink):
+        for line in ["Step 1/3 : FROM python", "Step 2/3 : COPY .", "Successfully built abc"]:
+            await sink(line)
+        return 0, "\n".join(["Step 1/3 : FROM python", "Step 2/3 : COPY .", "Successfully built abc"])
+
+    seen: list[str] = []
+
+    async def on_line(line):
+        seen.append(line)
+
+    builder = Builder(runner=make_runner(rec, has_dockerfile=True), stream_runner=stream_runner)
+    asyncio.run(builder.build("/src", "img:1", on_line=on_line))
+    assert seen == ["Step 1/3 : FROM python", "Step 2/3 : COPY .", "Successfully built abc"]
+
+
 def test_build_raises_on_nonzero_exit():
     async def runner(argv, cwd):
         if argv[:2] == ["test", "-f"]:

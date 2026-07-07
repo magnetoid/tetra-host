@@ -15,6 +15,10 @@ from dataclasses import dataclass
 
 # (argv, cwd) -> (returncode, stdout, stderr)
 CommandRunner = Callable[[list[str], str | None], Awaitable[tuple[int, str, str]]]
+# per-output-line sink, awaited for each build line as it is produced
+LineSink = Callable[[str], Awaitable[None]]
+# (argv, cwd, sink) -> (returncode, combined_output) — streams each line to `sink` live
+StreamRunner = Callable[[list[str], str | None, LineSink], Awaitable[tuple[int, str]]]
 
 _SHA = re.compile(r"^[0-9a-f]{7,40}$")
 
@@ -47,25 +51,60 @@ async def _default_runner(argv: list[str], cwd: str | None) -> tuple[int, str, s
     return proc.returncode or 0, out_b.decode("utf-8", "replace"), err_b.decode("utf-8", "replace")
 
 
+async def _default_stream_runner(
+    argv: list[str], cwd: str | None, sink: LineSink
+) -> tuple[int, str]:
+    """Run ``argv`` and forward each output line to ``sink`` as it is produced.
+
+    stderr is merged into stdout so build progress (docker/nixpacks write it there)
+    streams in emission order. Returns ``(returncode, combined_output)`` — the joined
+    output preserves the existing ``_exec`` error-detail behaviour.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
+        cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    captured: list[str] = []
+    assert proc.stdout is not None
+    async for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace").rstrip("\r\n")
+        captured.append(line)
+        await sink(line)
+    rc = await proc.wait()
+    return rc or 0, "\n".join(captured)
+
+
 class Builder:
     def __init__(
         self,
         *,
         runner: CommandRunner | None = None,
+        stream_runner: StreamRunner | None = None,
         docker_bin: str = "docker",
         nixpacks_bin: str = "nixpacks",
         git_bin: str = "git",
         workdir: str = "/tmp/tetra-builds",
     ) -> None:
         self._run = runner or _default_runner
+        self._stream = stream_runner or _default_stream_runner
         self.docker = docker_bin
         self.nixpacks = nixpacks_bin
         self.git = git_bin
         self.workdir = workdir.rstrip("/")
 
-    async def _exec(self, argv: list[str], *, cwd: str | None = None) -> str:
+    async def _exec(
+        self, argv: list[str], *, cwd: str | None = None, on_line: LineSink | None = None
+    ) -> str:
+        """Run a command. When ``on_line`` is given, stream each output line to it live
+        (used for the long build step); otherwise capture and return the output."""
         try:
-            rc, out, err = await self._run(argv, cwd)
+            if on_line is not None:
+                rc, out = await self._stream(argv, cwd, on_line)
+                err = ""
+            else:
+                rc, out, err = await self._run(argv, cwd)
         except OSError as exc:
             raise BuildError(message=f"{argv[0]} not available: {exc}", code=503) from exc
         if rc != 0:
@@ -99,23 +138,31 @@ class Builder:
                 return int(number)
         return 0
 
-    async def build(self, src_dir: str, image: str) -> BuildResult:
-        """Build ``src_dir`` into ``image`` — Dockerfile if present, else Nixpacks."""
+    async def build(
+        self, src_dir: str, image: str, *, on_line: LineSink | None = None
+    ) -> BuildResult:
+        """Build ``src_dir`` into ``image`` — Dockerfile if present, else Nixpacks.
+
+        ``on_line`` (when given) receives each build-output line live, so the deploy
+        can stream real build logs instead of freezing until the build finishes.
+        """
         if await self._has_dockerfile(src_dir):
-            await self._exec([self.docker, "build", "-t", image, src_dir])
+            await self._exec([self.docker, "build", "-t", image, src_dir], on_line=on_line)
             builder = "dockerfile"
         else:
-            await self._exec([self.nixpacks, "build", src_dir, "--name", image])
+            await self._exec([self.nixpacks, "build", src_dir, "--name", image], on_line=on_line)
             builder = "nixpacks"
         return BuildResult(image=image, builder=builder, port=await self.detect_port(image))
 
-    async def build_from_git(self, git_url: str, ref: str, *, project: str) -> BuildResult:
+    async def build_from_git(
+        self, git_url: str, ref: str, *, project: str, on_line: LineSink | None = None
+    ) -> BuildResult:
         """Clone + build a git repo into an immutable ``tetra-<project>:<sha>`` image."""
         dest = f"{self.workdir}/{project}"
         await self._exec(["rm", "-rf", dest])
         sha = await self.clone(git_url, ref, dest)
         tag = sha[:12] if sha else "latest"
         image = f"tetra-{project}:{tag}"
-        result = await self.build(dest, image)
+        result = await self.build(dest, image, on_line=on_line)
         result.commit = sha
         return result
