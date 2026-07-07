@@ -37,6 +37,7 @@ import {
   faSliders,
   faSun,
   faTableColumns,
+  faTag,
   faTerminal,
   faTrash,
   faTriangleExclamation,
@@ -44,6 +45,7 @@ import {
   faUsers,
   faUserShield,
   faWandSparkles,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons"
 
 export {
@@ -81,6 +83,7 @@ export {
   faSliders,
   faSun,
   faTableColumns,
+  faTag,
   faTerminal,
   faTrash,
   faTriangleExclamation,
@@ -88,4 +91,5 @@ export {
   faUsers,
   faUserShield,
   faWandSparkles,
+  faXmark,
 }

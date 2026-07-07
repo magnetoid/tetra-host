@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
-import { faCircleCheck, faPlus } from "@/lib/icons"
+import { Modal } from "@/components/ui/modal"
+import { faCircleCheck, faPlus, faTag } from "@/lib/icons"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import type { AppTemplate } from "@/lib/types"
 
 const LOGO_BASE = "https://cdn.jsdelivr.net/gh/coollabsio/coolify@main/public/"
@@ -24,6 +26,7 @@ export function AppMarketplace({
   const [installing, setInstalling] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<AppTemplate | null>(null)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -58,6 +61,7 @@ export function AppMarketplace({
         return
       }
       setMessage(payload.message ?? "App installed.")
+      setSelected(null)
       router.refresh()
     } catch {
       setError("Unable to reach the control plane.")
@@ -98,9 +102,12 @@ export function AppMarketplace({
         {shown.map((template) => {
           const installed = installedProjects.includes(template.slug)
           return (
-            <div
+            <button
               key={template.slug}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-muted p-4"
+              type="button"
+              onClick={() => setSelected(template)}
+              aria-label={`View details for ${template.name}`}
+              className="flex flex-col gap-3 rounded-2xl border border-border bg-muted p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent focus:border-primary focus:outline-none"
             >
               <div className="flex items-start gap-3">
                 <AppLogo template={template} />
@@ -108,18 +115,15 @@ export function AppMarketplace({
                   <div className="truncate font-medium">{template.name}</div>
                   <div className="text-xs text-muted-foreground">{template.category}</div>
                 </div>
+                {installed ? (
+                  <FontAwesomeIcon icon={faCircleCheck} className="h-4 w-4 shrink-0 text-status-ok" />
+                ) : null}
               </div>
               <p className="line-clamp-2 min-h-[2.5rem] text-sm text-muted-foreground">{template.description}</p>
-              <Button
-                variant={installed ? "secondary" : "primary"}
-                icon={installed ? faCircleCheck : faPlus}
-                disabled={installed || installing !== null}
-                onClick={() => install(template.slug)}
-                className="mt-auto"
-              >
-                {installed ? "Installed" : installing === template.slug ? "Installing…" : "Install"}
-              </Button>
-            </div>
+              <span className="mt-auto text-xs font-medium text-primary">
+                {installed ? "Installed — view details" : "View details"}
+              </span>
+            </button>
           )
         })}
       </div>
@@ -130,7 +134,104 @@ export function AppMarketplace({
         </p>
       ) : null}
       {filtered.length === 0 ? <p className="text-sm text-muted-foreground">No apps match your search.</p> : null}
+
+      <AppDetailModal
+        template={selected}
+        installed={selected ? installedProjects.includes(selected.slug) : false}
+        installing={selected ? installing === selected.slug : false}
+        busy={installing !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null)
+        }}
+        onInstall={install}
+      />
     </div>
+  )
+}
+
+function AppDetailModal({
+  template,
+  installed,
+  installing,
+  busy,
+  onOpenChange,
+  onInstall,
+}: {
+  template: AppTemplate | null
+  installed: boolean
+  installing: boolean
+  busy: boolean
+  onOpenChange: (open: boolean) => void
+  onInstall: (slug: string) => void
+}) {
+  return (
+    <Modal
+      open={template !== null}
+      onOpenChange={onOpenChange}
+      title={
+        template ? (
+          <span className="flex items-center gap-3">
+            <AppLogo template={template} />
+            <span className="truncate">{template.name}</span>
+          </span>
+        ) : (
+          ""
+        )
+      }
+      description={template?.category}
+      footer={
+        template ? (
+          <>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Button
+              variant={installed ? "secondary" : "primary"}
+              icon={installed ? faCircleCheck : faPlus}
+              disabled={installed || busy}
+              onClick={() => onInstall(template.slug)}
+            >
+              {installed ? "Installed" : installing ? "Installing…" : "Install"}
+            </Button>
+          </>
+        ) : null
+      }
+    >
+      {template ? (
+        <div className="space-y-5">
+          <p className="text-sm leading-relaxed text-foreground">
+            {template.description || "No description provided."}
+          </p>
+
+          {template.tags.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {template.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                >
+                  <FontAwesomeIcon icon={faTag} className="h-3 w-3" />
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <dl className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Slug</dt>
+              <dd className="mt-1 font-mono text-sm">{template.slug}</dd>
+            </div>
+            {template.port ? (
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
+                <dd className="mt-1 font-mono text-sm">{template.port}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      ) : null}
+    </Modal>
   )
 }
 
