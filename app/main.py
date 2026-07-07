@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.graphql import build_graphql_router
 from app.api.routes import router as api_router
 from app.cache import TTLCache
 from app.config import get_settings
@@ -89,6 +90,8 @@ def create_app() -> FastAPI:
     load_plugins()
     registry.register_all(app)
     app.include_router(api_router)
+    # GraphQL surface over the same services (contract-first parity with /api/v1).
+    app.include_router(build_graphql_router(), prefix="/graphql")
 
     @app.middleware("http")
     async def inject_core_context(request: Request, call_next):
