@@ -10,3 +10,22 @@ export type Theme = "dark" | "light"
 export function normalizeTheme(raw: string | undefined | null): Theme {
   return raw === "light" ? "light" : "dark"
 }
+
+/** Client-only: apply + persist a theme (shared by the account menu and command palette). */
+export function applyTheme(theme: Theme): void {
+  document.documentElement.dataset.theme = theme
+  document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+}
+
+/** Client-only: read the current theme from the DOM (defaults dark for SSR). */
+export function getTheme(): Theme {
+  if (typeof document === "undefined") return "dark"
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark"
+}
+
+/** Client-only: flip + persist the theme; returns the new value. */
+export function toggleTheme(): Theme {
+  const next: Theme = getTheme() === "dark" ? "light" : "dark"
+  applyTheme(next)
+  return next
+}

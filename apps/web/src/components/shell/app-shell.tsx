@@ -1,10 +1,12 @@
 import Link from "next/link"
 
+import { TetraWordmark } from "@/components/brand/tetra-wordmark"
+import { CommandMenu } from "@/components/command/command-menu"
 import { ConsoleNav } from "@/components/shell/console-nav"
 import { PendingGate } from "@/components/shell/pending-gate"
 import { StatusSpine } from "@/components/shell/status-spine"
 import { UserMenu } from "@/components/ui/user-menu"
-import { APP_ENV, APP_NAME } from "@/lib/env"
+import { APP_ENV } from "@/lib/env"
 import type { AdminRecord } from "@/lib/types"
 
 export function AppShell({
@@ -25,13 +27,10 @@ export function AppShell({
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-72 shrink-0 border-r border-border bg-muted/40 p-6 lg:block">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-xl bg-primary font-display text-sm font-bold text-primary-foreground">
-            CI
-          </div>
-          <div>
-            <div className="font-display font-semibold leading-tight">{APP_NAME}</div>
-            <div className="text-xs text-muted-foreground">Control plane</div>
+        <Link href="/dashboard" className="block">
+          <TetraWordmark />
+          <div className="mt-2 pl-12 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            Control plane
           </div>
         </Link>
 
@@ -61,7 +60,10 @@ export function AppShell({
             <div className="font-display text-sm font-medium leading-tight">Cloud Industry</div>
             <div className="truncate text-xs text-muted-foreground">Hosting control plane</div>
           </div>
-          <UserMenu admin={admin} />
+          <div className="flex items-center gap-3">
+            <CommandMenu adminRole={admin.role} />
+            <UserMenu admin={admin} />
+          </div>
         </header>
         <StatusSpine />
         <section className="p-6 lg:p-10">{children}</section>

@@ -5,14 +5,9 @@ import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
 import { faChevronDown, faCrown, faMoon, faSun, faUser } from "@/lib/icons"
-import { THEME_COOKIE, type Theme } from "@/lib/theme"
+import { applyTheme, type Theme } from "@/lib/theme"
 import type { AdminRecord } from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme
-  document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
-}
 
 /**
  * The upper-right account menu. Headless (no Radix dep): a button trigger + a
