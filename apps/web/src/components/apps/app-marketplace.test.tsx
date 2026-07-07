@@ -47,4 +47,17 @@ describe("AppMarketplace", () => {
     const dialog = screen.getByRole("dialog")
     expect(within(dialog).getByRole("button", { name: /Installed/ })).toBeDisabled()
   })
+
+  it("opens the animated deploy popup when Install is clicked", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "App installed." }) }),
+    )
+    render(<AppMarketplace templates={templates} installedProjects={[]} />)
+    fireEvent.click(screen.getByRole("button", { name: "View details for WordPress" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Install$/ }))
+    // detail modal is replaced by the deploy progress popup
+    expect(screen.getByText("Deploying WordPress")).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
 })

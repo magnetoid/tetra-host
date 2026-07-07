@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import { AlertBanner } from "@/components/ui/alert-banner"
+import { DeployProgress, type InstallResult } from "@/components/apps/deploy-progress"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { faCircleCheck, faPlus, faTag } from "@/lib/icons"
@@ -23,10 +23,9 @@ export function AppMarketplace({
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
-  const [installing, setInstalling] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<AppTemplate | null>(null)
+  // The app currently being deployed — drives the animated terminal popup.
+  const [deploying, setDeploying] = useState<AppTemplate | null>(null)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -45,29 +44,33 @@ export function AppMarketplace({
 
   const shown = filtered.slice(0, MAX_CARDS)
 
-  async function install(slug: string) {
-    setInstalling(slug)
-    setMessage(null)
-    setError(null)
+  // Fire the (blocking) install request and normalize it into an InstallResult the
+  // animated DeployProgress popup reconciles against. No UI state here — the popup owns it.
+  async function installRequest(slug: string): Promise<InstallResult> {
     try {
       const response = await fetch("/api/proxy/apps/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug }),
       })
-      const payload = (await response.json().catch(() => ({}))) as { message?: string; detail?: string }
-      if (!response.ok) {
-        setError(payload.detail ?? "Install failed.")
-        return
+      const payload = (await response.json().catch(() => ({}))) as {
+        message?: string
+        detail?: string
+        domain?: string
       }
-      setMessage(payload.message ?? "App installed.")
-      setSelected(null)
-      router.refresh()
+      if (!response.ok) {
+        return { ok: false, detail: payload.detail ?? "Install failed." }
+      }
+      return { ok: true, message: payload.message ?? "App installed.", domain: payload.domain }
     } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setInstalling(null)
+      return { ok: false, detail: "Unable to reach the control plane." }
     }
+  }
+
+  // Called from the detail modal's Install button — hand off to the deploy popup.
+  function startDeploy(template: AppTemplate) {
+    setSelected(null)
+    setDeploying(template)
   }
 
   return (
@@ -94,9 +97,6 @@ export function AppMarketplace({
         </select>
         <span className="text-sm text-muted-foreground">{filtered.length} apps</span>
       </div>
-
-      {message ? <AlertBanner tone="success">{message}</AlertBanner> : null}
-      {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((template) => {
@@ -138,12 +138,21 @@ export function AppMarketplace({
       <AppDetailModal
         template={selected}
         installed={selected ? installedProjects.includes(selected.slug) : false}
-        installing={selected ? installing === selected.slug : false}
-        busy={installing !== null}
         onOpenChange={(open) => {
           if (!open) setSelected(null)
         }}
-        onInstall={install}
+        onInstall={startDeploy}
+      />
+
+      <DeployProgress
+        key={deploying?.slug ?? "closed"}
+        open={deploying !== null}
+        appName={deploying?.name ?? ""}
+        run={() => installRequest(deploying!.slug)}
+        onOpenChange={(open) => {
+          if (!open) setDeploying(null)
+        }}
+        onSuccess={() => router.refresh()}
       />
     </div>
   )
@@ -152,17 +161,13 @@ export function AppMarketplace({
 function AppDetailModal({
   template,
   installed,
-  installing,
-  busy,
   onOpenChange,
   onInstall,
 }: {
   template: AppTemplate | null
   installed: boolean
-  installing: boolean
-  busy: boolean
   onOpenChange: (open: boolean) => void
-  onInstall: (slug: string) => void
+  onInstall: (template: AppTemplate) => void
 }) {
   return (
     <Modal
@@ -188,10 +193,10 @@ function AppDetailModal({
             <Button
               variant={installed ? "secondary" : "primary"}
               icon={installed ? faCircleCheck : faPlus}
-              disabled={installed || busy}
-              onClick={() => onInstall(template.slug)}
+              disabled={installed}
+              onClick={() => onInstall(template)}
             >
-              {installed ? "Installed" : installing ? "Installing…" : "Install"}
+              {installed ? "Installed" : "Install"}
             </Button>
           </>
         ) : null
