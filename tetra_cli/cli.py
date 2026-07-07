@@ -97,6 +97,25 @@ def cmd_whoami(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    data = client_from_config().audit(
+        limit=args.limit, action=args.action or "", actor=args.actor or ""
+    )
+    events = data.get("events", []) if isinstance(data, dict) else []
+    if not events:
+        print(c("no audit events", "90"))
+        return 0
+    for e in events:
+        ts = (e.get("created_at", "") or "")[:19].replace("T", " ")
+        print(
+            f"{c(ts, '90')}  {c(e.get('action', ''), '1;36')}  "
+            f"{e.get('actor_email', '')} → {e.get('target', '')}"
+            + (f"  {c(e.get('details', ''), '90')}" if e.get("details") else "")
+        )
+    print(c(f"\n{len(events)} of {data.get('total', len(events))} events", "90"))
+    return 0
+
+
 def cmd_account(args: argparse.Namespace) -> int:
     a = client_from_config().me()
     print(f"{c('name', '90')}    {a.get('full_name', '')}")
@@ -1038,6 +1057,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_login)
 
     sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
+
+    sp = sub.add_parser("audit", help="platform audit log (platform-admin)")
+    sp.add_argument("--limit", type=int, default=50, help="max events (1-200)")
+    sp.add_argument("--action", help="filter by action substring, e.g. tenant.approve")
+    sp.add_argument("--actor", help="filter by actor email substring")
+    sp.set_defaults(func=cmd_audit)
 
     account = sub.add_parser("account", help="your profile + password").add_subparsers(
         dest="account_cmd", required=True

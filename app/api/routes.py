@@ -26,6 +26,7 @@ from app.api.contracts import (
     AppInstallRequest,
     AppTemplateSummary,
     AuditEventSummary,
+    AuditLogResponse,
     AuthResponse,
     BuildDiagnosis,
     BackupConfigSummary,
@@ -2067,6 +2068,52 @@ async def api_admin_overview(
         committed_resources=committed,
         pending_tenants=pending_tenants,
         recent_events=[_audit_event_summary(e) for e in events],
+    )
+
+
+@router.get("/audit", response_model=AuditLogResponse)
+async def api_audit_log(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+    action: str = "",
+    actor: str = "",
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> AuditLogResponse:
+    """Filtered, paginated platform audit log (platform-admin only).
+
+    Audit events are platform-global (no tenant scope), so this is a super-admin
+    surface. Filters: substring match on ``action`` and/or ``actor`` email.
+    """
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    conditions = []
+    if action.strip():
+        conditions.append(AuditEvent.action.ilike(f"%{action.strip()}%"))
+    if actor.strip():
+        conditions.append(AuditEvent.actor_email.ilike(f"%{actor.strip()}%"))
+
+    rows_q = select(AuditEvent)
+    count_q = select(func.count()).select_from(AuditEvent)
+    for condition in conditions:
+        rows_q = rows_q.where(condition)
+        count_q = count_q.where(condition)
+
+    total = await session.scalar(count_q) or 0
+    rows = list(
+        (
+            await session.scalars(
+                rows_q.order_by(AuditEvent.created_at.desc()).limit(limit).offset(offset)
+            )
+        ).all()
+    )
+    return AuditLogResponse(
+        events=[_audit_event_summary(event) for event in rows],
+        total=int(total),
+        limit=limit,
+        offset=offset,
     )
 
 

@@ -69,6 +69,14 @@ class TetraClient:
     def me(self) -> Any:
         return self._request("GET", "/auth/me")
 
+    def audit(self, *, limit: int = 50, offset: int = 0, action: str = "", actor: str = "") -> Any:
+        params = {"limit": str(limit), "offset": str(offset)}
+        if action:
+            params["action"] = action
+        if actor:
+            params["actor"] = actor
+        return self._request("GET", "/audit", params=params)
+
     def account_update(self, full_name: str, email: str) -> Any:
         return self._request(
             "PATCH", "/account", json_body={"full_name": full_name, "email": email}

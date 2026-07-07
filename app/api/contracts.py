@@ -624,6 +624,15 @@ class AuditEventSummary(BaseModel):
     created_at: str = ""
 
 
+class AuditLogResponse(BaseModel):
+    """A filtered, paginated page of platform audit events (platform-admin only)."""
+
+    events: list[AuditEventSummary]
+    total: int
+    limit: int
+    offset: int
+
+
 class PlatformOverview(BaseModel):
     """Aggregate platform state for the super-admin command center.
 
