@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # and cname_target is the proxied edge hostname customers point their CNAME at.
     cloudflare_saas_zone_id: str = ""
     cloudflare_saas_cname_target: str = ""
+    # OpenRouter reselling (AI models). A Management/Provisioning key (openrouter.ai/
+    # settings/management-keys) that can only mint/manage per-tenant runtime keys.
+    openrouter_provisioning_key: str = ""
 
     # Umami web analytics (self-hosted v2). Empty url = analytics disabled (the
     # Metrics tab shows a "connect analytics" state). Self-hosted Umami has no API

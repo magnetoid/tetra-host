@@ -90,6 +90,30 @@ class TetraClient:
             "POST", f"/cloudflare/zones/{zone_id}/services/{service_key}/activate"
         )
 
+    # ── Reseller (AI models — OpenRouter runtime keys) ─────────────────────
+    def ai_models(self) -> Any:
+        return self._request("GET", "/ai/models")
+
+    def ai_keys(self) -> Any:
+        return self._request("GET", "/ai/keys")
+
+    def ai_provision(self, label: str, limit: float | None = None, limit_reset: str = "monthly") -> Any:
+        body: dict = {"label": label, "limit_reset": limit_reset}
+        if limit is not None:
+            body["limit"] = limit
+        return self._request("POST", "/ai/keys", json_body=body)
+
+    def ai_update(self, key_hash: str, limit: float | None = None, disabled: bool | None = None) -> Any:
+        body: dict = {}
+        if limit is not None:
+            body["limit"] = limit
+        if disabled is not None:
+            body["disabled"] = disabled
+        return self._request("PATCH", f"/ai/keys/{key_hash}", json_body=body)
+
+    def ai_revoke(self, key_hash: str) -> Any:
+        return self._request("DELETE", f"/ai/keys/{key_hash}")
+
     def audit(self, *, limit: int = 50, offset: int = 0, action: str = "", actor: str = "") -> Any:
         params = {"limit": str(limit), "offset": str(offset)}
         if action:

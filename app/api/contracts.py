@@ -673,6 +673,42 @@ class ServiceActivateResponse(BaseModel):
     state: str = ""
 
 
+# ── AI reselling (OpenRouter per-tenant runtime keys) ───────────────────────
+class AiModelSummary(BaseModel):
+    id: str = ""
+    name: str = ""
+    context_length: int = 0
+    prompt_price: str = ""
+    completion_price: str = ""
+
+
+class AiKeySummary(BaseModel):
+    hash: str = ""
+    label: str = ""
+    name: str = ""
+    limit: float | None = None
+    usage: float = 0.0
+    disabled: bool = False
+
+
+class AiKeyProvisionRequest(BaseModel):
+    label: str
+    limit: float | None = None
+    limit_reset: str = "monthly"
+
+
+class AiKeyCreated(BaseModel):
+    key: str  # the runtime-key secret — surfaced ONCE, never stored
+    hash: str
+    label: str
+    limit: float | None = None
+
+
+class AiKeyUpdateRequest(BaseModel):
+    limit: float | None = None
+    disabled: bool | None = None
+
+
 class PlatformOverview(BaseModel):
     """Aggregate platform state for the super-admin command center.
 

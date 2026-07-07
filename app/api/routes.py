@@ -28,6 +28,11 @@ from app.api.contracts import (
     AuditEventSummary,
     AuditLogResponse,
     AuthResponse,
+    AiKeyCreated,
+    AiKeyProvisionRequest,
+    AiKeySummary,
+    AiKeyUpdateRequest,
+    AiModelSummary,
     CloudflarePlanSummary,
     PlanActivateRequest,
     ResellableServiceSummary,
@@ -113,6 +118,7 @@ from app.modules.domains.service import DomainsService
 from app.modules.dns.service import DnsService
 from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
+from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.service import ResellerError, ResellerService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
@@ -2243,6 +2249,114 @@ async def api_cf_activate_service(
         note=str(out.get("note") or ""),
         state=str((out.get("result") or {}).get("state") or ""),
     )
+
+
+# ── Reseller: AI models (OpenRouter per-tenant runtime keys) ────────────────
+def _ai_model_summary(model: dict) -> AiModelSummary:
+    pricing = model.get("pricing") if isinstance(model.get("pricing"), dict) else {}
+    return AiModelSummary(
+        id=str(model.get("id") or ""),
+        name=str(model.get("name") or ""),
+        context_length=int(model.get("context_length") or 0),
+        prompt_price=str((pricing or {}).get("prompt") or ""),
+        completion_price=str((pricing or {}).get("completion") or ""),
+    )
+
+
+def _ai_key_summary(data: dict) -> AiKeySummary:
+    return AiKeySummary(
+        hash=str(data.get("hash") or ""),
+        label=str(data.get("label") or ""),
+        name=str(data.get("name") or ""),
+        limit=data.get("limit"),
+        usage=float(data.get("usage") or 0),
+        disabled=bool(data.get("disabled")),
+    )
+
+
+@router.get("/ai/models", response_model=list[AiModelSummary])
+async def api_ai_models(
+    request: Request,
+    _: AdminUser = Depends(get_current_api_admin),
+) -> list[AiModelSummary]:
+    """The resellable OpenRouter model catalog."""
+    try:
+        models = await AiResellerService(request).list_models()
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return [_ai_model_summary(m) for m in models]
+
+
+@router.get("/ai/keys", response_model=list[AiKeySummary])
+async def api_ai_keys(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[AiKeySummary]:
+    keys = await AiResellerService(request).list_keys_for_tenant(session, current_admin.tenant_id)
+    return [_ai_key_summary(k) for k in keys]
+
+
+@router.post("/ai/keys", response_model=AiKeyCreated)
+async def api_ai_provision_key(
+    payload: AiKeyProvisionRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AiKeyCreated:
+    """Provision a per-tenant OpenRouter runtime key (secret returned once)."""
+    service = AiResellerService(request)
+    try:
+        out = await service.provision_key_for_tenant(
+            session, current_admin.tenant_id,
+            label=payload.label, limit=payload.limit, limit_reset=payload.limit_reset,
+        )
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return AiKeyCreated(
+        key=str(out.get("key") or ""), hash=str(out.get("hash") or ""),
+        label=str(out.get("label") or ""), limit=out.get("limit"),
+    )
+
+
+@router.patch("/ai/keys/{key_hash}", response_model=AiKeySummary)
+async def api_ai_update_key(
+    key_hash: str,
+    payload: AiKeyUpdateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AiKeySummary:
+    service = AiResellerService(request)
+    try:
+        data = await service.update_key_for_tenant(
+            session, current_admin.tenant_id, key_hash,
+            limit=payload.limit, disabled=payload.disabled,
+        )
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return _ai_key_summary(data)
+
+
+@router.delete("/ai/keys/{key_hash}")
+async def api_ai_revoke_key(
+    key_hash: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    service = AiResellerService(request)
+    try:
+        await service.revoke_key_for_tenant(session, current_admin.tenant_id, key_hash)
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.get("/admin", response_model=AdminResponse)

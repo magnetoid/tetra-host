@@ -136,6 +136,52 @@ def cmd_cf_activate_service(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ai_models(args: argparse.Namespace) -> int:
+    rows = client_from_config().ai_models()
+    if not isinstance(rows, list) or not rows:
+        print(c("no models (or OpenRouter not configured)", "90"))
+        return 0
+    for m in rows[: args.limit]:
+        print(f"{c(m.get('id', ''), '1;36')}  {m.get('name', '')}  "
+              f"{c('ctx ' + str(m.get('context_length', 0)), '90')}")
+    print(c(f"\n{min(len(rows), args.limit)} of {len(rows)} models", "90"))
+    return 0
+
+
+def cmd_ai_keys(args: argparse.Namespace) -> int:
+    rows = client_from_config().ai_keys()
+    if not isinstance(rows, list) or not rows:
+        print(c("no AI keys provisioned", "90"))
+        return 0
+    for k in rows:
+        state = c("disabled", "31") if k.get("disabled") else c("active", "32")
+        limit = k.get("limit")
+        print(f"{c(k.get('hash', ''), '1;36')}  {k.get('label') or k.get('name', '')}  "
+              f"usage {k.get('usage', 0)}/{limit if limit is not None else '∞'}  [{state}]")
+    return 0
+
+
+def cmd_ai_provision(args: argparse.Namespace) -> int:
+    r = client_from_config().ai_provision(args.label, limit=args.limit, limit_reset=args.reset)
+    print(c("✓ AI key provisioned", "1;32") + f"  {r.get('label', '')} (hash {r.get('hash', '')})")
+    if r.get("key"):
+        print(c(f"  key: {r['key']}  (shown once — hand it to the tenant now)", "33"))
+    return 0
+
+
+def cmd_ai_limit(args: argparse.Namespace) -> int:
+    disabled = True if args.disable else (False if args.enable else None)
+    r = client_from_config().ai_update(args.hash, limit=args.limit, disabled=disabled)
+    print(c("✓", "32") + f" key {args.hash} updated (limit={r.get('limit', '?')})")
+    return 0
+
+
+def cmd_ai_revoke(args: argparse.Namespace) -> int:
+    client_from_config().ai_revoke(args.hash)
+    print(c("✓", "32") + f" key {args.hash} revoked")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     data = client_from_config().audit(
         limit=args.limit, action=args.action or "", actor=args.actor or ""
@@ -1438,12 +1484,30 @@ def build_parser() -> argparse.ArgumentParser:
                     help="expose write tools (each call still requires confirm=true)")
     sp.set_defaults(func=cmd_mcp_serve)
 
-    ai = sub.add_parser("ai", help="AI-assisted operations").add_subparsers(
+    ai = sub.add_parser("ai", help="AI-assisted ops + resell AI models (OpenRouter)").add_subparsers(
         dest="ai_cmd", required=True
     )
     sp = ai.add_parser("explain", help="explain a deployment's build outcome + suggest fixes")
     sp.add_argument("deployment_id")
     sp.set_defaults(func=cmd_ai_explain)
+    sp = ai.add_parser("models", help="list the resellable model catalog")
+    sp.add_argument("--limit", type=int, default=30, help="max models to show")
+    sp.set_defaults(func=cmd_ai_models)
+    ai.add_parser("keys", help="list this tenant's provisioned AI keys").set_defaults(func=cmd_ai_keys)
+    sp = ai.add_parser("provision", help="mint a per-tenant runtime key (secret shown once)")
+    sp.add_argument("label")
+    sp.add_argument("--limit", type=float, help="credit spend cap (USD)")
+    sp.add_argument("--reset", default="monthly", help="daily|weekly|monthly")
+    sp.set_defaults(func=cmd_ai_provision)
+    sp = ai.add_parser("limit", help="update a key's spend cap / enable-disable")
+    sp.add_argument("hash")
+    sp.add_argument("--limit", type=float, help="new credit spend cap (USD)")
+    sp.add_argument("--disable", action="store_true", help="disable the key")
+    sp.add_argument("--enable", action="store_true", help="re-enable the key")
+    sp.set_defaults(func=cmd_ai_limit)
+    sp = ai.add_parser("revoke", help="revoke (delete) a provisioned key")
+    sp.add_argument("hash")
+    sp.set_defaults(func=cmd_ai_revoke)
 
     previews = sub.add_parser(
         "previews", help="per-branch preview environments"
