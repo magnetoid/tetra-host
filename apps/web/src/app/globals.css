@@ -249,3 +249,22 @@ body {
     animation: none !important;
   }
 }
+
+/* ── Landing motion (bold first-impression surface only) ──────────────────
+   Default state is fully visible so non-supporting browsers + reduced-motion
+   users see everything; the animations only enhance where allowed. */
+@keyframes tetraFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .animate-fade-up {
+    animation: tetraFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
