@@ -15,6 +15,7 @@ RESOURCE_TYPE_DNS_RECORD = "dns_record"
 RESOURCE_TYPE_DATABASE = "database"
 RESOURCE_TYPE_SERVER = "server"
 RESOURCE_TYPE_APP = "app"
+RESOURCE_TYPE_CLOUDFLARE_SERVICE = "cloudflare_service"  # a resold CF plan/add-on on a tenant zone
 
 PROVIDER_COOLIFY = "coolify"
 PROVIDER_MAILCOW = "mailcow"

@@ -69,6 +69,27 @@ class TetraClient:
     def me(self) -> Any:
         return self._request("GET", "/auth/me")
 
+    # ── Reseller (Cloudflare plans + services) ─────────────────────────────
+    def cf_services(self) -> Any:
+        return self._request("GET", "/cloudflare/services")
+
+    def cf_zone_plans(self, zone_id: str) -> Any:
+        return self._request("GET", f"/cloudflare/zones/{zone_id}/plans")
+
+    def cf_zone_subscription(self, zone_id: str) -> Any:
+        return self._request("GET", f"/cloudflare/zones/{zone_id}/subscription")
+
+    def cf_activate_plan(self, zone_id: str, rate_plan_id: str, frequency: str = "monthly") -> Any:
+        return self._request(
+            "POST", f"/cloudflare/zones/{zone_id}/subscription",
+            json_body={"rate_plan_id": rate_plan_id, "frequency": frequency},
+        )
+
+    def cf_activate_service(self, zone_id: str, service_key: str) -> Any:
+        return self._request(
+            "POST", f"/cloudflare/zones/{zone_id}/services/{service_key}/activate"
+        )
+
     def audit(self, *, limit: int = 50, offset: int = 0, action: str = "", actor: str = "") -> Any:
         params = {"limit": str(limit), "offset": str(offset)}
         if action:

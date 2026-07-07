@@ -253,6 +253,67 @@ class CloudflareClient:
         )
         return payload.get("result", {}) if isinstance(payload, dict) else {}
 
+    # ── Reseller — zone plans, subscriptions, service activation (Path A) ──
+    # All on the platform Cloudflare token; zones are resold under our account and
+    # scoped to tenants via TenantResource (like DNS). The Tenant API (real customer
+    # sub-accounts) is Path B, added when partner onboarding lands.
+
+    async def list_available_plans(self, zone_id: str) -> list[dict[str, Any]]:
+        """GET /zones/{id}/available_plans — the rate plans a zone can subscribe to."""
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="GET",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/available_plans",
+            headers=self.headers(),
+        )
+        result = payload.get("result") if isinstance(payload, dict) else None
+        return result if isinstance(result, list) else []
+
+    async def get_zone_subscription(self, zone_id: str) -> dict[str, Any]:
+        """GET /zones/{id}/subscription — the zone's current subscription (plan/state)."""
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="GET",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/subscription",
+            headers=self.headers(),
+        )
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
+    async def set_zone_subscription(
+        self, zone_id: str, rate_plan_id: str, *, frequency: str = "monthly", update: bool = False
+    ) -> dict[str, Any]:
+        """Activate/upgrade a zone's paid plan. POST creates, PUT updates an existing one."""
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="PUT" if update else "POST",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/subscription",
+            headers=self.headers(),
+            json_body={"frequency": frequency, "rate_plan": {"id": rate_plan_id}},
+        )
+        await self.cache.delete("cloudflare:zones")
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
+    async def set_argo_smart_routing(self, zone_id: str, enabled: bool) -> dict[str, Any]:
+        """PATCH /zones/{id}/argo/smart_routing — activate/deactivate Argo (performance)."""
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="PATCH",
+            url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/argo/smart_routing",
+            headers=self.headers(), json_body={"value": "on" if enabled else "off"},
+        )
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
+    async def create_zone(
+        self, name: str, account_id: str, *, jump_start: bool = False, zone_type: str = "full"
+    ) -> dict[str, Any]:
+        """POST /zones — provision a new zone (to resell) under the given account."""
+        body: dict[str, Any] = {"name": name, "type": zone_type, "jump_start": jump_start}
+        if account_id:
+            body["account"] = {"id": account_id}
+        payload = await request_json(
+            self.http_client, service="Cloudflare", method="POST",
+            url="https://api.cloudflare.com/client/v4/zones",
+            headers=self.headers(), json_body=body,
+        )
+        await self.cache.delete("cloudflare:zones")
+        return payload.get("result", {}) if isinstance(payload, dict) else {}
+
     async def update_dns_record(
         self, zone_id: str, record_id: str, record_type: str, name: str,
         content: str, ttl: int = 1, proxied: bool = False, priority: int | None = None,

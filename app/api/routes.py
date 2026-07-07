@@ -28,6 +28,11 @@ from app.api.contracts import (
     AuditEventSummary,
     AuditLogResponse,
     AuthResponse,
+    CloudflarePlanSummary,
+    PlanActivateRequest,
+    ResellableServiceSummary,
+    ServiceActivateResponse,
+    ZoneSubscriptionSummary,
     BuildDiagnosis,
     BackupConfigSummary,
     BackupCreateRequest,
@@ -108,6 +113,7 @@ from app.modules.domains.service import DomainsService
 from app.modules.dns.service import DnsService
 from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
+from app.modules.reseller.service import ResellerError, ResellerService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
@@ -2114,6 +2120,128 @@ async def api_audit_log(
         total=int(total),
         limit=limit,
         offset=offset,
+    )
+
+
+# ── Reseller: Cloudflare plans + services on tenant zones (Path A) ─────────
+def _plan_summary(plan: dict) -> CloudflarePlanSummary:
+    return CloudflarePlanSummary(
+        id=str(plan.get("id") or ""),
+        name=str(plan.get("name") or ""),
+        price=float(plan.get("price") or 0),
+        currency=str(plan.get("currency") or ""),
+        frequency=str(plan.get("frequency") or ""),
+        can_subscribe=bool(plan.get("can_subscribe")),
+        is_subscribed=bool(plan.get("is_subscribed")),
+    )
+
+
+def _subscription_summary(sub: dict) -> ZoneSubscriptionSummary:
+    rate_plan = sub.get("rate_plan") if isinstance(sub.get("rate_plan"), dict) else {}
+    return ZoneSubscriptionSummary(
+        id=str(sub.get("id") or ""),
+        state=str(sub.get("state") or ""),
+        price=float(sub.get("price") or 0),
+        currency=str(sub.get("currency") or ""),
+        frequency=str(sub.get("frequency") or ""),
+        rate_plan_id=str((rate_plan or {}).get("id") or ""),
+    )
+
+
+@router.get("/cloudflare/services", response_model=list[ResellableServiceSummary])
+async def api_cf_services(
+    request: Request,
+    _: AdminUser = Depends(get_current_api_admin),
+) -> list[ResellableServiceSummary]:
+    """The resellable Cloudflare catalog (plans + security/performance/developer services)."""
+    return [
+        ResellableServiceSummary(
+            key=s.key, name=s.name, category=s.category, activation=s.activation,
+            rate_plan=s.rate_plan, description=s.description,
+        )
+        for s in ResellerService(request).catalog()
+    ]
+
+
+@router.get("/cloudflare/zones/{zone_id}/plans", response_model=list[CloudflarePlanSummary])
+async def api_cf_zone_plans(
+    zone_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[CloudflarePlanSummary]:
+    service = ResellerService(request)
+    try:
+        plans = await service.list_plans_for_tenant(session, current_admin.tenant_id, zone_id)
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return [_plan_summary(p) for p in plans]
+
+
+@router.get("/cloudflare/zones/{zone_id}/subscription", response_model=ZoneSubscriptionSummary)
+async def api_cf_zone_subscription(
+    zone_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ZoneSubscriptionSummary:
+    service = ResellerService(request)
+    try:
+        sub = await service.get_subscription_for_tenant(session, current_admin.tenant_id, zone_id)
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return _subscription_summary(sub)
+
+
+@router.post("/cloudflare/zones/{zone_id}/subscription", response_model=ZoneSubscriptionSummary)
+async def api_cf_activate_plan(
+    zone_id: str,
+    payload: PlanActivateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ZoneSubscriptionSummary:
+    """Activate/upgrade a tenant zone's paid Cloudflare plan (gated by provider actions)."""
+    service = ResellerService(request)
+    try:
+        result = await service.activate_plan_for_tenant(
+            session, current_admin.tenant_id, zone_id,
+            payload.rate_plan_id, frequency=payload.frequency,
+        )
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return _subscription_summary(result)
+
+
+@router.post(
+    "/cloudflare/zones/{zone_id}/services/{service_key}/activate",
+    response_model=ServiceActivateResponse,
+)
+async def api_cf_activate_service(
+    zone_id: str,
+    service_key: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ServiceActivateResponse:
+    """Activate a resellable Cloudflare service on a tenant zone (gated by provider actions)."""
+    service = ResellerService(request)
+    try:
+        out = await service.activate_service_for_tenant(
+            session, current_admin.tenant_id, zone_id, service_key
+        )
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return ServiceActivateResponse(
+        service=str(out.get("service") or service_key),
+        note=str(out.get("note") or ""),
+        state=str((out.get("result") or {}).get("state") or ""),
     )
 
 

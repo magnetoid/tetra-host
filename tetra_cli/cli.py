@@ -97,6 +97,45 @@ def cmd_whoami(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cf_services(args: argparse.Namespace) -> int:
+    rows = client_from_config().cf_services()
+    if not isinstance(rows, list) or not rows:
+        print(c("no services", "90"))
+        return 0
+    for s in rows:
+        print(
+            f"{c(s.get('key', ''), '1;36')}  {s.get('name', '')}  "
+            f"{c('[' + s.get('category', '') + ']', '90')}  "
+            f"{c(s.get('description', ''), '90')}"
+        )
+    return 0
+
+
+def cmd_cf_plans(args: argparse.Namespace) -> int:
+    rows = client_from_config().cf_zone_plans(args.zone_id)
+    if not isinstance(rows, list) or not rows:
+        print(c("no plans (or zone not accessible)", "90"))
+        return 0
+    for p in rows:
+        mark = c("✓", "32") if p.get("is_subscribed") else " "
+        print(f"{mark} {c(p.get('id', ''), '1;36')}  {p.get('name', '')}  "
+              f"{p.get('price', 0)} {p.get('currency', '')}/{p.get('frequency', '')}")
+    return 0
+
+
+def cmd_cf_activate_plan(args: argparse.Namespace) -> int:
+    r = client_from_config().cf_activate_plan(args.zone_id, args.rate_plan, args.frequency)
+    print(c("✓", "32") + f" plan {args.rate_plan} → {r.get('state', 'requested')} "
+          f"({r.get('price', 0)} {r.get('currency', '')}/{r.get('frequency', '')})")
+    return 0
+
+
+def cmd_cf_activate_service(args: argparse.Namespace) -> int:
+    r = client_from_config().cf_activate_service(args.zone_id, args.service)
+    print(c("✓", "32") + f" {r.get('service', args.service)}: {r.get('note', 'activated')}")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     data = client_from_config().audit(
         limit=args.limit, action=args.action or "", actor=args.actor or ""
@@ -1057,6 +1096,23 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_login)
 
     sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
+
+    cf = sub.add_parser("cloudflare", help="resell Cloudflare plans + services on a zone").add_subparsers(
+        dest="cf_cmd", required=True
+    )
+    cf.add_parser("services", help="list the resellable Cloudflare catalog").set_defaults(func=cmd_cf_services)
+    sp = cf.add_parser("plans", help="list available plans for a zone")
+    sp.add_argument("zone_id")
+    sp.set_defaults(func=cmd_cf_plans)
+    sp = cf.add_parser("activate-plan", help="activate/upgrade a zone's paid plan")
+    sp.add_argument("zone_id")
+    sp.add_argument("rate_plan", help="pro | pro_plus | business | enterprise")
+    sp.add_argument("--frequency", default="monthly", help="weekly|monthly|quarterly|yearly")
+    sp.set_defaults(func=cmd_cf_activate_plan)
+    sp = cf.add_parser("activate", help="activate a service on a zone (see `cloudflare services`)")
+    sp.add_argument("zone_id")
+    sp.add_argument("service", help="service key, e.g. argo, waf_managed")
+    sp.set_defaults(func=cmd_cf_activate_service)
 
     sp = sub.add_parser("audit", help="platform audit log (platform-admin)")
     sp.add_argument("--limit", type=int, default=50, help="max events (1-200)")

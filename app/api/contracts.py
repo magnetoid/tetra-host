@@ -633,6 +633,46 @@ class AuditLogResponse(BaseModel):
     offset: int
 
 
+# ── Reseller (Cloudflare plans + services on tenant zones) ──────────────────
+class ResellableServiceSummary(BaseModel):
+    key: str
+    name: str
+    category: str  # plan | security | performance | developer
+    activation: str  # plan | toggle | addon
+    rate_plan: str = ""
+    description: str = ""
+
+
+class CloudflarePlanSummary(BaseModel):
+    id: str = ""
+    name: str = ""
+    price: float = 0.0
+    currency: str = ""
+    frequency: str = ""
+    can_subscribe: bool = False
+    is_subscribed: bool = False
+
+
+class ZoneSubscriptionSummary(BaseModel):
+    id: str = ""
+    state: str = ""
+    price: float = 0.0
+    currency: str = ""
+    frequency: str = ""
+    rate_plan_id: str = ""
+
+
+class PlanActivateRequest(BaseModel):
+    rate_plan_id: str
+    frequency: str = "monthly"
+
+
+class ServiceActivateResponse(BaseModel):
+    service: str
+    note: str
+    state: str = ""
+
+
 class PlatformOverview(BaseModel):
     """Aggregate platform state for the super-admin command center.
 
