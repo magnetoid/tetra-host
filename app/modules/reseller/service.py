@@ -93,6 +93,15 @@ class ResellerService:
         if not self.settings.enable_provider_actions:
             raise ResellerError("Provider actions are disabled.", status_code=403)
 
+    def _require_cf_billing(self) -> None:
+        """Hard stop on anything that would incur a real Cloudflare charge until the
+        platform billing/markup model is live (``reseller_cloudflare_billing_enabled``)."""
+        if not self.settings.reseller_cloudflare_billing_enabled:
+            raise ResellerError(
+                "Cloudflare plan billing is disabled on this platform — no real charges are made.",
+                status_code=403,
+            )
+
     async def list_plans_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, zone_id: str
     ) -> list[dict]:
@@ -113,6 +122,7 @@ class ResellerService:
         rate_plan_id: str, *, frequency: str = "monthly",
     ) -> dict:
         self._require_actions()
+        self._require_cf_billing()
         await self._ensure_zone_access(session, tenant_id, zone_id)
         existing = await self.get_subscription_for_tenant(session, tenant_id, zone_id)
         result = await self.client.set_zone_subscription(
@@ -132,15 +142,17 @@ class ResellerService:
 
         result: dict = {}
         if service.activation == "plan":
+            self._require_cf_billing()  # paid plan → real charge
             existing = await self.get_subscription_for_tenant(session, tenant_id, zone_id)
             result = await self.client.set_zone_subscription(
                 zone_id, service.rate_plan, update=bool(existing.get("id")),
             )
             note = f"{service.name} activated via the {service.rate_plan} plan."
         elif service.activation == "toggle" and service.key == "argo":
+            self._require_cf_billing()  # Argo is usage-billed → real charge
             result = await self.client.set_argo_smart_routing(zone_id, True)
             note = "Argo Smart Routing enabled."
-        else:  # account-level add-on — not yet auto-provisioned
+        else:  # account-level add-on — recorded pending, incurs no charge here
             note = f"{service.name} requested — account-level provisioning, recorded as pending."
 
         await self._record(session, tenant_id, zone_id, f"service:{service_key}")

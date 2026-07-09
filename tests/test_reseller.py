@@ -122,8 +122,17 @@ def test_activate_plan_gated_then_records(client, monkeypatch):
     )
     assert blocked.status_code == 403
 
-    # actions on → activates (client mocked), records a TenantResource
+    # actions on but Cloudflare billing OFF (default) → still 403, no charge reaches CF
     monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+    charge_blocked = client.post(
+        "/api/v1/cloudflare/zones/zOwned/subscription", headers=headers,
+        json={"rate_plan_id": "pro"},
+    )
+    assert charge_blocked.status_code == 403
+    assert "billing is disabled" in charge_blocked.json()["detail"]
+
+    # billing enabled → activates (client mocked), records a TenantResource
+    monkeypatch.setattr(get_settings(), "reseller_cloudflare_billing_enabled", True)
 
     async def fake_get_sub(self, zone_id):
         return {}
@@ -165,6 +174,24 @@ def test_activate_argo_service(client, monkeypatch):
         return {"value": "on"}
 
     monkeypatch.setattr(CloudflareClient, "set_argo_smart_routing", fake_argo)
+
+    # Argo is usage-billed → blocked while billing is off
+    blocked = client.post("/api/v1/cloudflare/zones/zArgo/services/argo/activate", headers=headers)
+    assert blocked.status_code == 403
+
+    # billing on → enabled
+    monkeypatch.setattr(get_settings(), "reseller_cloudflare_billing_enabled", True)
     r = client.post("/api/v1/cloudflare/zones/zArgo/services/argo/activate", headers=headers)
     assert r.status_code == 200, r.text
     assert r.json()["service"] == "argo" and "Argo" in r.json()["note"]
+
+
+def test_addon_service_records_without_charge_even_when_billing_off(client, monkeypatch):
+    asyncio.run(_seed(slug="rg", email="g@rg.test", own_zone="zAddon"))
+    headers = _login(client, "g@rg.test")
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+    monkeypatch.setattr(get_settings(), "cloudflare_api_token", "tok")
+    # billing stays OFF — an account-level add-on records as pending, no CF charge call
+    r = client.post("/api/v1/cloudflare/zones/zAddon/services/workers/activate", headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["service"] == "workers" and "pending" in r.json()["note"]

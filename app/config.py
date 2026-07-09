@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # OpenRouter reselling (AI models). A Management/Provisioning key (openrouter.ai/
     # settings/management-keys) that can only mint/manage per-tenant runtime keys.
     openrouter_provisioning_key: str = ""
+    # Reseller safety switch: while FALSE (default), any Cloudflare activation that would
+    # incur a real charge (paid zone plan or a usage-billed toggle like Argo) is refused —
+    # no billable calls reach Cloudflare. Flip to True only once the billing/markup model
+    # is live. Account-level add-ons (recorded pending, no charge) are unaffected.
+    reseller_cloudflare_billing_enabled: bool = False
 
     # Umami web analytics (self-hosted v2). Empty url = analytics disabled (the
     # Metrics tab shows a "connect analytics" state). Self-hosted Umami has no API

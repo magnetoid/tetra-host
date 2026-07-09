@@ -31,9 +31,13 @@ async function readError(res: Response): Promise<string> {
 export function CloudflareReseller({
   services,
   zones,
+  billingEnabled = false,
 }: {
   services: ResellableService[]
   zones: DNSZoneRecord[]
+  /** When false, paid activations (plans + usage-billed toggles) are disabled — the
+   *  backend hard-blocks them too (reseller_cloudflare_billing_enabled). */
+  billingEnabled?: boolean
 }) {
   const router = useRouter()
   const [zoneId, setZoneId] = useState(zones[0]?.id ?? "")
@@ -131,6 +135,12 @@ export function CloudflareReseller({
     <div className="space-y-6">
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
       {notice ? <AlertBanner tone="success">{notice}</AlertBanner> : null}
+      {!billingEnabled ? (
+        <AlertBanner tone="info">
+          Paid activation is disabled on this platform — no real charges are made. You can browse
+          plans and services; activation turns on once billing is live.
+        </AlertBanner>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-muted-foreground">Zone</label>
@@ -176,7 +186,7 @@ export function CloudflareReseller({
                 <Button
                   variant={p.is_subscribed ? "secondary" : "primary"}
                   icon={p.is_subscribed ? faCircleCheck : faPlus}
-                  disabled={p.is_subscribed || !p.can_subscribe || busy !== null}
+                  disabled={p.is_subscribed || !p.can_subscribe || busy !== null || !billingEnabled}
                   onClick={() => activatePlan(p.id)}
                   className="mt-auto"
                 >
@@ -213,7 +223,7 @@ export function CloudflareReseller({
                       <Button
                         size="sm"
                         variant="primary"
-                        disabled={busy !== null}
+                        disabled={busy !== null || (!billingEnabled && s.activation !== "addon")}
                         onClick={() => activateService(s.key)}
                       >
                         {busy === `svc:${s.key}` ? "…" : "Activate"}
