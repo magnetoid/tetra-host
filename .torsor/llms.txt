@@ -1,0 +1,33 @@
+# Project Charter
+
+> Tetra Host is a Cloud Industry branded multi-tenant hosting platform that gives customers a modern control panel over infrastructure and platform services such as application hosting, DNS, mail, and operational visibility. It combines a Python backend and a modern web frontend into a single product intended to feel premium, fast, and technically serious.
+
+## Charter
+
+- [Project Charter](charter.md)
+
+## Architecture
+
+- [System Patterns](architecture/system-patterns.md)
+- [Tech Context](architecture/tech-context.md)
+- [ADR 0001: Adopt torsor-helper](architecture/decisions/0001-adopt-torsor-helper.md)
+- [ADR 0002: Console UI styled with shadcn/ui + Tremor](architecture/decisions/0002-console-ui-styled-with-shadcn-ui-tremor.md)
+- [ADR 0003: Tetra Host visual identity: tetrahedron mark + Space Grotesk / Inter / JetBrains Mono type system](architecture/decisions/0003-tetra-host-visual-identity-tetrahedron-mark-space-grotesk-inter-jetbrains-mono-type-system.md)
+- [ADR 0004: Tetra AI Cloud strategic direction: Coolify-backed, plugin-modular, trusted-tenant-first, AI as fast-follow](architecture/decisions/0004-tetra-ai-cloud-strategic-direction-coolify-backed-plugin-modular-trusted-tenant-first-ai-as-fast-follow.md)
+- [ADR 0005: Polyglot policy: build in Go, Python, or JS/TypeScript as appropriate](architecture/decisions/0005-polyglot-policy-build-in-go-python-or-js-typescript-as-appropriate.md)
+- [ADR 0006: Console data-viz uses Tremor](architecture/decisions/0006-console-data-viz-uses-tremor.md)
+- [ADR 0007: Platform is modular and plugin-based](architecture/decisions/0007-platform-is-modular-and-plugin-based.md)
+- [ADR 0008: Adopt Tremor via vendored Tremor Raw, not the @tremor/react package](architecture/decisions/0008-adopt-tremor-via-vendored-tremor-raw-not-the-tremor-react-package.md)
+- [ADR 0009: Custom-domain TLS: Cloudflare for SaaS now, dedicated-IP Caddy On-Demand later](architecture/decisions/0009-custom-domain-tls-cloudflare-for-saas-now-dedicated-ip-caddy-on-demand-later.md)
+- [ADR 0010: Console UI frameworks: shadcn/ui + Tremor (vendored Raw) on Tailwind v4](architecture/decisions/0010-console-ui-frameworks-shadcn-ui-tremor-vendored-raw-on-tailwind-v4.md)
+- [ADR 0011: Analytics stack: Umami for tenant web analytics, own docker-stats for compute, ClickHouse product analytics deferred](architecture/decisions/0011-analytics-stack-umami-for-tenant-web-analytics-own-docker-stats-for-compute-clickhouse-product-analytics-deferred.md)
+- [ADR 0012: MCP is the third product surface; writes are double-gated (—allow-writes + confirm)](architecture/decisions/0012-mcp-is-the-third-product-surface-writes-are-double-gated-allow-writes-confirm.md)
+- [ADR 0013: AI build-failure diagnosis — heuristic-first, optional Anthropic enrichment, untrusted logs](architecture/decisions/0013-ai-build-failure-diagnosis-heuristic-first-optional-anthropic-enrichment-untrusted-logs.md)
+- [ADR 0014: Registry-backed rollback durability — config-gated push + retention window](architecture/decisions/0014-registry-backed-rollback-durability-config-gated-push-retention-window.md)
+- [ADR 0015: Mail writes — Mailcow + ESP relay + DNS automation, shipped dormant](architecture/decisions/0015-mail-writes-mailcow-esp-relay-dns-automation-ship-dormant.md)
+- [ADR 0016: Account menu + role-gated Super Admin + cookie-driven theme, on both surfaces (Slice A)](architecture/decisions/0016-account-menu-role-gated-super-admin-cookie-driven-theme-on-both-surfaces-slice-a.md)
+
+## Active
+
+- [Active Context](active/context.md)
+- [Progress](active/progress.md)

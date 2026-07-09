@@ -4,14 +4,14 @@ status: active
 tags:
 - active
 links: []
-created: '2026-07-01T02:43:33'
-updated: '2026-07-01T02:43:33'
+created: '2026-07-09T23:28:48'
+updated: '2026-07-09T23:28:48'
 ---
 
 # Active Context
 
 ## Current focus
-Elevating the console/panel to a premium Tetra Host brand and firming up the platform's mail story. Just shipped the redesigned FastAPI login (Tetra tetrahedron identity) to production; now evaluating which best-in-class OSS mail server the multi-tenant platform standardizes on (every tenant provisions mail against it).
+Building the reseller marketplace (Path A): tenants activate/resell third-party services via API/CLI, scoped by TenantResource, gated by ENABLE_PROVIDER_ACTIONS, fail-closed ownership. Cloudflare plans/services + OpenRouter AI models are shipped backend-only (dormant). Now building the console reseller UI. New governing rule: tetra-clean-simple-core (ADR 0007) — keep the core minimal, grow by plugins.
 
 ## Open questions
-MAIL SERVER (undecided — needs user ratification before an ADR): platform-standard OSS mail server for multi-tenant provisioning. Candidates: Mailcow (already the integrated provider in app/services/mailcow.py + CLAUDE.md; richest admin API + Docker-native, fits the Tetra Engine docker-compose model; strong DKIM/SPF/DMARC automation synergy with the platform's existing Cloudflare DNS control; but heavy ~4-6GB RAM and disk on the shared, ~84%-full box) vs Stalwart (modern Rust, low footprint, JMAP+IMAP+SMTP, multi-tenant, but would need a new provider client) vs Mailu (lighter Docker middle-ground). Recommendation on record: keep Mailcow unless RAM/disk is the binding constraint, in which case evaluate Stalwart. Sub-question: check the box's free RAM/disk to make the call concrete. Also: Mailcow API token is still EMPTY in prod /opt/tetra-host/.env — provisioning flow not yet wired.
+Reseller still needs: console + panel UIs (console UI now in progress), a billing/markup model (how Tetra bills tenants and pays each provider — ties into the existing plans/billing), a reseller ADR, and deployment. Cloudflare activate endpoints trigger real billable plan changes, so they ship WITH the UI + billing model, not before. OpenRouter dormant until OPENROUTER_PROVISIONING_KEY set. Audit-log console/panel viewers still pending (backend shipped 16ca396). Slice F impersonation still needs the view-as vs act-as decision.

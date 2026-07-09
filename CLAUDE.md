@@ -63,11 +63,18 @@ and sometimes `schemas.py`. Registered plugins (order matters, see `load_plugins
 `account`, `admin`.
 
 **Not every module has a plugin.** Several modules are **service-only** — `apps`, `analytics`, `deploys`,
-`errors` (and the now-hollow `sites`) ship just a `service.py` with no `plugin.py`, consumed by the
-`projects` plugin and by [app/api/routes.py](app/api/routes.py). `projects` is the **composite surface**:
+`errors`, `reseller` (and the now-hollow `sites`) ship just a `service.py` with no `plugin.py`, consumed by
+the `projects` plugin and by [app/api/routes.py](app/api/routes.py). `projects` is the **composite surface**:
 one plugin that renders sites/apps/deployments/metrics/errors as tabs (templates still live under
 `templates/sites/`). So "add a feature" means: a new plugin module when it needs its own nav entry + routes;
 a service-only module when it's domain logic surfaced through an existing plugin or the API.
+
+**Keep the core clean and simple** (rule `tetra-clean-simple-core`, ADR 0007): `app/main.py` is wiring only,
+cross-cutting logic lives in `app/services/`, and every capability arrives as a plugin/module — never grow the
+core to fit a feature. Recent additions follow this: the **reseller marketplace** (`app/modules/reseller/`,
+service-only) resells Cloudflare plans/services (`service.py`) and OpenRouter AI models (`ai_service.py`) to
+tenants behind thin provider clients (`app/services/{cloudflare,openrouter}.py`), scoped via `TenantResource`;
+plus the **account** self-service and **audit-log** surfaces on `/api/v1` + `tetra` CLI.
 
 **Layering (enforce this).** Route handlers stay thin; all provider and domain logic lives in service
 classes (`app/modules/*/service.py` and `app/services/`). Provider clients —
