@@ -131,6 +131,12 @@ def test_install_deploys_and_records_resource(client, monkeypatch):
     assert listed.status_code == 200
     assert any(app["project"] == "my-blog" for app in listed.json())
 
+    # ...and it also shows in the deployments history, marked as an app install.
+    deploys = client.get("/api/v1/deploys", headers=headers)
+    assert deploys.status_code == 200
+    app_dep = next((d for d in deploys.json() if d["project"] == "my-blog"), None)
+    assert app_dep is not None and app_dep["builder"] == "app" and app_dep["status"] == "ready"
+
 
 def test_install_blocked_when_actions_disabled(client, monkeypatch):
     asyncio.run(_seed_apps_tenant())

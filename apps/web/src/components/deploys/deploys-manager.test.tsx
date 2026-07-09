@@ -24,6 +24,16 @@ describe("DeploysManager", () => {
     expect(screen.getByRole("button", { name: /rollback to this/i })).toBeInTheDocument()
   })
 
+  it("marks a marketplace app install and hides git rollback for it", () => {
+    render(
+      <DeploysManager
+        deployments={[{ ...READY, id: "dep-app", builder: "app", git_url: "", ref: "", commit: "" }]}
+      />,
+    )
+    expect(screen.getByText("marketplace app")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /rollback/i })).not.toBeInTheDocument()
+  })
+
   it("hides rollback for failed deployments and shows the empty state", () => {
     render(
       <DeploysManager deployments={[{ ...READY, id: "dep-2", status: "error", image: "" }]} />,

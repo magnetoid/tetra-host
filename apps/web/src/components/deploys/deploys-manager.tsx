@@ -132,7 +132,9 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         <div className="space-y-3">
           {deployments.map((deployment) => {
             const expanded = expandedId === deployment.id
-            const canRollback = deployment.status === "ready" && Boolean(deployment.image)
+            const isApp = deployment.builder === "app"
+            const canRollback =
+              deployment.status === "ready" && Boolean(deployment.image) && !isApp
             return (
               <div
                 key={deployment.id}
@@ -158,10 +160,16 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
                     />
                     <span className="truncate font-medium">{deployment.project}</span>
                     <StatusBadge value={deployment.status} />
-                    <span className="truncate font-mono text-xs text-muted-foreground">
-                      {deployment.ref}
-                      {deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""}
-                    </span>
+                    {isApp ? (
+                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        marketplace app
+                      </span>
+                    ) : (
+                      <span className="truncate font-mono text-xs text-muted-foreground">
+                        {deployment.ref}
+                        {deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""}
+                      </span>
+                    )}
                   </button>
                   <div className="flex items-center gap-3">
                     {deployment.domain ? (

@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.config import get_settings
-from app.models import TenantResource
+from app.models import Deployment, TenantResource
+from app.models.deployment import STATUS_READY
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.app_catalog import (
     AppCatalog,
@@ -173,6 +174,25 @@ class AppsService:
             await quota.release(project)
             raise
 
+        # Record the install as a Deployment so it appears in the deployments history
+        # alongside git deploys. builder="app" marks it as a marketplace/compose install
+        # (no git fields, no rollback); the stack came up, so it's ready.
+        port = int(template.port) if str(template.port).isdigit() else 0
+        live_line = f"✓ live at https://{resolved_domain}" if resolved_domain else "✓ running"
+        session.add(
+            Deployment(
+                tenant_id=tenant_id or "",
+                project=project,
+                status=STATUS_READY,
+                builder="app",
+                image=template.slug,
+                domain=resolved_domain,
+                port=port,
+                log=f"→ installing {template.name}\n{live_line}",
+            )
+        )
+        await session.flush()
+
         return {"ok": True, "project": project, "domain": resolved_domain}
 
     async def control_for_tenant(
@@ -192,12 +212,21 @@ class AppsService:
         self._require_actions()
         await self._ensure_app_access(session, tenant_id, project)
         result = await self.engine.remove_stack(project, volumes=volumes)
+        clean_project = sanitize_project_name(project)
         await session.execute(
             delete(TenantResource).where(
                 TenantResource.tenant_id == (tenant_id or ""),
                 TenantResource.provider == PROVIDER_DOCKER,
                 TenantResource.resource_type == RESOURCE_TYPE_APP,
-                TenantResource.external_id == sanitize_project_name(project),
+                TenantResource.external_id == clean_project,
+            )
+        )
+        # Drop the app's deployment-history entry so it doesn't linger as "ready".
+        await session.execute(
+            delete(Deployment).where(
+                Deployment.tenant_id == (tenant_id or ""),
+                Deployment.project == clean_project,
+                Deployment.builder == "app",
             )
         )
         return result
