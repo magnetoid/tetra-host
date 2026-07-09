@@ -182,6 +182,53 @@ def cmd_ai_revoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def _fmt_cents(cents: int) -> str:
+    return f"${cents / 100:.2f}"
+
+
+def cmd_billing_pricing(args: argparse.Namespace) -> int:
+    rows = client_from_config().billing_pricing()
+    if not isinstance(rows, list) or not rows:
+        print(c("no pricing rules set", "90"))
+        return 0
+    for r in rows:
+        print(f"{c(r.get('offering_key', ''), '1;36')}  {r.get('rule', '')}={r.get('rule_value', 0)}  "
+              f"wholesale {_fmt_cents(r.get('wholesale_cost_cents', 0))} → "
+              f"resale {c(_fmt_cents(r.get('resale_price_cents', 0)), '32')}  [{r.get('cost_shape', '')}]")
+    return 0
+
+
+def cmd_billing_set_price(args: argparse.Namespace) -> int:
+    r = client_from_config().billing_set_price(
+        args.offering, provider=args.provider or "", cost_shape=args.shape,
+        wholesale_cost_cents=args.wholesale_cents, unit=args.unit or "",
+        rule=args.rule, rule_value=args.value,
+    )
+    print(c("✓", "32") + f" {r.get('offering_key', '')}: {r.get('rule', '')}={r.get('rule_value', 0)} → "
+          f"resale {_fmt_cents(r.get('resale_price_cents', 0))}")
+    return 0
+
+
+def cmd_billing_quote(args: argparse.Namespace) -> int:
+    r = client_from_config().billing_quote(args.offering, wholesale_cents=args.wholesale_cents)
+    print(f"{c(r.get('offering_key', ''), '1;36')}  wholesale {_fmt_cents(r.get('wholesale_cost_cents', 0))} → "
+          f"resale {c(_fmt_cents(r.get('resale_price_cents', 0)), '1;32')}  "
+          f"(margin {_fmt_cents(r.get('margin_cents', 0))}, {r.get('rule', '')} {r.get('rule_value', 0)})")
+    return 0
+
+
+def cmd_billing_charges(args: argparse.Namespace) -> int:
+    rows = client_from_config().billing_charges()
+    if not isinstance(rows, list) or not rows:
+        print(c("no charges recorded", "90"))
+        return 0
+    for ch in rows:
+        print(f"{c((ch.get('created_at', '') or '')[:19], '90')}  {c(ch.get('offering_key', ''), '1;36')}  "
+              f"resale {_fmt_cents(ch.get('resale_price_cents', 0))} "
+              f"(margin {_fmt_cents(ch.get('margin_cents', 0))})  [{ch.get('status', '')}]")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     data = client_from_config().audit(
         limit=args.limit, action=args.action or "", actor=args.actor or ""
@@ -1159,6 +1206,25 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("zone_id")
     sp.add_argument("service", help="service key, e.g. argo, waf_managed")
     sp.set_defaults(func=cmd_cf_activate_service)
+
+    billing = sub.add_parser("billing", help="reseller pricing + charge ledger").add_subparsers(
+        dest="billing_cmd", required=True
+    )
+    billing.add_parser("pricing", help="list pricing rules (platform-admin)").set_defaults(func=cmd_billing_pricing)
+    sp = billing.add_parser("set-price", help="set an offering's pricing rule (platform-admin)")
+    sp.add_argument("offering", help="offering key, e.g. cf.plan_pro / ai.usage / hetzner.cx32")
+    sp.add_argument("--provider", help="cloudflare|openrouter|hetzner")
+    sp.add_argument("--shape", default="recurring", choices=["recurring", "metered"])
+    sp.add_argument("--wholesale-cents", dest="wholesale_cents", type=int, default=0, help="what Tetra pays")
+    sp.add_argument("--unit", help="metered unit label, e.g. '1M tokens'")
+    sp.add_argument("--rule", default="markup_percent", choices=["markup_percent", "fixed_margin", "fixed_price"])
+    sp.add_argument("--value", type=float, default=30.0, help="percent (markup) or cents (fixed_*)")
+    sp.set_defaults(func=cmd_billing_set_price)
+    sp = billing.add_parser("quote", help="preview the resale price for an offering")
+    sp.add_argument("offering")
+    sp.add_argument("--wholesale-cents", dest="wholesale_cents", type=int, help="override / required if no rule")
+    sp.set_defaults(func=cmd_billing_quote)
+    billing.add_parser("charges", help="show the reseller charge ledger").set_defaults(func=cmd_billing_charges)
 
     sp = sub.add_parser("audit", help="platform audit log (platform-admin)")
     sp.add_argument("--limit", type=int, default=50, help="max events (1-200)")

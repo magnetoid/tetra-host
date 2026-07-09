@@ -1,6 +1,7 @@
 from app.models.admin import AdminUser
 from app.models.app_env import AppEnvVar
 from app.models.audit import AuditEvent
+from app.models.billing import PricingRule, ResellerCharge
 from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.domain import Domain
@@ -18,6 +19,8 @@ __all__ = [
     "Domain",
     "Plan",
     "PreviewEnv",
+    "PricingRule",
+    "ResellerCharge",
     "Tenant",
     "TenantResource",
 ]

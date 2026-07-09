@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # no billable calls reach Cloudflare. Flip to True only once the billing/markup model
     # is live. Account-level add-ons (recorded pending, no charge) are unaffected.
     reseller_cloudflare_billing_enabled: bool = False
+    # Reseller billing (slice 1): platform default markup applied to an offering's wholesale
+    # cost when no per-offering PricingRule exists. Percent, e.g. 30.0 = +30%.
+    reseller_default_markup_percent: float = 30.0
 
     # Umami web analytics (self-hosted v2). Empty url = analytics disabled (the
     # Metrics tab shows a "connect analytics" state). Self-hosted Umami has no API

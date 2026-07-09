@@ -709,6 +709,48 @@ class AiKeyUpdateRequest(BaseModel):
     disabled: bool | None = None
 
 
+# ── Reseller billing (pricing rules + charge ledger) ────────────────────────
+class PricingRuleSummary(BaseModel):
+    offering_key: str
+    provider: str = ""
+    cost_shape: str = "recurring"
+    wholesale_cost_cents: int = 0
+    unit: str = ""
+    rule: str = "markup_percent"
+    rule_value: float = 0.0
+    resale_price_cents: int = 0
+
+
+class PricingRuleRequest(BaseModel):
+    provider: str = ""
+    cost_shape: str = "recurring"
+    wholesale_cost_cents: int = 0
+    unit: str = ""
+    rule: str = "markup_percent"
+    rule_value: float = 0.0
+
+
+class PriceQuote(BaseModel):
+    offering_key: str
+    wholesale_cost_cents: int
+    resale_price_cents: int
+    margin_cents: int
+    rule: str
+    rule_value: float
+
+
+class ResellerChargeSummary(BaseModel):
+    id: str
+    tenant_id: str
+    offering_key: str
+    provider: str = ""
+    wholesale_cost_cents: int
+    resale_price_cents: int
+    margin_cents: int
+    status: str
+    created_at: str = ""
+
+
 class PlatformOverview(BaseModel):
     """Aggregate platform state for the super-admin command center.
 

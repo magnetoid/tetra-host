@@ -35,7 +35,11 @@ from app.api.contracts import (
     AiModelSummary,
     CloudflarePlanSummary,
     PlanActivateRequest,
+    PriceQuote,
+    PricingRuleRequest,
+    PricingRuleSummary,
     ResellableServiceSummary,
+    ResellerChargeSummary,
     ServiceActivateResponse,
     ZoneSubscriptionSummary,
     BuildDiagnosis,
@@ -118,6 +122,7 @@ from app.modules.domains.service import DomainsService
 from app.modules.dns.service import DnsService
 from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
+from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.service import ResellerError, ResellerService
 from app.services.builder import BuildError
@@ -2357,6 +2362,82 @@ async def api_ai_revoke_key(
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
     return {"ok": True}
+
+
+# ── Reseller billing: pricing rules + charge ledger (slice 1) ──────────────
+def _pricing_rule_summary(rule) -> PricingRuleSummary:
+    return PricingRuleSummary(
+        offering_key=rule.offering_key, provider=rule.provider, cost_shape=rule.cost_shape,
+        wholesale_cost_cents=rule.wholesale_cost_cents, unit=rule.unit,
+        rule=rule.rule, rule_value=rule.rule_value,
+        resale_price_cents=compute_resale_cents(rule.wholesale_cost_cents, rule.rule, rule.rule_value),
+    )
+
+
+def _charge_summary(charge) -> ResellerChargeSummary:
+    return ResellerChargeSummary(
+        id=charge.id, tenant_id=charge.tenant_id, offering_key=charge.offering_key,
+        provider=charge.provider, wholesale_cost_cents=charge.wholesale_cost_cents,
+        resale_price_cents=charge.resale_price_cents, margin_cents=charge.margin_cents,
+        status=charge.status, created_at=charge.created_at.isoformat() if charge.created_at else "",
+    )
+
+
+@router.get("/billing/pricing", response_model=list[PricingRuleSummary])
+async def api_billing_pricing(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> list[PricingRuleSummary]:
+    service = BillingService(session, request.state.settings)
+    return [_pricing_rule_summary(r) for r in await service.list_rules()]
+
+
+@router.put("/billing/pricing/{offering_key}", response_model=PricingRuleSummary)
+async def api_billing_set_pricing(
+    offering_key: str,
+    payload: PricingRuleRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> PricingRuleSummary:
+    """Set/replace the pricing rule for an offering (platform-admin)."""
+    service = BillingService(session, request.state.settings)
+    rule = await service.set_rule(
+        offering_key, provider=payload.provider, cost_shape=payload.cost_shape,
+        wholesale_cost_cents=payload.wholesale_cost_cents, unit=payload.unit,
+        rule=payload.rule, rule_value=payload.rule_value,
+    )
+    return _pricing_rule_summary(rule)
+
+
+@router.get("/billing/quote/{offering_key}", response_model=PriceQuote)
+async def api_billing_quote(
+    offering_key: str,
+    request: Request,
+    wholesale_cents: int | None = None,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(get_current_api_admin),
+) -> PriceQuote:
+    """Resolve the resale price for an offering (its rule, else the platform default markup)."""
+    service = BillingService(session, request.state.settings)
+    try:
+        quote = await service.quote(offering_key, wholesale_cents=wholesale_cents)
+    except BillingError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return PriceQuote(**quote)
+
+
+@router.get("/billing/charges", response_model=list[ResellerChargeSummary])
+async def api_billing_charges(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[ResellerChargeSummary]:
+    """The reseller charge ledger — platform-admins see all tenants; others see their own."""
+    service = BillingService(session, request.state.settings)
+    tenant_scope = None if current_admin.role == ROLE_PLATFORM_ADMIN else current_admin.tenant_id
+    return [_charge_summary(c) for c in await service.list_charges(tenant_id=tenant_scope)]
 
 
 @router.get("/admin", response_model=AdminResponse)

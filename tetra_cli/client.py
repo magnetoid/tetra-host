@@ -114,6 +114,31 @@ class TetraClient:
     def ai_revoke(self, key_hash: str) -> Any:
         return self._request("DELETE", f"/ai/keys/{key_hash}")
 
+    # ── Reseller billing (pricing + ledger) ────────────────────────────────
+    def billing_pricing(self) -> Any:
+        return self._request("GET", "/billing/pricing")
+
+    def billing_set_price(
+        self, offering_key: str, *, provider: str = "", cost_shape: str = "recurring",
+        wholesale_cost_cents: int = 0, unit: str = "", rule: str = "markup_percent",
+        rule_value: float = 0.0,
+    ) -> Any:
+        return self._request(
+            "PUT", f"/billing/pricing/{offering_key}",
+            json_body={
+                "provider": provider, "cost_shape": cost_shape,
+                "wholesale_cost_cents": wholesale_cost_cents, "unit": unit,
+                "rule": rule, "rule_value": rule_value,
+            },
+        )
+
+    def billing_quote(self, offering_key: str, wholesale_cents: int | None = None) -> Any:
+        params = {"wholesale_cents": str(wholesale_cents)} if wholesale_cents is not None else None
+        return self._request("GET", f"/billing/quote/{offering_key}", params=params)
+
+    def billing_charges(self) -> Any:
+        return self._request("GET", "/billing/charges")
+
     def audit(self, *, limit: int = 50, offset: int = 0, action: str = "", actor: str = "") -> Any:
         params = {"limit": str(limit), "offset": str(offset)}
         if action:
