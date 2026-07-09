@@ -16,6 +16,7 @@ import {
   faListCheck,
   faRocket,
   faServer,
+  faStore,
   faTableColumns,
   faTerminal,
   faUsers,
@@ -65,6 +66,7 @@ export const consoleNavItems: NavItem[] = [
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/domains", label: "Domains", icon: faEarthAmericas },
+  { href: "/marketplace", label: "Marketplace", icon: faStore },
   { href: "/admin", label: "Admin", icon: faUserShield },
   { href: "/usage", label: "Usage", icon: faChartBar },
   {

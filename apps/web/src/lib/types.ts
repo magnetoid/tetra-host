@@ -430,3 +430,56 @@ export interface DeployHookCreated {
   secret: string // shown once
   ref: string
 }
+
+// ── Reseller marketplace ────────────────────────────────────────────────────
+export interface ResellableService {
+  key: string
+  name: string
+  category: string
+  activation: string
+  rate_plan: string
+  description: string
+}
+
+export interface CloudflarePlan {
+  id: string
+  name: string
+  price: number
+  currency: string
+  frequency: string
+  can_subscribe: boolean
+  is_subscribed: boolean
+}
+
+export interface ZoneSubscription {
+  id: string
+  state: string
+  price: number
+  currency: string
+  frequency: string
+  rate_plan_id: string
+}
+
+export interface AiModel {
+  id: string
+  name: string
+  context_length: number
+  prompt_price: string
+  completion_price: string
+}
+
+export interface AiKey {
+  hash: string
+  label: string
+  name: string
+  limit: number | null
+  usage: number
+  disabled: boolean
+}
+
+export interface AiKeyCreated {
+  key: string // shown once
+  hash: string
+  label: string
+  limit: number | null
+}
