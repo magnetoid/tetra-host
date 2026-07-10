@@ -566,3 +566,11 @@ export interface StorageStatus {
   can_issue_credentials: boolean
   endpoint: string
 }
+
+export interface TenantCreditOverview {
+  tenant_id: string
+  tenant_name: string
+  balance_usd: number
+  spend_30d_usd: number
+  requests_30d: number
+}

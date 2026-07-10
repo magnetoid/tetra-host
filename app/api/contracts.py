@@ -775,6 +775,14 @@ class CreditTopupRequest(BaseModel):
     amount_usd: float = Field(gt=0)
 
 
+class TenantCreditOverview(BaseModel):
+    tenant_id: str
+    tenant_name: str = ""
+    balance_usd: float = 0.0
+    spend_30d_usd: float = 0.0
+    requests_30d: int = 0
+
+
 # ── Reseller billing (pricing rules + charge ledger) ────────────────────────
 class PricingRuleSummary(BaseModel):
     offering_key: str

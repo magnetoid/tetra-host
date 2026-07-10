@@ -42,6 +42,7 @@ from app.api.contracts import (
     CreditBalanceResponse,
     CreditTopupRequest,
     CreditTransactionSummary,
+    TenantCreditOverview,
     CloudflarePlanSummary,
     PlanActivateRequest,
     PriceQuote,
@@ -2467,6 +2468,16 @@ async def api_billing_credits(
     svc = CreditService(session)
     tenant_id = current_admin.tenant_id or ""
     return _credit_balance_response(await svc.balance(tenant_id), await svc.transactions(tenant_id))
+
+
+@router.get("/billing/credits/overview", response_model=list[TenantCreditOverview])
+async def api_billing_credits_overview(
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> list[TenantCreditOverview]:
+    """Platform-admin: every tenant's AI credit balance + 30-day spend."""
+    rows = await CreditService(session).overview()
+    return [TenantCreditOverview(**r) for r in rows]
 
 
 @router.post("/billing/credits", response_model=CreditBalanceResponse)

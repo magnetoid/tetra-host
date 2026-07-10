@@ -3,13 +3,18 @@ log. Powers metered AI-gateway billing: top-ups add credit, each metered call de
 the balance gates whether a tenant may start a new call (soft cap: check-before, settle-after).
 """
 
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Tenant
 from app.models.billing import (
+    MICRO_USD_PER_USD,
     TXN_ADJUSTMENT,
     TXN_DEBIT,
     TXN_TOPUP,
+    AiUsageEvent,
     CreditTransaction,
     TenantCredit,
 )
@@ -60,6 +65,39 @@ class CreditService:
     async def adjust(self, tenant_id: str, delta_micro_usd: int, *, reference: str = "") -> int:
         """Manual compensating correction (can be positive or negative)."""
         return await self._apply(tenant_id, delta_micro_usd, kind=TXN_ADJUSTMENT, reference=reference)
+
+    async def overview(self, *, days: int = 30) -> list[dict]:
+        """Platform-admin view: every tenant with its wallet balance + recent AI spend."""
+        tenants = list((await self.session.scalars(select(Tenant))).all())
+        wallets = {
+            w.tenant_id: w.balance_micro_usd
+            for w in (await self.session.scalars(select(TenantCredit))).all()
+        }
+        since = datetime.now(UTC) - timedelta(days=days)
+        rows = (
+            await self.session.execute(
+                select(
+                    AiUsageEvent.tenant_id,
+                    func.sum(AiUsageEvent.billed_micro_usd),
+                    func.count(),
+                )
+                .where(AiUsageEvent.created_at >= since)
+                .group_by(AiUsageEvent.tenant_id)
+            )
+        ).all()
+        spend = {r[0]: (int(r[1] or 0), int(r[2] or 0)) for r in rows}
+        out: list[dict] = []
+        for t in tenants:
+            billed, count = spend.get(t.id, (0, 0))
+            out.append({
+                "tenant_id": t.id,
+                "tenant_name": t.name,
+                "balance_usd": wallets.get(t.id, 0) / MICRO_USD_PER_USD,
+                "spend_30d_usd": billed / MICRO_USD_PER_USD,
+                "requests_30d": count,
+            })
+        out.sort(key=lambda x: x["spend_30d_usd"], reverse=True)
+        return out
 
     async def transactions(self, tenant_id: str, *, limit: int = 100) -> list[CreditTransaction]:
         rows = await self.session.scalars(

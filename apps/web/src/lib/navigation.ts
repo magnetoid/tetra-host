@@ -84,6 +84,12 @@ export const consoleNavItems: NavItem[] = [
     platformAdminOnly: true,
   },
   {
+    href: "/credits",
+    label: "AI credits",
+    icon: faKey,
+    platformAdminOnly: true,
+  },
+  {
     href: "/tenants",
     label: "Tenants",
     icon: faUsers,

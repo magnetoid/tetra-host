@@ -131,6 +131,21 @@ def test_topup_is_platform_admin_only(client, monkeypatch):
     assert round(bal["balance_usd"], 2) == 10.0
 
 
+def test_credits_overview_is_platform_admin_only(client, monkeypatch):
+    tenant_id = asyncio.run(_seed(credit_usd=3.0))
+
+    owner = _login(client, "owner@ai.test", "ai-password")
+    assert client.get("/api/v1/billing/credits/overview", headers=owner).status_code == 403
+
+    root = _login(client, "root@ai.test", "root-password")
+    r = client.get("/api/v1/billing/credits/overview", headers=root)
+    assert r.status_code == 200
+    rows = r.json()
+    match = next((x for x in rows if x["tenant_id"] == tenant_id), None)
+    assert match is not None
+    assert round(match["balance_usd"], 2) == 3.0
+
+
 def test_keys_mode_rejects_gateway_chat(client, monkeypatch):
     asyncio.run(_seed(credit_usd=5.0))
     monkeypatch.setattr(get_settings(), "openrouter_provisioning_key", "sk-or-provisioning")
