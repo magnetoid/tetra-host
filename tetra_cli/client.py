@@ -145,6 +145,18 @@ class TetraClient:
     def storage_delete(self, name: str) -> Any:
         return self._request("DELETE", f"/storage/buckets/{name}")
 
+    # ── Scheduled jobs ─────────────────────────────────────────────────────
+    def jobs_list(self) -> Any:
+        return self._request("GET", "/jobs")
+
+    def jobs_create(self, name: str, cron: str, url: str, method: str = "GET") -> Any:
+        return self._request(
+            "POST", "/jobs", json_body={"name": name, "cron": cron, "url": url, "method": method}
+        )
+
+    def jobs_delete(self, job_id: str) -> Any:
+        return self._request("DELETE", f"/jobs/{job_id}")
+
     # ── Reseller billing (pricing + ledger) ────────────────────────────────
     def billing_pricing(self) -> Any:
         return self._request("GET", "/billing/pricing")

@@ -67,6 +67,7 @@ export const consoleNavItems: NavItem[] = [
   { href: "/databases", label: "Databases", icon: faDatabase },
   { href: "/storage", label: "Storage", icon: faCloud },
   { href: "/ai", label: "AI", icon: faWandSparkles },
+  { href: "/jobs", label: "Jobs", icon: faListCheck },
   { href: "/logs", label: "Logs", icon: faTerminal },
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },

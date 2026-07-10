@@ -268,6 +268,34 @@ def cmd_storage_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_jobs_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().jobs_list()
+    if not isinstance(rows, list) or not rows:
+        print(c("no scheduled jobs", "90"))
+        return 0
+    for j in rows:
+        state = c("paused", "33") if not j.get("enabled") else c("on", "32")
+        last = j.get("last_status") or "—"
+        tint = {"ok": "32", "error": "31"}.get(last, "90")
+        print(f"{c(j.get('id', '')[:8], '1;36')}  {j.get('name', '')}  {c(j.get('cron', ''), '35')}"
+              f"  {j.get('method', '')} {c(j.get('url', ''), '90')}  [{state}]  last {c(last, tint)}")
+    return 0
+
+
+def cmd_jobs_create(args: argparse.Namespace) -> int:
+    r = client_from_config().jobs_create(args.name, args.cron, args.url, method=args.method)
+    if not isinstance(r, dict):
+        return die("could not create job")
+    print(c("✓ job created", "1;32") + f"  {r.get('name', '')} ({r.get('cron', '')})")
+    return 0
+
+
+def cmd_jobs_rm(args: argparse.Namespace) -> int:
+    client_from_config().jobs_delete(args.job_id)
+    print(c("✓", "32") + f" job {args.job_id} deleted")
+    return 0
+
+
 def _fmt_cents(cents: int) -> str:
     return f"${cents / 100:.2f}"
 
@@ -1684,6 +1712,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("tenant", help="tenant id")
     sp.add_argument("amount", type=float, help="amount in USD")
     sp.set_defaults(func=cmd_credits_topup)
+
+    jobs = sub.add_parser(
+        "jobs", help="scheduled jobs — cron-triggered HTTP calls"
+    ).add_subparsers(dest="jobs_cmd", required=True)
+    jobs.add_parser("list", help="list scheduled jobs").set_defaults(func=cmd_jobs_list)
+    sp = jobs.add_parser("create", help="create a scheduled job")
+    sp.add_argument("name")
+    sp.add_argument("cron", help="5-field cron, e.g. '*/5 * * * *'")
+    sp.add_argument("url")
+    sp.add_argument("--method", default="GET", help="GET|POST|HEAD")
+    sp.set_defaults(func=cmd_jobs_create)
+    sp = jobs.add_parser("rm", help="delete a scheduled job")
+    sp.add_argument("job_id")
+    sp.set_defaults(func=cmd_jobs_rm)
 
     storage = sub.add_parser(
         "storage", help="object storage — resold R2 buckets"

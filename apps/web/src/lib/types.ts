@@ -623,3 +623,22 @@ export interface StatusResponse {
   updated_at: string
   components: StatusComponent[]
 }
+
+export interface ScheduledJobRecord {
+  id: string
+  name: string
+  cron: string
+  url: string
+  method: string
+  enabled: boolean
+  last_run_at: string
+  last_status: string
+  last_detail: string
+}
+
+export interface JobRunRecord {
+  status: string
+  detail: string
+  duration_ms: number
+  started_at: string
+}
