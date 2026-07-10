@@ -1,7 +1,13 @@
 from app.models.admin import AdminUser
 from app.models.app_env import AppEnvVar
 from app.models.audit import AuditEvent
-from app.models.billing import PricingRule, ResellerCharge
+from app.models.billing import (
+    AiUsageEvent,
+    CreditTransaction,
+    PricingRule,
+    ResellerCharge,
+    TenantCredit,
+)
 from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.domain import Domain
@@ -12,8 +18,10 @@ from app.models.tenant_resource import TenantResource
 
 __all__ = [
     "AdminUser",
+    "AiUsageEvent",
     "AppEnvVar",
     "AuditEvent",
+    "CreditTransaction",
     "DeployHook",
     "Deployment",
     "Domain",
@@ -22,5 +30,6 @@ __all__ = [
     "PricingRule",
     "ResellerCharge",
     "Tenant",
+    "TenantCredit",
     "TenantResource",
 ]

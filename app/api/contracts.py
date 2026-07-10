@@ -711,6 +711,70 @@ class AiKeyUpdateRequest(BaseModel):
     disabled: bool | None = None
 
 
+# ── AI gateway (shared-key metered chat) + prepaid credit wallet ────────────
+class AiStatusResponse(BaseModel):
+    mode: str  # "gateway" (Model A) | "keys" (Model B) | "disabled"
+    configured: bool = False
+    platform_credit_usd: float = 0.0  # shared-key remaining balance (gateway mode)
+    platform_used_usd: float = 0.0
+
+
+class AiChatRequest(BaseModel):
+    model: str
+    messages: list[dict]
+    max_tokens: int | None = None
+    temperature: float | None = None
+
+
+class AiChatUsage(BaseModel):
+    model: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float = 0.0
+    billed_usd: float = 0.0
+    request_id: str = ""
+
+
+class AiChatResponse(BaseModel):
+    completion: dict
+    usage: AiChatUsage
+    balance_usd: float = 0.0
+
+
+class AiUsageEventSummary(BaseModel):
+    model: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float = 0.0
+    billed_usd: float = 0.0
+    created_at: str = ""
+
+
+class AiUsageReport(BaseModel):
+    total_billed_usd: float = 0.0
+    total_cost_usd: float = 0.0
+    total_requests: int = 0
+    by_model: list[dict] = []  # [{model, requests, billed_usd}]
+    events: list[AiUsageEventSummary] = []
+
+
+class CreditTransactionSummary(BaseModel):
+    kind: str
+    amount_usd: float
+    reference: str = ""
+    created_at: str = ""
+
+
+class CreditBalanceResponse(BaseModel):
+    balance_usd: float = 0.0
+    transactions: list[CreditTransactionSummary] = []
+
+
+class CreditTopupRequest(BaseModel):
+    tenant_id: str
+    amount_usd: float = Field(gt=0)
+
+
 # ── Reseller billing (pricing rules + charge ledger) ────────────────────────
 class PricingRuleSummary(BaseModel):
     offering_key: str

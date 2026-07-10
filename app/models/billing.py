@@ -9,7 +9,7 @@ Slice 1 moves no real money; it computes prices and records charges.
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, Integer, String
+from sqlalchemy import BigInteger, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -29,6 +29,16 @@ RULE_FIXED_PRICE = "fixed_price"  # rule_value = absolute cents
 CHARGE_PENDING = "pending"
 CHARGE_INVOICED = "invoiced"
 CHARGE_PAID = "paid"
+
+# Fine-grained money for metered AI usage: 1 USD = 1,000,000 micro-USD. Summing millions of
+# sub-cent per-request costs in integer micro-USD avoids float drift; render to cents only at
+# the presentation edge. The prepaid credit wallet is kept in the same unit.
+MICRO_USD_PER_USD = 1_000_000
+MICRO_USD_PER_CENT = 10_000
+
+TXN_TOPUP = "topup"  # admin/prepaid credit added
+TXN_DEBIT = "debit"  # metered usage consumed
+TXN_ADJUSTMENT = "adjustment"  # manual correction (compensating entry)
 
 
 class PricingRule(Base):
@@ -57,3 +67,48 @@ class ResellerCharge(Base):
     margin_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default=CHARGE_PENDING, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class TenantCredit(Base):
+    """Prepaid credit wallet balance per tenant, in micro-USD (see MICRO_USD_PER_USD).
+    Authoritative running balance; every change is also appended to CreditTransaction."""
+
+    __tablename__ = "tenant_credits"
+
+    tenant_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    balance_micro_usd: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class CreditTransaction(Base):
+    """Append-only wallet ledger — top-ups (+), metered debits (−), and adjustments.
+    Immutable: corrections are new compensating rows, never edits."""
+
+    __tablename__ = "credit_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    delta_micro_usd: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), default=TXN_TOPUP, nullable=False)
+    reference: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AiUsageEvent(Base):
+    """One row per metered AI gateway call — the source of truth for per-tenant AI spend,
+    breakdowns (by model), and margin. Wholesale = OpenRouter's inline usage.cost; billed =
+    after markup. Both in micro-USD."""
+
+    __tablename__ = "ai_usage_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    model: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cost_micro_usd: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    billed_micro_usd: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    request_id: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True, nullable=False)

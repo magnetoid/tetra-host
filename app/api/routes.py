@@ -28,11 +28,20 @@ from app.api.contracts import (
     AuditEventSummary,
     AuditLogResponse,
     AuthResponse,
+    AiChatRequest,
+    AiChatResponse,
+    AiChatUsage,
     AiKeyCreated,
     AiKeyProvisionRequest,
     AiKeySummary,
     AiKeyUpdateRequest,
     AiModelSummary,
+    AiStatusResponse,
+    AiUsageEventSummary,
+    AiUsageReport,
+    CreditBalanceResponse,
+    CreditTopupRequest,
+    CreditTransactionSummary,
     CloudflarePlanSummary,
     PlanActivateRequest,
     PriceQuote,
@@ -122,6 +131,8 @@ from app.modules.domains.service import DomainsService
 from app.modules.dns.service import DnsService
 from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
+from app.models.billing import MICRO_USD_PER_USD
+from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.service import ResellerError, ResellerService
@@ -2363,6 +2374,108 @@ async def api_ai_revoke_key(
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
     return {"ok": True}
+
+
+# ── AI gateway: metered shared-key chat (Model A) + prepaid credit wallet ──
+@router.get("/ai/status", response_model=AiStatusResponse)
+async def api_ai_status(
+    request: Request,
+    _: AdminUser = Depends(get_current_api_admin),
+) -> AiStatusResponse:
+    """Which AI billing mode is live + the shared gateway key's remaining balance."""
+    service = AiResellerService(request)
+    credits = await service.platform_credits()
+    total = float(credits.get("total_credits", 0) or 0)
+    used = float(credits.get("total_usage", 0) or 0)
+    return AiStatusResponse(
+        mode=service.mode(),
+        configured=service.mode() != "disabled",
+        platform_credit_usd=max(0.0, total - used),
+        platform_used_usd=used,
+    )
+
+
+@router.post("/ai/chat", response_model=AiChatResponse)
+async def api_ai_chat(
+    payload: AiChatRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AiChatResponse:
+    """Gateway chat completion, metered into the tenant's prepaid credit wallet."""
+    service = AiResellerService(request)
+    body = payload.model_dump(exclude_none=True)
+    try:
+        out = await service.chat_for_tenant(session, current_admin.tenant_id, body=body)
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return AiChatResponse(
+        completion=out.get("completion", {}),
+        usage=AiChatUsage(**out.get("usage", {})),
+        balance_usd=float(out.get("balance_usd", 0.0)),
+    )
+
+
+@router.get("/ai/usage", response_model=AiUsageReport)
+async def api_ai_usage(
+    request: Request,
+    days: int = 30,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AiUsageReport:
+    """Per-tenant AI spend: totals, per-model breakdown, and recent metered calls."""
+    data = await AiResellerService(request).usage_for_tenant(
+        session, current_admin.tenant_id, days=max(1, min(days, 365))
+    )
+    return AiUsageReport(
+        total_billed_usd=data["total_billed_usd"],
+        total_cost_usd=data["total_cost_usd"],
+        total_requests=data["total_requests"],
+        by_model=data["by_model"],
+        events=[AiUsageEventSummary(**e) for e in data["events"]],
+    )
+
+
+def _credit_balance_response(balance_micro: int, txns) -> CreditBalanceResponse:
+    return CreditBalanceResponse(
+        balance_usd=balance_micro / MICRO_USD_PER_USD,
+        transactions=[
+            CreditTransactionSummary(
+                kind=t.kind, amount_usd=t.delta_micro_usd / MICRO_USD_PER_USD,
+                reference=t.reference, created_at=t.created_at.isoformat() if t.created_at else "",
+            )
+            for t in txns
+        ],
+    )
+
+
+@router.get("/billing/credits", response_model=CreditBalanceResponse)
+async def api_billing_credits(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> CreditBalanceResponse:
+    """The caller tenant's prepaid AI credit balance + recent wallet transactions."""
+    svc = CreditService(session)
+    tenant_id = current_admin.tenant_id or ""
+    return _credit_balance_response(await svc.balance(tenant_id), await svc.transactions(tenant_id))
+
+
+@router.post("/billing/credits", response_model=CreditBalanceResponse)
+async def api_billing_topup(
+    payload: CreditTopupRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> CreditBalanceResponse:
+    """Platform-admin: add prepaid AI credit to a tenant's wallet (after payment)."""
+    svc = CreditService(session)
+    await svc.topup(
+        payload.tenant_id, round(payload.amount_usd * MICRO_USD_PER_USD), reference="admin top-up"
+    )
+    return _credit_balance_response(
+        await svc.balance(payload.tenant_id), await svc.transactions(payload.tenant_id)
+    )
 
 
 # ── Reseller billing: pricing rules + charge ledger (slice 1) ──────────────

@@ -27,12 +27,14 @@ async def _send_with_retries(
     data: dict[str, Any] | None = None,
     files: dict[str, Any] | None = None,
     max_attempts: int = 3,
+    timeout: float | None = None,
 ) -> httpx.Response:
     """Send a request with retry/backoff, raising ProviderAPIError on failure.
 
     Shared core for ``request_json`` and ``request_text``. Supports JSON
     (``json_body``) as well as form/multipart bodies (``data``/``files``) for
     providers whose write endpoints expect uploads (e.g. Cloudflare's BIND import).
+    ``timeout`` overrides the client default per call (e.g. long LLM completions).
     """
     last_error: Exception | None = None
 
@@ -46,6 +48,7 @@ async def _send_with_retries(
                 json=json_body,
                 data=data,
                 files=files,
+                timeout=httpx.USE_CLIENT_DEFAULT if timeout is None else timeout,
             )
         except httpx.HTTPError as exc:
             # ALL transport failures (incl. ConnectTimeout/PoolTimeout/WriteTimeout/
@@ -88,6 +91,7 @@ async def request_json(
     data: dict[str, Any] | None = None,
     files: dict[str, Any] | None = None,
     max_attempts: int = 3,
+    timeout: float | None = None,
 ) -> Any:
     response = await _send_with_retries(
         client,
@@ -100,6 +104,7 @@ async def request_json(
         data=data,
         files=files,
         max_attempts=max_attempts,
+        timeout=timeout,
     )
     if not response.content:
         return {}

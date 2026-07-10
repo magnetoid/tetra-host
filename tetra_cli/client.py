@@ -114,6 +114,24 @@ class TetraClient:
     def ai_revoke(self, key_hash: str) -> Any:
         return self._request("DELETE", f"/ai/keys/{key_hash}")
 
+    def ai_status(self) -> Any:
+        return self._request("GET", "/ai/status")
+
+    def ai_chat(self, model: str, prompt: str) -> Any:
+        body = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        return self._request("POST", "/ai/chat", json_body=body)
+
+    def ai_usage(self, days: int = 30) -> Any:
+        return self._request("GET", "/ai/usage", params={"days": days})
+
+    def credits_balance(self) -> Any:
+        return self._request("GET", "/billing/credits")
+
+    def credits_topup(self, tenant_id: str, amount_usd: float) -> Any:
+        return self._request(
+            "POST", "/billing/credits", json_body={"tenant_id": tenant_id, "amount_usd": amount_usd}
+        )
+
     # ── Reseller billing (pricing + ledger) ────────────────────────────────
     def billing_pricing(self) -> Any:
         return self._request("GET", "/billing/pricing")

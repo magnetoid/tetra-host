@@ -182,6 +182,63 @@ def cmd_ai_revoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ai_status(args: argparse.Namespace) -> int:
+    s = client_from_config().ai_status()
+    if not isinstance(s, dict):
+        return die("could not fetch AI status")
+    mode = s.get("mode", "disabled")
+    tint = {"gateway": "32", "keys": "36", "disabled": "31"}.get(mode, "90")
+    print(c(f"AI mode: {mode}", "1;36") + f"  [{c(mode, tint)}]")
+    if mode == "gateway":
+        print(f"  shared credit: {c('$' + format(s.get('platform_credit_usd', 0), '.4f'), '32')}"
+              f"  used ${s.get('platform_used_usd', 0):.4f}")
+    return 0
+
+
+def cmd_ai_chat(args: argparse.Namespace) -> int:
+    r = client_from_config().ai_chat(args.model, args.prompt)
+    if not isinstance(r, dict):
+        return die("chat failed")
+    choices = (r.get("completion") or {}).get("choices") or []
+    text = (choices[0].get("message", {}).get("content", "") if choices else "").strip()
+    print(text or c("(no content)", "90"))
+    u = r.get("usage", {})
+    print(c(f"\n— {u.get('model', '')}  {u.get('prompt_tokens', 0)}+{u.get('completion_tokens', 0)} tok"
+            f"  billed ${u.get('billed_usd', 0):.5f}  balance ${r.get('balance_usd', 0):.4f}", "90"))
+    return 0
+
+
+def cmd_ai_usage(args: argparse.Namespace) -> int:
+    r = client_from_config().ai_usage(args.days)
+    if not isinstance(r, dict):
+        return die("could not fetch usage")
+    print(c(f"AI usage — last {args.days}d", "1;36")
+          + f"  {r.get('total_requests', 0)} calls  billed {c('$' + format(r.get('total_billed_usd', 0), '.4f'), '32')}"
+          + f"  cost ${r.get('total_cost_usd', 0):.4f}")
+    for m in r.get("by_model", []):
+        print(f"  {c(m.get('model', ''), '36')}  {m.get('requests', 0)} calls  ${m.get('billed_usd', 0):.4f}")
+    return 0
+
+
+def cmd_credits_balance(args: argparse.Namespace) -> int:
+    r = client_from_config().credits_balance()
+    if not isinstance(r, dict):
+        return die("could not fetch balance")
+    print(c(f"AI credit balance: ${r.get('balance_usd', 0):.4f}", "1;32"))
+    for t in r.get("transactions", [])[:10]:
+        sign = "+" if t.get("amount_usd", 0) >= 0 else ""
+        print(f"  {c(t.get('kind', ''), '90')}  {sign}${t.get('amount_usd', 0):.4f}  {c(t.get('reference', ''), '90')}")
+    return 0
+
+
+def cmd_credits_topup(args: argparse.Namespace) -> int:
+    r = client_from_config().credits_topup(args.tenant, args.amount)
+    if not isinstance(r, dict):
+        return die("top-up failed (platform-admin only)")
+    print(c("✓", "32") + f" topped up {args.tenant} — new balance ${r.get('balance_usd', 0):.4f}")
+    return 0
+
+
 def _fmt_cents(cents: int) -> str:
     return f"${cents / 100:.2f}"
 
@@ -1577,6 +1634,27 @@ def build_parser() -> argparse.ArgumentParser:
     sp = ai.add_parser("revoke", help="revoke (delete) a provisioned key")
     sp.add_argument("hash")
     sp.set_defaults(func=cmd_ai_revoke)
+    ai.add_parser("status", help="show AI billing mode + shared gateway balance").set_defaults(
+        func=cmd_ai_status
+    )
+    sp = ai.add_parser("chat", help="run a metered gateway chat completion")
+    sp.add_argument("model", help="model id (e.g. openai/gpt-4o-mini)")
+    sp.add_argument("prompt", help="the user prompt")
+    sp.set_defaults(func=cmd_ai_chat)
+    sp = ai.add_parser("usage", help="this tenant's AI spend (totals + per-model)")
+    sp.add_argument("--days", type=int, default=30)
+    sp.set_defaults(func=cmd_ai_usage)
+
+    credits = sub.add_parser(
+        "credits", help="prepaid AI credit wallet"
+    ).add_subparsers(dest="credits_cmd", required=True)
+    credits.add_parser("balance", help="show this tenant's balance + recent transactions").set_defaults(
+        func=cmd_credits_balance
+    )
+    sp = credits.add_parser("topup", help="add credit to a tenant (platform-admin)")
+    sp.add_argument("tenant", help="tenant id")
+    sp.add_argument("amount", type=float, help="amount in USD")
+    sp.set_defaults(func=cmd_credits_topup)
 
     previews = sub.add_parser(
         "previews", help="per-branch preview environments"
