@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { faChevronDown, faCircleCheck, faLayerGroup } from "@/lib/icons"
+import { activeGroup, type ProjectGroup } from "@/lib/projects"
 import { cn } from "@/lib/utils"
 
-type ProjectMeta = { id: string; name: string }
+type ProjectMeta = ProjectGroup
 
 /**
  * The upper-right project switcher — jump straight to any project's Deployments
@@ -24,7 +25,8 @@ export function ProjectSwitcher({ projects }: { projects: ProjectMeta[] }) {
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   const activeId = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
-  const activeName = activeId ? projects.find((p) => p.id === activeId)?.name : undefined
+  const active = activeGroup(projects, activeId)
+  const activeName = active?.name
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -89,7 +91,7 @@ export function ProjectSwitcher({ projects }: { projects: ProjectMeta[] }) {
               <div className="px-3 py-2 text-sm text-muted-foreground">No projects found.</div>
             ) : (
               filtered.map((project) => {
-                const active = project.id === activeId
+                const isActive = active?.id === project.id
                 return (
                   <Link
                     key={project.id}
@@ -98,14 +100,14 @@ export function ProjectSwitcher({ projects }: { projects: ProjectMeta[] }) {
                     onClick={() => setOpen(false)}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-accent",
-                      active && "bg-accent font-medium",
+                      isActive && "bg-accent font-medium",
                     )}
                   >
                     <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[10px] font-semibold">
                       {project.name.slice(0, 2).toUpperCase()}
                     </span>
                     <span className="truncate">{project.name}</span>
-                    {active ? (
+                    {isActive ? (
                       <FontAwesomeIcon icon={faCircleCheck} className="ml-auto h-3 w-3 text-primary" />
                     ) : null}
                   </Link>

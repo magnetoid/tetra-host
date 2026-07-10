@@ -7,7 +7,7 @@ vi.mock("@fortawesome/react-fontawesome", () => ({ FontAwesomeIcon: () => null }
 import { usePathname } from "next/navigation"
 import { ConsoleNav } from "@/components/shell/console-nav"
 
-const projects = [{ id: "proj-1", name: "Cool App" }]
+const projects = [{ id: "proj-1", name: "Cool App", memberIds: ["proj-1"] }]
 
 afterEach(() => {
   cleanup()

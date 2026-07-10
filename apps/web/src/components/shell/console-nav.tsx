@@ -6,9 +6,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { consoleNavItems, projectNavItems } from "@/lib/navigation"
+import { activeGroup, type ProjectGroup } from "@/lib/projects"
 import { cn } from "@/lib/utils"
 
-type ProjectMeta = { id: string; name: string }
+type ProjectMeta = ProjectGroup
 
 function NavRow({
   href,
@@ -64,7 +65,7 @@ export function ConsoleNav({
 
   // ── Inside a project: ONLY the project menu ──────────────────────────────
   if (activeProjectId) {
-    const projectName = projects.find((p) => p.id === activeProjectId)?.name ?? "Project"
+    const projectName = activeGroup(projects, activeProjectId)?.name ?? "Project"
     const projectItems = projectNavItems(activeProjectId)
     return (
       <div className="mt-8 text-sm">

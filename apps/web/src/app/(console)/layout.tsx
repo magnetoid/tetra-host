@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/shell/app-shell"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { groupProjects } from "@/lib/projects"
 import type { ProjectRecord } from "@/lib/types"
 
 export default async function ConsoleLayout({
@@ -18,10 +19,7 @@ export default async function ConsoleLayout({
   }).catch(() => [] as ProjectRecord[])
 
   return (
-    <AppShell
-      admin={session.admin}
-      projects={projects.map((p) => ({ id: p.id, name: p.name }))}
-    >
+    <AppShell admin={session.admin} projects={groupProjects(projects)}>
       {children}
     </AppShell>
   )

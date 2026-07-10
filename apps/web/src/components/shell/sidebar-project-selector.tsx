@@ -5,9 +5,10 @@ import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { faChevronDown, faCircleCheck, faLayerGroup, faServer } from "@/lib/icons"
+import { activeGroup, type ProjectGroup } from "@/lib/projects"
 import { cn } from "@/lib/utils"
 
-type ProjectMeta = { id: string; name: string }
+type ProjectMeta = ProjectGroup
 
 /**
  * The sidebar project selector — sits under the "Control plane" wordmark and scopes the whole
@@ -22,7 +23,8 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
   const ref = useRef<HTMLDivElement>(null)
 
   const activeId = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
-  const activeName = activeId ? projects.find((p) => p.id === activeId)?.name : undefined
+  const active = activeGroup(projects, activeId)
+  const activeName = active?.name
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -119,7 +121,7 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
               <div className="px-3 py-2 text-sm text-muted-foreground">No projects found.</div>
             ) : (
               filtered.map((p) => {
-                const active = p.id === activeId
+                const isActive = active?.id === p.id
                 return (
                   <button
                     key={p.id}
@@ -128,14 +130,14 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
                     onClick={() => go(`/projects/${p.id}/deployments`)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition hover:bg-accent",
-                      active && "bg-accent font-medium",
+                      isActive && "bg-accent font-medium",
                     )}
                   >
                     <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[10px] font-semibold">
                       {p.name.slice(0, 2).toUpperCase()}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                    {active ? <FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3 text-primary" /> : null}
+                    {isActive ? <FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3 text-primary" /> : null}
                   </button>
                 )
               })

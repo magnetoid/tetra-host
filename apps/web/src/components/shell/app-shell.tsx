@@ -10,6 +10,7 @@ import { SidebarProjectSelector } from "@/components/shell/sidebar-project-selec
 import { StatusSpine } from "@/components/shell/status-spine"
 import { UserMenu } from "@/components/ui/user-menu"
 import { APP_ENV } from "@/lib/env"
+import type { ProjectGroup } from "@/lib/projects"
 import type { AdminRecord } from "@/lib/types"
 
 export function AppShell({
@@ -18,7 +19,7 @@ export function AppShell({
   children,
 }: {
   admin: AdminRecord
-  projects?: { id: string; name: string }[]
+  projects?: ProjectGroup[]
   children: React.ReactNode
 }) {
   // Pending owners (role === "owner" with a non-active tenant) see the gate.
