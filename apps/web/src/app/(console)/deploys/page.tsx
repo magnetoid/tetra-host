@@ -18,9 +18,9 @@ export default async function DeploysPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Tetra Engine"
-        title="Deploys"
-        description="Build and run any git repository — live build logs, instant rollback."
+        eyebrow="Deployments"
+        title="All deployments"
+        description="Every deployment across your projects — build and run any git repository, live build logs, instant rollback."
       />
       <DeploysManager deployments={deployments} />
       <Card>

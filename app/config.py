@@ -44,9 +44,16 @@ class Settings(BaseSettings):
     # and cname_target is the proxied edge hostname customers point their CNAME at.
     cloudflare_saas_zone_id: str = ""
     cloudflare_saas_cname_target: str = ""
-    # OpenRouter reselling (AI models). A Management/Provisioning key (openrouter.ai/
-    # settings/management-keys) that can only mint/manage per-tenant runtime keys.
+    # OpenRouter reselling (AI models). Two credential modes, checked in order:
+    #  1. PROVISIONING key (openrouter.ai/settings/management-keys) — mints/manages a
+    #     per-tenant runtime key each with its own OpenRouter-enforced spend cap. Preferred.
+    #  2. RUNTIME key (sk-or-v1-…) — a single shared key that powers a SHARED GATEWAY: tenants
+    #     call Tetra's /api/v1/ai/chat with their Tetra token, Tetra forwards to OpenRouter on
+    #     this one key and meters each tenant's usage into the charge ledger. Per-tenant hard
+    #     caps arrive with the credit wallet; until then the key's own OpenRouter limit is the
+    #     global safety cap. Used only when no provisioning key is set.
     openrouter_provisioning_key: str = ""
+    openrouter_runtime_key: str = ""
     # Reseller safety switch: while FALSE (default), any Cloudflare activation that would
     # incur a real charge (paid zone plan or a usage-billed toggle like Argo) is refused —
     # no billable calls reach Cloudflare. Flip to True only once the billing/markup model

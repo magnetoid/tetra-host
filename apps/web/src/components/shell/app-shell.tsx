@@ -4,6 +4,7 @@ import { TetraWordmark } from "@/components/brand/tetra-wordmark"
 import { CommandMenu } from "@/components/command/command-menu"
 import { ConsoleNav } from "@/components/shell/console-nav"
 import { PendingGate } from "@/components/shell/pending-gate"
+import { ProjectSwitcher } from "@/components/shell/project-switcher"
 import { StatusSpine } from "@/components/shell/status-spine"
 import { UserMenu } from "@/components/ui/user-menu"
 import { APP_ENV } from "@/lib/env"
@@ -61,6 +62,7 @@ export function AppShell({
             <div className="truncate text-xs text-muted-foreground">Hosting control plane</div>
           </div>
           <div className="flex items-center gap-3">
+            {projects.length > 0 ? <ProjectSwitcher projects={projects} /> : null}
             <CommandMenu adminRole={admin.role} />
             <UserMenu admin={admin} />
           </div>

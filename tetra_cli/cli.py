@@ -852,12 +852,15 @@ def cmd_deploys_list(args: argparse.Namespace) -> int:
     if not isinstance(rows, list) or not rows:
         print(c("no deployments", "90"))
         return 0
+    src_label = {"git": "platform", "app": "app", "coolify": "coolify"}
     for dep in rows:
         state = dep.get("status", "")
         tint = {"ready": "32", "error": "31", "building": "33"}.get(state, "90")
+        source = dep.get("source", "git")
         print(
             f"{c(dep.get('id', '')[:8], '1;36')}  {dep.get('project', '')}"
-            f"  @{dep.get('ref', '')}  [{c(state, tint)}]  {c(dep.get('domain', ''), '90')}"
+            f"  @{dep.get('ref', '')}  [{c(state, tint)}]"
+            f"  {c(src_label.get(source, source), '35')}  {c(dep.get('domain', ''), '90')}"
         )
     return 0
 

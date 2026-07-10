@@ -17,7 +17,6 @@ import {
   faRocket,
   faServer,
   faStore,
-  faTableColumns,
   faTerminal,
   faUsers,
   faUserShield,
@@ -47,7 +46,6 @@ export type ProjectNavItem = {
 export function projectNavItems(projectId: string): ProjectNavItem[] {
   const base = `/projects/${projectId}`
   return [
-    { href: base, label: "Overview", icon: faTableColumns, exact: true },
     { href: `${base}/deployments`, label: "Deployments", icon: faListCheck },
     { href: `${base}/logs`, label: "Logs", icon: faTerminal },
     { href: `${base}/env`, label: "Env", icon: faKey },
@@ -61,8 +59,8 @@ export function projectNavItems(projectId: string): ProjectNavItem[] {
 export const consoleNavItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: faGaugeHigh },
   { href: "/projects", label: "Projects", icon: faServer },
+  { href: "/deploys", label: "Deployments", icon: faRocket },
   { href: "/apps", label: "Apps", icon: faBox },
-  { href: "/deploys", label: "Deploys", icon: faRocket },
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/domains", label: "Domains", icon: faEarthAmericas },

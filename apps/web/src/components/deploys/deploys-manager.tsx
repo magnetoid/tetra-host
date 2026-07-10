@@ -2,15 +2,15 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 import { DeployLogStream } from "@/components/deploys/deploy-log-stream"
+import { DeploymentCard } from "@/components/deploys/deployment-card"
 import { ExplainButton } from "@/components/deploys/explain-button"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { StatusBadge } from "@/components/ui/status-badge"
-import { faArrowsRotate, faChevronDown, faRocket } from "@/lib/icons"
+import { capabilitiesFor, unifyNative } from "@/lib/deployments"
+import { faArrowsRotate, faRocket } from "@/lib/icons"
 import type { DeploymentRecord } from "@/lib/types"
 import { cn, formatRelativeLabel } from "@/lib/utils"
 
@@ -130,101 +130,54 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         />
       ) : (
         <div className="space-y-3">
-          {deployments.map((deployment) => {
-            const expanded = expandedId === deployment.id
-            const isApp = deployment.builder === "app"
-            const canRollback =
-              deployment.status === "ready" && Boolean(deployment.image) && !isApp
+          {deployments.map((record) => {
+            const deployment = unifyNative(record)
+            const caps = capabilitiesFor(deployment)
+            const expanded = expandedId === record.id
             return (
-              <div
-                key={deployment.id}
-                className={cn(
-                  "overflow-hidden rounded-2xl border bg-muted transition-colors",
-                  expanded ? "border-primary/40" : "border-border hover:border-primary/30",
-                )}
+              <DeploymentCard
+                key={record.id}
+                deployment={deployment}
+                expanded={expanded}
+                onToggle={() => setExpandedId(expanded ? null : record.id)}
+                actions={
+                  caps.rollback ? (
+                    <Button
+                      size="sm"
+                      icon={faArrowsRotate}
+                      disabled={pending !== null}
+                      onClick={() => rollback(record.id)}
+                    >
+                      {pending === `rollback:${record.id}` ? "…" : "Rollback to this"}
+                    </Button>
+                  ) : null
+                }
               >
-                {/* Header row — the expand trigger + always-visible actions (no nested buttons) */}
-                <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(expanded ? null : deployment.id)}
-                    aria-expanded={expanded}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  >
-                    <FontAwesomeIcon
-                      icon={faChevronDown}
-                      className={cn(
-                        "h-3 w-3 shrink-0 text-muted-foreground transition-transform",
-                        expanded && "rotate-180",
-                      )}
-                    />
-                    <span className="truncate font-medium">{deployment.project}</span>
-                    <StatusBadge value={deployment.status} />
-                    {isApp ? (
-                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        marketplace app
-                      </span>
-                    ) : (
-                      <span className="truncate font-mono text-xs text-muted-foreground">
-                        {deployment.ref}
-                        {deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""}
-                      </span>
-                    )}
-                  </button>
-                  <div className="flex items-center gap-3">
-                    {deployment.domain ? (
-                      <a
-                        href={`https://${deployment.domain}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {deployment.domain}
-                      </a>
-                    ) : null}
-                    {canRollback ? (
-                      <Button
-                        size="sm"
-                        icon={faArrowsRotate}
-                        disabled={pending !== null}
-                        onClick={() => rollback(deployment.id)}
-                      >
-                        {pending === `rollback:${deployment.id}` ? "…" : "Rollback to this"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
+                  <Detail label="Commit" value={record.commit || "—"} mono />
+                  <Detail label="Branch" value={record.ref || "—"} mono />
+                  <Detail label="Builder" value={record.builder || "—"} />
+                  <Detail label="Port" value={record.port ? String(record.port) : "—"} mono />
+                  <Detail label="Image" value={record.image || "not built"} mono />
+                  <Detail label="Created" value={formatRelativeLabel(record.created_at)} />
+                  <Detail label="Deployment" value={record.id} mono />
+                  {record.git_url ? <Detail label="Repository" value={record.git_url} mono /> : null}
+                </dl>
 
-                {/* Expanded body — details + inline scrollable build log */}
-                {expanded ? (
-                  <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
-                      <Detail label="Commit" value={deployment.commit || "—"} mono />
-                      <Detail label="Branch" value={deployment.ref || "—"} mono />
-                      <Detail label="Builder" value={deployment.builder || "—"} />
-                      <Detail label="Port" value={deployment.port ? String(deployment.port) : "—"} mono />
-                      <Detail label="Image" value={deployment.image || "not built"} mono />
-                      <Detail label="Created" value={formatRelativeLabel(deployment.created_at)} />
-                      <Detail label="Deployment" value={deployment.id} mono />
-                      {deployment.git_url ? <Detail label="Repository" value={deployment.git_url} mono /> : null}
-                    </dl>
-
-                    {deployment.error ? (
-                      <div className="space-y-2">
-                        <AlertBanner tone="error">{deployment.error}</AlertBanner>
-                        <ExplainButton deploymentId={deployment.id} />
-                      </div>
-                    ) : null}
-
-                    <div>
-                      <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Build log
-                      </div>
-                      <DeployLogStream deploymentId={deployment.id} />
-                    </div>
+                {record.error ? (
+                  <div className="space-y-2">
+                    <AlertBanner tone="error">{record.error}</AlertBanner>
+                    <ExplainButton deploymentId={record.id} />
                   </div>
                 ) : null}
-              </div>
+
+                <div>
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Build log
+                  </div>
+                  <DeployLogStream deploymentId={record.id} />
+                </div>
+              </DeploymentCard>
             )
           })}
         </div>

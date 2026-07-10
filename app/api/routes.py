@@ -1446,6 +1446,7 @@ async def api_apps_compute(
 def _deployment_status(deployment) -> DeploymentStatus:
     return DeploymentStatus(
         id=deployment.id, project=deployment.project, status=deployment.status,
+        source="app" if deployment.builder == "app" else "git",
         git_url=deployment.git_url, ref=deployment.ref, builder=deployment.builder,
         image=deployment.image, commit=deployment.commit, port=deployment.port,
         domain=deployment.domain, log=deployment.log, error=deployment.error,

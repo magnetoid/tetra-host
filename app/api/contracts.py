@@ -89,6 +89,7 @@ class ProjectDeploymentSummary(BaseModel):
     updated_at: str
     commit: str
     branch: str
+    source: str = "coolify"  # deployment origin — Coolify-backed application
 
 
 class DeploymentLogLine(BaseModel):
@@ -344,6 +345,7 @@ class DeploymentStatus(BaseModel):
     id: str
     project: str
     status: str
+    source: str = "git"  # deployment origin — "git" | "app" (marketplace) on the Tetra engine
     git_url: str = ""
     ref: str = "main"
     builder: str = ""

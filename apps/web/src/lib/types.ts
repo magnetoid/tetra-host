@@ -189,6 +189,7 @@ export interface ProjectDeploymentRecord {
   updated_at: string
   commit: string
   branch: string
+  source?: string // "coolify"
 }
 
 export interface DeploymentLogLine {
@@ -374,6 +375,7 @@ export interface DeploymentRecord {
   id: string
   project: string
   status: "queued" | "building" | "ready" | "error" | string
+  source?: string // "git" | "app" — Tetra-engine origin (derived from builder when absent)
   git_url: string
   ref: string
   builder: string

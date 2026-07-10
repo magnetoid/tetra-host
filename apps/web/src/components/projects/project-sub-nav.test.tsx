@@ -28,11 +28,11 @@ describe("ProjectSubNav", () => {
     return render(<ProjectSubNav projectId={projectId} projectName={projectName} />)
   }
 
-  it("renders all 8 nav links (plus a back link)", () => {
-    setup(`/projects/${projectId}`)
-    // The 8 menu items live in the <nav>; a "← Projects" back link sits in the header.
+  it("renders all 7 nav links (plus a back link)", () => {
+    setup(`/projects/${projectId}/deployments`)
+    // The 7 menu items live in the <nav>; a "← Projects" back link sits in the header.
     const nav = screen.getByRole("navigation")
-    expect(within(nav).getAllByRole("link")).toHaveLength(8)
+    expect(within(nav).getAllByRole("link")).toHaveLength(7)
     expect(screen.getByRole("link", { name: /back to projects/i })).toHaveAttribute(
       "href",
       "/projects",
@@ -40,20 +40,8 @@ describe("ProjectSubNav", () => {
   })
 
   it("renders the project name", () => {
-    setup(`/projects/${projectId}`)
-    expect(screen.getByText(projectName)).toBeInTheDocument()
-  })
-
-  it("marks Overview active on the exact root path", () => {
-    setup(`/projects/${projectId}`)
-    const overviewLink = screen.getByRole("link", { name: /overview/i })
-    expect(overviewLink).toHaveClass("bg-accent")
-  })
-
-  it("does NOT mark Overview active on a sub-path", () => {
     setup(`/projects/${projectId}/deployments`)
-    const overviewLink = screen.getByRole("link", { name: /overview/i })
-    expect(overviewLink).not.toHaveClass("bg-accent")
+    expect(screen.getByText(projectName)).toBeInTheDocument()
   })
 
   it("marks Deployments active on its sub-path", () => {
@@ -69,9 +57,8 @@ describe("ProjectSubNav", () => {
   })
 
   it("links point to the correct project URLs", () => {
-    setup(`/projects/${projectId}`)
+    setup(`/projects/${projectId}/deployments`)
     const base = `/projects/${projectId}`
-    expect(screen.getByRole("link", { name: /overview/i })).toHaveAttribute("href", base)
     expect(screen.getByRole("link", { name: /deployments/i })).toHaveAttribute(
       "href",
       `${base}/deployments`,

@@ -33,7 +33,7 @@ export default async function DeploymentsPage({ params }: DeploymentsPageProps) 
         title="Deployments"
         description="Trigger deploys and watch the build stream in real time."
       />
-      <DeployConsole applicationId={id} initialDeployments={deployments} />
+      <DeployConsole applicationId={id} projectName={project.name} initialDeployments={deployments} />
     </div>
   )
 }

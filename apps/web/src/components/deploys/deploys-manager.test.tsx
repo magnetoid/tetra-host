@@ -30,7 +30,7 @@ describe("DeploysManager", () => {
         deployments={[{ ...READY, id: "dep-app", builder: "app", git_url: "", ref: "", commit: "" }]}
       />,
     )
-    expect(screen.getByText("marketplace app")).toBeInTheDocument()
+    expect(screen.getByText(/marketplace app/i)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /rollback/i })).not.toBeInTheDocument()
   })
 
