@@ -574,3 +574,18 @@ export interface TenantCreditOverview {
   spend_30d_usd: number
   requests_30d: number
 }
+
+export interface AiModel {
+  id: string
+  name: string
+  context_length: number
+  prompt_price: string
+  completion_price: string
+}
+
+export interface AiStatus {
+  mode: string
+  configured: boolean
+  platform_credit_usd: number
+  platform_used_usd: number
+}

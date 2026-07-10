@@ -22,6 +22,7 @@ import {
   faTerminal,
   faUsers,
   faUserShield,
+  faWandSparkles,
 } from "@/lib/icons"
 
 export type NavItem = {
@@ -65,6 +66,7 @@ export const consoleNavItems: NavItem[] = [
   { href: "/apps", label: "Apps", icon: faBox },
   { href: "/databases", label: "Databases", icon: faDatabase },
   { href: "/storage", label: "Storage", icon: faCloud },
+  { href: "/ai", label: "AI", icon: faWandSparkles },
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/domains", label: "Domains", icon: faEarthAmericas },
