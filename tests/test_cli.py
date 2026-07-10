@@ -919,3 +919,19 @@ def test_client_team_role_and_remove_paths():
     client.team_remove("m-1")
     assert seen["POST"] == "/api/v1/team/members/m-1/role"
     assert seen["DELETE"] == "/api/v1/team/members/m-1"
+
+
+def test_client_sso_set_and_get_paths():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[request.method] = request.url.path
+        if request.method == "PUT":
+            assert json.loads(request.content)["issuer"] == "https://idp.test"
+        return httpx.Response(200, json={"configured": True, "enabled": True, "has_secret": True})
+
+    client = make_client(handler)
+    client.sso_set({"issuer": "https://idp.test", "client_id": "c", "enabled": True})
+    client.sso_get()
+    assert seen["PUT"] == "/api/v1/sso"
+    assert seen["GET"] == "/api/v1/sso"

@@ -197,6 +197,17 @@ export interface InvitePreview {
   role: string
 }
 
+export interface SSOConfig {
+  configured: boolean
+  enabled: boolean
+  provider_label: string
+  issuer: string
+  client_id: string
+  has_secret: boolean
+  allowed_domains: string
+  default_role: string
+}
+
 export interface Plan {
   id: string
   key: string

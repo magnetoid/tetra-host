@@ -71,6 +71,10 @@ from app.api.contracts import (
     TeamInviteSummary,
     TeamMemberSummary,
     TeamResponse,
+    SSOAuthorizeResponse,
+    SSOCallbackRequest,
+    SSOConfigRequest,
+    SSOConfigResponse,
     DatabaseProvisionRequest,
     DatabaseSummary,
     DatabaseTargetOption,
@@ -164,6 +168,7 @@ from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.jobs.service import JobError, JobsService
 from app.modules.team.service import TeamError, TeamService
+from app.modules.sso.service import SSOError, SSOService
 from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.storage_service import StorageService
 from app.modules.reseller.service import ResellerError, ResellerService
@@ -3549,6 +3554,96 @@ async def api_accept_invite(
             payload.token, payload.full_name, payload.password
         )
     except TeamError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    token = create_api_token(request.state.settings, admin)
+    return AuthResponse(token=token, admin=_admin_summary(admin))
+
+
+# ── Single sign-on (OIDC) ────────────────────────────────────────────────────
+def _sso_config_response(config) -> SSOConfigResponse:
+    if config is None:
+        return SSOConfigResponse(configured=False, enabled=False)
+    return SSOConfigResponse(
+        configured=True,
+        enabled=config.enabled,
+        provider_label=config.provider_label,
+        issuer=config.issuer,
+        client_id=config.client_id,
+        has_secret=bool(config.client_secret_enc),
+        allowed_domains=config.allowed_domains,
+        default_role=config.default_role,
+    )
+
+
+@router.get("/sso", response_model=SSOConfigResponse)
+async def api_get_sso(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> SSOConfigResponse:
+    config = await SSOService(session).get_config(current_admin.tenant_id)
+    return _sso_config_response(config)
+
+
+@router.put("/sso", response_model=SSOConfigResponse)
+async def api_put_sso(
+    payload: SSOConfigRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> SSOConfigResponse:
+    try:
+        config = await SSOService(session).upsert_config(
+            current_admin.tenant_id,
+            issuer=payload.issuer,
+            client_id=payload.client_id,
+            client_secret=payload.client_secret or None,
+            allowed_domains=payload.allowed_domains,
+            default_role=payload.default_role,
+            provider_label=payload.provider_label,
+            enabled=payload.enabled,
+        )
+    except SSOError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return _sso_config_response(config)
+
+
+@router.delete("/sso")
+async def api_delete_sso(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> dict[str, bool]:
+    await SSOService(session).delete_config(current_admin.tenant_id)
+    return {"ok": True}
+
+
+@router.get("/auth/sso/{slug}/authorize", response_model=SSOAuthorizeResponse)
+async def api_sso_authorize(
+    slug: str,
+    redirect_uri: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> SSOAuthorizeResponse:
+    """Public — build the IdP authorize URL for a workspace's SSO login."""
+    try:
+        url = await SSOService(session).build_authorize_url(
+            request.state.settings, slug, redirect_uri
+        )
+    except SSOError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return SSOAuthorizeResponse(authorize_url=url)
+
+
+@router.post("/auth/sso/callback", response_model=AuthResponse)
+async def api_sso_callback(
+    request: Request,
+    payload: SSOCallbackRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> AuthResponse:
+    """Public — exchange the IdP code, provision the member, sign them in."""
+    try:
+        admin = await SSOService(session).handle_callback(
+            request.state.settings, payload.code, payload.state, payload.redirect_uri
+        )
+    except SSOError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     token = create_api_token(request.state.settings, admin)
     return AuthResponse(token=token, admin=_admin_summary(admin))

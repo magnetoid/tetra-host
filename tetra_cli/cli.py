@@ -349,6 +349,46 @@ def cmd_team_remove(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sso_show(args: argparse.Namespace) -> int:
+    r = client_from_config().sso_get()
+    if not isinstance(r, dict):
+        return die("could not load SSO config")
+    if not r.get("configured"):
+        print(c("single sign-on: not configured", "90"))
+        return 0
+    state = c("enabled", "32") if r.get("enabled") else c("disabled", "33")
+    print(f"{c(r.get('provider_label', 'OIDC'), '1')}  [{state}]")
+    print(f"  issuer   {c(r.get('issuer', ''), '36')}")
+    print(f"  client   {r.get('client_id', '')}")
+    print(f"  secret   {'stored' if r.get('has_secret') else c('none', '31')}")
+    print(f"  domains  {r.get('allowed_domains', '') or c('(any)', '90')}")
+    print(f"  role     {r.get('default_role', 'member')}")
+    return 0
+
+
+def cmd_sso_set(args: argparse.Namespace) -> int:
+    body = {
+        "issuer": args.issuer,
+        "client_id": args.client_id,
+        "client_secret": args.client_secret or "",
+        "allowed_domains": args.domains or "",
+        "default_role": args.role,
+        "provider_label": args.label,
+        "enabled": not args.disabled,
+    }
+    r = client_from_config().sso_set(body)
+    if not isinstance(r, dict):
+        return die("could not save SSO config")
+    print(c("✓ SSO config saved", "1;32") + f"  ({'enabled' if r.get('enabled') else 'disabled'})")
+    return 0
+
+
+def cmd_sso_disable(args: argparse.Namespace) -> int:
+    client_from_config().sso_delete()
+    print(c("✓", "32") + " SSO config removed")
+    return 0
+
+
 def _fmt_cents(cents: int) -> str:
     return f"${cents / 100:.2f}"
 
@@ -1798,6 +1838,22 @@ def build_parser() -> argparse.ArgumentParser:
     sp = team.add_parser("remove", help="deactivate a member")
     sp.add_argument("member_id")
     sp.set_defaults(func=cmd_team_remove)
+
+    sso = sub.add_parser(
+        "sso", help="single sign-on (OIDC) configuration"
+    ).add_subparsers(dest="sso_cmd", required=True)
+    sso.add_parser("show", help="show the workspace SSO config").set_defaults(func=cmd_sso_show)
+    sp = sso.add_parser("set", help="configure OIDC single sign-on")
+    sp.add_argument("--issuer", default="", help="OIDC issuer URL")
+    sp.add_argument("--client-id", default="", dest="client_id")
+    sp.add_argument("--client-secret", default="", dest="client_secret",
+                    help="leave blank to keep the stored secret")
+    sp.add_argument("--domains", default="", help="comma-separated allowed email domains")
+    sp.add_argument("--role", default="member", choices=["member", "admin"])
+    sp.add_argument("--label", default="OpenID Connect", help="provider display name")
+    sp.add_argument("--disabled", action="store_true", help="save but keep SSO disabled")
+    sp.set_defaults(func=cmd_sso_set)
+    sso.add_parser("disable", help="remove the SSO config").set_defaults(func=cmd_sso_disable)
 
     storage = sub.add_parser(
         "storage", help="object storage — resold R2 buckets"

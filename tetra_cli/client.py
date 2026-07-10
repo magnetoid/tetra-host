@@ -173,6 +173,16 @@ class TetraClient:
     def team_remove(self, member_id: str) -> Any:
         return self._request("DELETE", f"/team/members/{member_id}")
 
+    # ── Single sign-on (OIDC) ──────────────────────────────────────────────
+    def sso_get(self) -> Any:
+        return self._request("GET", "/sso")
+
+    def sso_set(self, body: dict[str, Any]) -> Any:
+        return self._request("PUT", "/sso", json_body=body)
+
+    def sso_delete(self) -> Any:
+        return self._request("DELETE", "/sso")
+
     # ── Reseller billing (pricing + ledger) ────────────────────────────────
     def billing_pricing(self) -> Any:
         return self._request("GET", "/billing/pricing")

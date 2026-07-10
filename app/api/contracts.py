@@ -1094,3 +1094,37 @@ class AcceptInviteRequest(BaseModel):
 
 class RoleChangeRequest(BaseModel):
     role: str
+
+
+# ── Single sign-on (OIDC) ────────────────────────────────────────────────────
+class SSOConfigResponse(BaseModel):
+    configured: bool
+    enabled: bool
+    provider_label: str = "OpenID Connect"
+    issuer: str = ""
+    client_id: str = ""
+    # Secret is never returned; this flag tells the UI whether one is stored.
+    has_secret: bool = False
+    allowed_domains: str = ""
+    default_role: str = "member"
+
+
+class SSOConfigRequest(BaseModel):
+    issuer: str = Field("", max_length=500)
+    client_id: str = Field("", max_length=255)
+    # Blank on update = keep the existing stored secret.
+    client_secret: str = Field("", max_length=1000)
+    allowed_domains: str = Field("", max_length=500)
+    default_role: str = "member"
+    provider_label: str = Field("OpenID Connect", max_length=80)
+    enabled: bool = False
+
+
+class SSOAuthorizeResponse(BaseModel):
+    authorize_url: str
+
+
+class SSOCallbackRequest(BaseModel):
+    code: str = Field(..., min_length=1)
+    state: str = Field(..., min_length=1)
+    redirect_uri: str = Field(..., min_length=1, max_length=500)

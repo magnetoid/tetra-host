@@ -1,14 +1,16 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
+import { AlertBanner } from "@/components/ui/alert-banner"
 import { LoginForm } from "@/components/auth/login-form"
+import { SsoLogin } from "@/components/auth/sso-login"
 import { TetraMark } from "@/components/brand/tetra-mark"
 import { TetraWordmark } from "@/components/brand/tetra-wordmark"
 import { getConsoleSession } from "@/lib/auth"
 import { safeNextPath } from "@/lib/utils"
 
 type LoginPageProps = {
-  searchParams: Promise<{ next?: string }>
+  searchParams: Promise<{ next?: string; sso_error?: string }>
 }
 
 const PLANES = [
@@ -115,7 +117,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">Access your Tetra AI Cloud control plane.</p>
 
+          {params.sso_error ? (
+            <div className="mt-5">
+              <AlertBanner tone="error">{params.sso_error}</AlertBanner>
+            </div>
+          ) : null}
+
           <LoginForm nextPath={nextPath} />
+          <SsoLogin />
 
           <div className="mt-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
