@@ -485,3 +485,38 @@ export interface AiKeyCreated {
   label: string
   limit: number | null
 }
+
+export interface CreditTransactionRecord {
+  kind: string
+  amount_usd: number
+  reference: string
+  created_at: string
+}
+
+export interface CreditBalance {
+  balance_usd: number
+  transactions: CreditTransactionRecord[]
+}
+
+export interface AiUsageByModel {
+  model: string
+  requests: number
+  billed_usd: number
+}
+
+export interface AiUsageEventRecord {
+  model: string
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+  billed_usd: number
+  created_at: string
+}
+
+export interface AiUsageReport {
+  total_billed_usd: number
+  total_cost_usd: number
+  total_requests: number
+  by_model: AiUsageByModel[]
+  events: AiUsageEventRecord[]
+}
