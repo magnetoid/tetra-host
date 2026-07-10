@@ -63,6 +63,14 @@ from app.api.contracts import (
     JobRunSummary,
     JobUpdateRequest,
     ScheduledJobSummary,
+    AcceptInviteRequest,
+    InviteCreateRequest,
+    InviteCreateResponse,
+    InvitePreviewResponse,
+    RoleChangeRequest,
+    TeamInviteSummary,
+    TeamMemberSummary,
+    TeamResponse,
     DatabaseProvisionRequest,
     DatabaseSummary,
     DatabaseTargetOption,
@@ -155,6 +163,7 @@ from app.models.billing import (
 from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.jobs.service import JobError, JobsService
+from app.modules.team.service import TeamError, TeamService
 from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.storage_service import StorageService
 from app.modules.reseller.service import ResellerError, ResellerService
@@ -164,7 +173,7 @@ from app.modules.mail.service import MailService
 from app.modules.projects.service import ProjectsService
 from app.services.cloudflare import CloudflareClient, count_bind_records
 from app.services.coolify import parse_deployment_log_lines
-from app.models.admin import ROLE_PLATFORM_ADMIN
+from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
 from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
 from app.routes.deps import get_auth_service
 from app.services.http import ProviderAPIError
@@ -331,6 +340,17 @@ async def get_current_api_admin(
 async def require_platform_admin(current_admin: AdminUser = Depends(get_current_api_admin)) -> AdminUser:
     if current_admin.role != ROLE_PLATFORM_ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin only.")
+    return current_admin
+
+
+async def require_tenant_owner(current_admin: AdminUser = Depends(get_current_api_admin)) -> AdminUser:
+    """Team-management writes (invite/revoke/role/remove) are owner-gated.
+    Platform admins pass through for cross-tenant support."""
+    if current_admin.role not in {ROLE_OWNER, ROLE_PLATFORM_ADMIN}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the tenant owner can manage the team.",
+        )
     return current_admin
 
 
@@ -3395,3 +3415,140 @@ async def api_job_runs(
         )
         for r in runs
     ]
+
+
+# ── Team / RBAC ──────────────────────────────────────────────────────────────
+def _team_member_summary(m: AdminUser) -> TeamMemberSummary:
+    return TeamMemberSummary(
+        id=m.id,
+        email=m.email,
+        full_name=m.full_name,
+        role=m.role,
+        is_active=m.is_active,
+        last_login_at=m.last_login_at.isoformat() if m.last_login_at else "",
+        created_at=m.created_at.isoformat() if m.created_at else "",
+    )
+
+
+def _team_invite_summary(i) -> TeamInviteSummary:
+    return TeamInviteSummary(
+        id=i.id,
+        email=i.email,
+        role=i.role,
+        status=i.status,
+        created_at=i.created_at.isoformat() if i.created_at else "",
+        expires_at=i.expires_at.isoformat() if i.expires_at else "",
+    )
+
+
+@router.get("/team", response_model=TeamResponse)
+async def api_team(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> TeamResponse:
+    service = TeamService(session)
+    members = await service.list_members(current_admin.tenant_id)
+    invites = await service.list_invites(current_admin.tenant_id)
+    return TeamResponse(
+        members=[_team_member_summary(m) for m in members],
+        invites=[_team_invite_summary(i) for i in invites],
+    )
+
+
+@router.post("/team/invites", response_model=InviteCreateResponse)
+async def api_create_invite(
+    payload: InviteCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> InviteCreateResponse:
+    try:
+        invite, raw_token = await TeamService(session).create_invite(
+            current_admin.tenant_id, current_admin, payload.email, payload.role
+        )
+    except TeamError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    # Relative path — the console prepends its own origin to build the share URL.
+    return InviteCreateResponse(
+        invite=_team_invite_summary(invite),
+        token=raw_token,
+        accept_url=f"/auth/accept-invite?token={raw_token}",
+    )
+
+
+@router.delete("/team/invites/{invite_id}")
+async def api_revoke_invite(
+    invite_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> dict[str, bool]:
+    try:
+        await TeamService(session).revoke_invite(current_admin.tenant_id, invite_id)
+    except TeamError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return {"ok": True}
+
+
+@router.post("/team/members/{member_id}/role", response_model=TeamMemberSummary)
+async def api_change_member_role(
+    member_id: str,
+    payload: RoleChangeRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> TeamMemberSummary:
+    try:
+        member = await TeamService(session).change_role(
+            current_admin.tenant_id, member_id, payload.role
+        )
+    except TeamError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return _team_member_summary(member)
+
+
+@router.delete("/team/members/{member_id}", response_model=TeamMemberSummary)
+async def api_remove_member(
+    member_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(require_tenant_owner),
+) -> TeamMemberSummary:
+    try:
+        member = await TeamService(session).remove_member(
+            current_admin.tenant_id, member_id, current_admin
+        )
+    except TeamError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return _team_member_summary(member)
+
+
+@router.get("/auth/invite", response_model=InvitePreviewResponse)
+async def api_preview_invite(
+    token: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> InvitePreviewResponse:
+    """Public — resolve a redeemable invite so the accept page can show who/what
+    it's for. 404 for unknown/expired/used tokens (no information leak)."""
+    invite = await TeamService(session).peek_invite(token)
+    if invite is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite is invalid or expired.")
+    tenant = await session.get(Tenant, invite.tenant_id)
+    return InvitePreviewResponse(
+        tenant_name=tenant.name if tenant else "",
+        email=invite.email,
+        role=invite.role,
+    )
+
+
+@router.post("/auth/accept-invite", response_model=AuthResponse)
+async def api_accept_invite(
+    request: Request,
+    payload: AcceptInviteRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> AuthResponse:
+    """Public — redeem an invite to create the teammate's login, then sign them in."""
+    try:
+        admin = await TeamService(session).accept_invite(
+            payload.token, payload.full_name, payload.password
+        )
+    except TeamError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    token = create_api_token(request.state.settings, admin)
+    return AuthResponse(token=token, admin=_admin_summary(admin))

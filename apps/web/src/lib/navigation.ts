@@ -72,6 +72,7 @@ export const consoleNavItems: NavItem[] = [
   { href: "/mail", label: "Mail", icon: faEnvelope },
   { href: "/dns", label: "DNS", icon: faGlobe },
   { href: "/domains", label: "Domains", icon: faEarthAmericas },
+  { href: "/team", label: "Team", icon: faUsers },
   { href: "/marketplace", label: "Marketplace", icon: faStore },
   { href: "/admin", label: "Admin", icon: faUserShield },
   { href: "/usage", label: "Usage", icon: faChartBar },

@@ -157,6 +157,22 @@ class TetraClient:
     def jobs_delete(self, job_id: str) -> Any:
         return self._request("DELETE", f"/jobs/{job_id}")
 
+    # ── Team / RBAC ────────────────────────────────────────────────────────
+    def team(self) -> Any:
+        return self._request("GET", "/team")
+
+    def team_invite(self, email: str, role: str = "member") -> Any:
+        return self._request("POST", "/team/invites", json_body={"email": email, "role": role})
+
+    def team_revoke(self, invite_id: str) -> Any:
+        return self._request("DELETE", f"/team/invites/{invite_id}")
+
+    def team_role(self, member_id: str, role: str) -> Any:
+        return self._request("POST", f"/team/members/{member_id}/role", json_body={"role": role})
+
+    def team_remove(self, member_id: str) -> Any:
+        return self._request("DELETE", f"/team/members/{member_id}")
+
     # ── Reseller billing (pricing + ledger) ────────────────────────────────
     def billing_pricing(self) -> Any:
         return self._request("GET", "/billing/pricing")

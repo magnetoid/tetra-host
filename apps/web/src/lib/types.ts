@@ -161,6 +161,42 @@ export interface AdminRecord {
   tenant_status?: string
 }
 
+export interface TeamMemberRecord {
+  id: string
+  email: string
+  full_name: string
+  role: string
+  is_active: boolean
+  last_login_at?: string
+  created_at?: string
+}
+
+export interface TeamInviteRecord {
+  id: string
+  email: string
+  role: string
+  status: string
+  created_at?: string
+  expires_at?: string
+}
+
+export interface TeamResponse {
+  members: TeamMemberRecord[]
+  invites: TeamInviteRecord[]
+}
+
+export interface InviteCreateResult {
+  invite: TeamInviteRecord
+  token: string
+  accept_url: string
+}
+
+export interface InvitePreview {
+  tenant_name: string
+  email: string
+  role: string
+}
+
 export interface Plan {
   id: string
   key: string

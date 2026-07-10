@@ -892,3 +892,30 @@ def test_list_mail_relayhosts_path():
         return httpx.Response(200, json=[{"id": 3, "hostname": "h", "username": "u"}])
 
     assert make_client(handler).list_mail_relayhosts()[0]["id"] == 3
+
+
+def test_client_team_invite_builds_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v1/team/invites"
+        assert json.loads(request.content) == {"email": "mate@x.test", "role": "admin"}
+        return httpx.Response(200, json={"token": "raw", "accept_url": "/auth/accept-invite?token=raw"})
+
+    result = make_client(handler).team_invite("mate@x.test", role="admin")
+    assert result["accept_url"].endswith("raw")
+
+
+def test_client_team_role_and_remove_paths():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[request.method] = request.url.path
+        if request.method == "POST":
+            assert json.loads(request.content) == {"role": "member"}
+        return httpx.Response(200, json={"email": "mate@x.test", "role": "member", "is_active": False})
+
+    client = make_client(handler)
+    client.team_role("m-1", "member")
+    client.team_remove("m-1")
+    assert seen["POST"] == "/api/v1/team/members/m-1/role"
+    assert seen["DELETE"] == "/api/v1/team/members/m-1"

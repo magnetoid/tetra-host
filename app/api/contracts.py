@@ -1041,3 +1041,56 @@ class JobUpdateRequest(BaseModel):
     url: str | None = None
     method: str | None = None
     enabled: bool | None = None
+
+
+# ── Team / RBAC ──────────────────────────────────────────────────────────────
+class TeamMemberSummary(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    last_login_at: str = ""
+    created_at: str = ""
+
+
+class TeamInviteSummary(BaseModel):
+    id: str
+    email: str
+    role: str
+    status: str
+    created_at: str = ""
+    expires_at: str = ""
+
+
+class TeamResponse(BaseModel):
+    members: list[TeamMemberSummary]
+    invites: list[TeamInviteSummary]
+
+
+class InviteCreateRequest(BaseModel):
+    email: str = Field(..., max_length=254)
+    role: str = "member"
+
+
+class InviteCreateResponse(BaseModel):
+    invite: TeamInviteSummary
+    # Raw token + ready-to-share URL — returned exactly once, never re-fetchable.
+    token: str
+    accept_url: str
+
+
+class InvitePreviewResponse(BaseModel):
+    tenant_name: str
+    email: str
+    role: str
+
+
+class AcceptInviteRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    full_name: str = Field(..., min_length=1, max_length=120)
+    password: str = Field(..., max_length=200)
+
+
+class RoleChangeRequest(BaseModel):
+    role: str

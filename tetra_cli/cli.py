@@ -296,6 +296,59 @@ def cmd_jobs_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_team_list(args: argparse.Namespace) -> int:
+    data = client_from_config().team()
+    if not isinstance(data, dict):
+        return die("could not load team")
+    members = data.get("members") or []
+    invites = data.get("invites") or []
+    print(c("members", "1"))
+    for m in members:
+        role = m.get("role", "")
+        tint = {"owner": "32", "platform_admin": "33", "admin": "36"}.get(role, "90")
+        state = "" if m.get("is_active") else c("  (deactivated)", "31")
+        print(f"  {c(m.get('id', '')[:8], '1;36')}  {m.get('email', '')}  "
+              f"{c(role, tint)}{state}")
+    if invites:
+        print(c("pending invites", "1"))
+        for i in invites:
+            print(f"  {c(i.get('id', '')[:8], '1;36')}  {i.get('email', '')}  "
+                  f"{c(i.get('role', ''), '35')}  {c('pending', '33')}")
+    return 0
+
+
+def cmd_team_invite(args: argparse.Namespace) -> int:
+    r = client_from_config().team_invite(args.email, role=args.role)
+    if not isinstance(r, dict) or not r.get("token"):
+        return die("could not create invite")
+    print(c("✓ invite created", "1;32") + f"  {args.email} ({args.role})")
+    print("  share this link (redeemed in the console):")
+    print("  " + c(r.get("accept_url", ""), "36"))
+    return 0
+
+
+def cmd_team_revoke(args: argparse.Namespace) -> int:
+    client_from_config().team_revoke(args.invite_id)
+    print(c("✓", "32") + f" invite {args.invite_id} revoked")
+    return 0
+
+
+def cmd_team_role(args: argparse.Namespace) -> int:
+    r = client_from_config().team_role(args.member_id, args.role)
+    if not isinstance(r, dict):
+        return die("could not change role")
+    print(c("✓", "32") + f" {r.get('email', args.member_id)} is now {c(r.get('role', ''), '36')}")
+    return 0
+
+
+def cmd_team_remove(args: argparse.Namespace) -> int:
+    r = client_from_config().team_remove(args.member_id)
+    if not isinstance(r, dict):
+        return die("could not remove member")
+    print(c("✓", "32") + f" {r.get('email', args.member_id)} removed (deactivated)")
+    return 0
+
+
 def _fmt_cents(cents: int) -> str:
     return f"${cents / 100:.2f}"
 
@@ -1726,6 +1779,25 @@ def build_parser() -> argparse.ArgumentParser:
     sp = jobs.add_parser("rm", help="delete a scheduled job")
     sp.add_argument("job_id")
     sp.set_defaults(func=cmd_jobs_rm)
+
+    team = sub.add_parser(
+        "team", help="team & access — invite members, manage roles"
+    ).add_subparsers(dest="team_cmd", required=True)
+    team.add_parser("list", help="list members + pending invites").set_defaults(func=cmd_team_list)
+    sp = team.add_parser("invite", help="invite a teammate by email (returns a share link)")
+    sp.add_argument("email")
+    sp.add_argument("--role", default="member", choices=["member", "admin"])
+    sp.set_defaults(func=cmd_team_invite)
+    sp = team.add_parser("revoke", help="revoke a pending invite")
+    sp.add_argument("invite_id")
+    sp.set_defaults(func=cmd_team_revoke)
+    sp = team.add_parser("role", help="change a member's role")
+    sp.add_argument("member_id")
+    sp.add_argument("role", choices=["member", "admin"])
+    sp.set_defaults(func=cmd_team_role)
+    sp = team.add_parser("remove", help="deactivate a member")
+    sp.add_argument("member_id")
+    sp.set_defaults(func=cmd_team_remove)
 
     storage = sub.add_parser(
         "storage", help="object storage — resold R2 buckets"

@@ -14,6 +14,7 @@ from app.models.domain import Domain
 from app.models.job import JobRun, ScheduledJob
 from app.models.plan import Plan
 from app.models.preview_env import PreviewEnv
+from app.models.team import TenantInvite
 from app.models.tenant import Tenant
 from app.models.tenant_resource import TenantResource
 
@@ -34,5 +35,6 @@ __all__ = [
     "ResellerCharge",
     "Tenant",
     "TenantCredit",
+    "TenantInvite",
     "TenantResource",
 ]
