@@ -74,6 +74,10 @@ class ProjectSummary(BaseModel):
     environment: str
     updated_at: str
     healthcheck_enabled: bool
+    # Coolify project grouping (tenant > project > deployment). Empty for native
+    # platform deployments, which group on their own.
+    project_uuid: str = ""
+    project_name: str = ""
 
 
 class ActionResponse(BaseModel):

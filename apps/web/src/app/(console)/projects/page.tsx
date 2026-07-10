@@ -16,23 +16,35 @@ type ProjectsPageProps = {
 }
 
 /**
- * A unified project — one card whether it's a Coolify application or a native
- * Tetra-engine project (a group of git/app deployments sharing a name). Same shape,
- * same card; the source badge and detail link are the only things that differ.
+ * One deployable resource inside a project — a Coolify application/service or a
+ * native Tetra-engine deployment group. This is the "deployment" level of
+ * tenant > project > deployment.
+ */
+type Resource = {
+  id: string
+  name: string
+  status: string
+  domain: string
+  repository: string
+  detail: string
+  href: string
+  linkLabel: string
+  applicationId?: string
+}
+
+/**
+ * A project — the middle tier. For Coolify this mirrors a Coolify *project*
+ * (one card holding all its resources, e.g. "Alethia" → Alethia, Alethia NEW,
+ * crawl4ai). For the native engine it's a named deployment group.
  */
 type UnifiedProject = {
   key: string
   name: string
   source: "coolify" | "git"
-  status: string
-  domain: string
-  detail: string
-  href: string
-  deployments: number
-  // Coolify-only inline controls (native projects manage from the Deployments feed).
-  applicationId?: string
-  repository?: string
+  resources: Resource[]
 }
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const session = await requireConsoleSession()
@@ -49,33 +61,44 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     ),
   ])
 
-  const projects: UnifiedProject[] = coolify.map((p) => ({
-    key: `coolify:${p.id}`,
-    name: p.name,
-    source: "coolify",
-    status: p.status,
-    domain: p.primary_domain,
-    detail: formatRelativeLabel(p.updated_at),
-    href: `/projects/${p.id}`,
-    deployments: 0,
-    applicationId: p.id,
-    repository: p.repository,
-  }))
-
-  // A project can surface from BOTH Coolify and native deployments — collapse those so it
-  // appears once (fixes duplicate "alethia" / "alethia new" style entries).
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
-  const seen = new Set(coolify.map((p) => norm(p.name)))
-
-  // Group native deployments by project name → one platform project per group.
-  const groups = new Map<string, DeploymentRecord[]>()
-  for (const record of native) {
-    const list = groups.get(record.project) ?? []
-    list.push(record)
-    groups.set(record.project, list)
+  // Group Coolify applications under their owning Coolify project (mirrors
+  // Coolify's own project → resources layout). Apps with no project fall back
+  // to standing alone under their own name.
+  const coolifyGroups = new Map<string, UnifiedProject>()
+  for (const p of coolify) {
+    const groupKey = p.project_uuid || `name:${norm(p.project_name || p.name)}`
+    const projectName = p.project_name || p.name
+    const group =
+      coolifyGroups.get(groupKey) ??
+      ({ key: `coolify:${groupKey}`, name: projectName, source: "coolify", resources: [] } as UnifiedProject)
+    group.name = p.project_name || group.name
+    group.resources.push({
+      id: p.id,
+      name: p.name,
+      status: p.status,
+      domain: p.primary_domain,
+      repository: p.repository,
+      detail: formatRelativeLabel(p.updated_at),
+      href: `/projects/${p.id}`,
+      linkLabel: "Open",
+      applicationId: p.id,
+    })
+    coolifyGroups.set(groupKey, group)
   }
-  for (const [name, records] of groups) {
-    if (seen.has(norm(name))) continue // already represented (Coolify or an earlier group)
+
+  const projects: UnifiedProject[] = [...coolifyGroups.values()]
+  const seen = new Set(projects.map((g) => norm(g.name)))
+
+  // Native (Tetra-engine) deployments → one project per project name, its
+  // deployments as resources. Skip names already represented by a Coolify project.
+  const nativeGroups = new Map<string, DeploymentRecord[]>()
+  for (const record of native) {
+    const list = nativeGroups.get(record.project) ?? []
+    list.push(record)
+    nativeGroups.set(record.project, list)
+  }
+  for (const [name, records] of nativeGroups) {
+    if (seen.has(norm(name))) continue
     seen.add(norm(name))
     const latest = records.reduce((a, b) => (a.created_at >= b.created_at ? a : b))
     const unified = unifyNative(latest)
@@ -83,12 +106,18 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       key: `native:${name}`,
       name,
       source: "git",
-      status: latest.status,
-      domain: latest.domain,
-      detail: `${records.length} deployment${records.length === 1 ? "" : "s"} · ${formatRelativeLabel(latest.created_at)}`,
-      href: "/deploys",
-      deployments: records.length,
-      repository: unified.gitUrl,
+      resources: [
+        {
+          id: name,
+          name,
+          status: latest.status,
+          domain: latest.domain,
+          repository: unified.gitUrl ?? "",
+          detail: `${records.length} deployment${records.length === 1 ? "" : "s"} · ${formatRelativeLabel(latest.created_at)}`,
+          href: "/deploys",
+          linkLabel: "View deployments",
+        },
+      ],
     })
   }
 
@@ -99,7 +128,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       <PageHeader
         eyebrow="Projects"
         title="Projects"
-        description="Every project in one place — Coolify applications and Tetra-engine deployments, unified."
+        description="Each project holds its deployments — Coolify projects with their resources, and Tetra-engine deployments, in one place."
         action={
           <div className="flex items-center gap-3">
             <RefreshLink href="/projects?refresh=1" label="Refresh" />
@@ -118,9 +147,9 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           projects.map((project) => (
             <article
               key={project.key}
-              className="card-lift rounded-2xl border border-border bg-card p-5 hover:border-primary/30"
+              className="rounded-2xl border border-border bg-card p-5"
             >
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="grid size-10 place-items-center rounded-xl border border-border bg-background font-mono text-sm font-semibold">
                     {project.name.slice(0, 2).toUpperCase()}
@@ -130,38 +159,56 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                       <h2 className="truncate font-semibold">{project.name}</h2>
                       <SourceBadge source={project.source} />
                     </div>
-                    <a
-                      className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-                      href={project.domain ? `https://${project.domain}` : undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {project.domain || "no domain"}
-                    </a>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {project.resources.length} deployment
+                      {project.resources.length === 1 ? "" : "s"}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge value={project.status} />
-                </div>
               </div>
 
-              <div className="mt-5 grid gap-3 text-sm md:grid-cols-3">
-                <Field label="Repository" value={project.repository || "Not linked"} mono />
-                <Field label="Activity" value={project.detail} />
-                <Field
-                  label="Source"
-                  value={project.source === "coolify" ? "Coolify application" : "Tetra engine"}
-                />
-              </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                {project.applicationId ? <ProjectActions applicationId={project.applicationId} /> : null}
-                <Link
-                  href={project.href}
-                  className="rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-accent"
-                >
-                  {project.source === "coolify" ? "Open project" : "View deployments"}
-                </Link>
+              {/* Resources / deployments inside this project */}
+              <div className="mt-4 divide-y divide-border overflow-hidden rounded-xl border border-border">
+                {project.resources.map((res) => (
+                  <div
+                    key={res.id}
+                    className="flex flex-wrap items-center justify-between gap-3 bg-background px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{res.name}</span>
+                        <StatusBadge value={res.status} />
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
+                        {res.domain ? (
+                          <a
+                            href={`https://${res.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="transition-colors hover:text-foreground"
+                          >
+                            {res.domain}
+                          </a>
+                        ) : (
+                          <span>no domain</span>
+                        )}
+                        <span className="truncate">{res.repository || "not linked"}</span>
+                        <span>{res.detail}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {res.applicationId ? (
+                        <ProjectActions applicationId={res.applicationId} />
+                      ) : null}
+                      <Link
+                        href={res.href}
+                        className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                      >
+                        {res.linkLabel}
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
             </article>
           ))
@@ -172,15 +219,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           />
         )}
       </section>
-    </div>
-  )
-}
-
-function Field({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <div className="text-muted-foreground">{label}</div>
-      <div className={`mt-1 truncate ${mono ? "font-mono text-xs" : ""}`}>{value}</div>
     </div>
   )
 }

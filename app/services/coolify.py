@@ -31,6 +31,12 @@ class CoolifyApplication(BaseModel):
     branch: str = ""
     build_pack: str = ""
     healthcheck_enabled: bool = False
+    # Coolify project grouping: applications sharing a project belong to one
+    # Tetra project (tenant > project > deployment). environment_id links an app
+    # to its Coolify environment, which resolves to project_uuid/project_name.
+    environment_id: int = 0
+    project_uuid: str = ""
+    project_name: str = ""
     # Extended fields from full API response
     description: str = ""
     fqdn: str = ""
@@ -147,6 +153,7 @@ def normalize_coolify_resource(raw: dict[str, Any]) -> CoolifyApplication:
         environment=str(raw.get("environment_name") or raw.get("environment") or "Production"),
         updated_at=str(raw.get("updated_at") or raw.get("created_at") or ""),
         kind=str(raw.get("type") or raw.get("kind") or "application"),
+        environment_id=int(raw.get("environment_id") or 0),
         branch=str(raw.get("git_branch") or ""),
         build_pack=str(raw.get("build_pack") or ""),
         healthcheck_enabled=bool(raw.get("health_check_enabled", False)),
@@ -366,6 +373,53 @@ class CoolifyClient:
         )
         return payload if isinstance(payload, list) else payload.get("data", [])
 
+    async def get_project(self, project_uuid: str) -> dict[str, Any]:
+        if not self.is_configured() or not project_uuid:
+            return {}
+        payload = await request_json(
+            self.http_client,
+            service="Coolify",
+            method="GET",
+            url=f"{self.base_url}/api/v1/projects/{project_uuid}",
+            headers=self.headers(),
+        )
+        return payload if isinstance(payload, dict) else {}
+
+    async def environment_project_map(self, refresh: bool = False) -> dict[int, dict[str, str]]:
+        """Map Coolify ``environment_id`` → its project ``{uuid, name, environment}``.
+
+        The applications list only carries ``environment_id``; the projects list
+        omits environments — so this resolves the link by fetching each project's
+        detail. Cached (provider TTL) since project structure changes rarely.
+        """
+        if not self.is_configured():
+            return {}
+        settings = get_settings()
+
+        async def fetch() -> dict[int, dict[str, str]]:
+            mapping: dict[int, dict[str, str]] = {}
+            for project in await self.list_projects():
+                uuid = str(project.get("uuid") or "")
+                name = str(project.get("name") or "Project")
+                detail = await self.get_project(uuid)
+                for env in detail.get("environments") or []:
+                    env_id = env.get("id")
+                    if env_id is not None:
+                        mapping[int(env_id)] = {
+                            "uuid": uuid,
+                            "name": name,
+                            "environment": str(env.get("name") or ""),
+                        }
+            return mapping
+
+        if refresh:
+            await self.cache.delete("coolify:env_project_map")
+        return await self.cache.get_or_set(
+            "coolify:env_project_map",
+            settings.provider_cache_ttl_seconds,
+            fetch,
+        )
+
     async def list_applications(self, refresh: bool = False) -> list[CoolifyApplication]:
         if not self.is_configured():
             return []
@@ -381,7 +435,19 @@ class CoolifyClient:
                 headers=self.headers(),
             )
             items = payload.get("data", payload) if isinstance(payload, dict) else payload
-            return [normalize_coolify_resource(item) for item in items]
+            apps = [normalize_coolify_resource(item) for item in items]
+            # Attach the owning Coolify project so the UI can group apps under it
+            # (tenant > project > deployment). Falls back to the app itself when
+            # the map is unavailable, so grouping degrades to one-app-per-project.
+            env_map = await self.environment_project_map()
+            for app in apps:
+                info = env_map.get(app.environment_id)
+                if info:
+                    app.project_uuid = info["uuid"]
+                    app.project_name = info["name"]
+                    if info.get("environment"):
+                        app.environment = info["environment"]
+            return apps
 
         if refresh:
             await self.cache.delete("coolify:applications")

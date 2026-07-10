@@ -27,6 +27,7 @@ def test_coolify_resource_normalization_supports_common_shapes():
         "updated_at": "2026-06-26T12:00:00Z",
         "build_pack": "dockerfile",
         "health_check_enabled": True,
+        "environment_id": 19,
     }
     app_item = normalize_coolify_resource(raw)
     assert isinstance(app_item, CoolifyApplication)
@@ -37,6 +38,9 @@ def test_coolify_resource_normalization_supports_common_shapes():
     assert app_item.environment == "production"
     assert app_item.build_pack == "dockerfile"
     assert app_item.healthcheck_enabled is True
+    # environment_id links an app to its Coolify project for grouping.
+    assert app_item.environment_id == 19
+    assert app_item.project_uuid == ""  # populated later from the env→project map
 
 
 def test_projects_page_requires_auth(client):

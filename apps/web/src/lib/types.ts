@@ -48,6 +48,9 @@ export interface ProjectRecord {
   environment: string
   updated_at: string
   healthcheck_enabled: boolean
+  // Coolify project grouping (tenant > project > deployment).
+  project_uuid?: string
+  project_name?: string
 }
 
 export interface MailDomainRecord {
