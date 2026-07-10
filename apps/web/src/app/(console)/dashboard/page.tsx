@@ -94,27 +94,31 @@ export default async function DashboardPage() {
         <StatCard icon={faUsers} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-status-live" />
       </section>
 
-      {analytics && analytics.points.length > 0 ? (
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-lg font-semibold">Traffic</h2>
-              <p className="mt-1 font-mono text-xs text-muted-foreground">
-                {primaryZoneName} · Cloudflare · last 7 days
-              </p>
+      {/* Bento: one asymmetric grid mixing the traffic hero, provider health,
+          connectivity, resource mix, and per-domain previews at varying tile
+          widths. Auto-placement fills gaps gracefully when a tile is absent
+          (e.g. no traffic analytics). */}
+      <section className="grid auto-rows-min gap-4 lg:grid-cols-6">
+        {analytics && analytics.points.length > 0 ? (
+          <Card className="lg:col-span-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-display text-lg font-semibold">Traffic</h2>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
+                  {primaryZoneName} · Cloudflare · last 7 days
+                </p>
+              </div>
+              <Link href="/dns" className="text-sm text-muted-foreground transition hover:text-foreground">
+                All zones
+              </Link>
             </div>
-            <Link href="/dns" className="text-sm text-muted-foreground transition hover:text-foreground">
-              All zones
-            </Link>
-          </div>
-          <div className="mt-4">
-            <ZoneTraffic analytics={analytics} />
-          </div>
-        </Card>
-      ) : null}
+            <div className="mt-4">
+              <ZoneTraffic analytics={analytics} />
+            </div>
+          </Card>
+        ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Card>
+        <Card className="lg:col-span-2">
           <h2 className="font-display text-lg font-semibold">Provider health</h2>
           <div className="mt-4">
             <DonutChart
@@ -127,30 +131,38 @@ export default async function DashboardPage() {
           <DonutLegend data={health} colors={HEALTH_COLORS} className="mt-4" />
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-4">
+          <h2 className="font-display text-lg font-semibold">Connectivity</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {dashboard.providers.map((provider) => (
+              <ProviderCard key={provider.name} provider={provider} />
+            ))}
+          </div>
+        </Card>
+
+        <Card className="lg:col-span-2">
           <h2 className="font-display text-lg font-semibold">Resource mix</h2>
           <div className="mt-5">
             <BarList data={resources} />
           </div>
         </Card>
 
-        <Card>
-          <h2 className="font-display text-lg font-semibold">Connectivity</h2>
-          <div className="mt-4 space-y-3">
-            {dashboard.providers.map((provider) => (
-              <ProviderCard key={provider.name} provider={provider} />
-            ))}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <PreviewPanel title="Recent projects" href="/projects" empty="No Coolify applications available yet.">
+        <PreviewPanel
+          title="Recent projects"
+          href="/projects"
+          empty="No Coolify applications available yet."
+          className="lg:col-span-2"
+        >
           {projects.slice(0, 3).map((project) => (
             <PreviewItem key={project.id} title={project.name} subtitle={project.primary_domain} mono />
           ))}
         </PreviewPanel>
-        <PreviewPanel title="Mail domains" href="/mail" empty="Mailcow returned no domains.">
+        <PreviewPanel
+          title="Mail domains"
+          href="/mail"
+          empty="Mailcow returned no domains."
+          className="lg:col-span-2"
+        >
           {mail.domains.slice(0, 3).map((domain) => (
             <PreviewItem
               key={domain.domain_name}
@@ -159,7 +171,12 @@ export default async function DashboardPage() {
             />
           ))}
         </PreviewPanel>
-        <PreviewPanel title="DNS zones" href="/dns" empty="Cloudflare returned no zones.">
+        <PreviewPanel
+          title="DNS zones"
+          href="/dns"
+          empty="Cloudflare returned no zones."
+          className="lg:col-span-2"
+        >
           {dns.zones.slice(0, 3).map((zone) => (
             <PreviewItem
               key={zone.id}
@@ -178,18 +195,20 @@ function PreviewPanel({
   title,
   href,
   empty,
+  className,
   children,
 }: {
   title: string
   href: string
   empty: string
+  className?: string
   children: React.ReactNode
 }) {
   const items = Array.isArray(children) ? children : [children]
   const hasItems = items.some(Boolean)
 
   return (
-    <Card>
+    <Card className={className}>
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-semibold">{title}</h2>
         <Link href={href} className="text-sm text-muted-foreground transition hover:text-foreground">

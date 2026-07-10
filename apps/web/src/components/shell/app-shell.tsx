@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { ViewTransition } from "react"
 
 import { TetraWordmark } from "@/components/brand/tetra-wordmark"
 import { CommandMenu } from "@/components/command/command-menu"
@@ -71,7 +72,12 @@ export function AppShell({
           </div>
         </header>
         <StatusSpine />
-        <section className="p-6 lg:p-10">{children}</section>
+        <section className="p-6 lg:p-10">
+          {/* Crossfades page content on every console route change (project-tab
+              switches included — they're sub-routes). The sidebar + header live
+              outside this boundary, so they stay anchored while content fades. */}
+          <ViewTransition>{children}</ViewTransition>
+        </section>
       </main>
     </div>
   )

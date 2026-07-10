@@ -118,7 +118,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           projects.map((project) => (
             <article
               key={project.key}
-              className="rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/30"
+              className="card-lift rounded-2xl border border-border bg-card p-5 hover:border-primary/30"
             >
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">

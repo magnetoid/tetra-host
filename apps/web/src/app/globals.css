@@ -268,3 +268,44 @@ body {
     animation: tetraFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
+
+/* ── View Transitions (console route + tab crossfade) ─────────────────────
+   React's <ViewTransition> around the console content produces a default
+   crossfade on navigation. Keep it quick and gentle so it reads as "same
+   place, new content" without slowing perceived navigation. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Positional/animated motion off for motion-sensitive users; content swaps
+   instantly, matching the browser's no-transition default. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* ── Micro-interactions ───────────────────────────────────────────────────
+   Standard hover-lift + active-press for interactive cards/tiles. 120ms
+   transform/opacity for the "Linear feel"; disabled under reduced-motion. */
+.card-lift {
+  transition:
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 120ms ease;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -12px rgb(124 58 237 / 25%);
+  }
+  .card-lift:active {
+    transform: translateY(0);
+  }
+}
