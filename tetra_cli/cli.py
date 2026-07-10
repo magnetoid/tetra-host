@@ -239,6 +239,35 @@ def cmd_credits_topup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_storage_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().storage_buckets()
+    if not isinstance(rows, list) or not rows:
+        print(c("no buckets", "90"))
+        return 0
+    for b in rows:
+        print(f"{c(b.get('name', ''), '1;36')}  {c(b.get('endpoint', ''), '90')}")
+    return 0
+
+
+def cmd_storage_create(args: argparse.Namespace) -> int:
+    r = client_from_config().storage_create(args.name)
+    if not isinstance(r, dict):
+        return die("bucket creation failed")
+    print(c("✓ bucket created", "1;32") + f"  {r.get('name', '')}  ({r.get('endpoint', '')})")
+    if r.get("secret_access_key"):
+        print(c(f"  access_key_id:     {r.get('access_key_id', '')}", "33"))
+        print(c(f"  secret_access_key: {r['secret_access_key']}  (shown once — save it now)", "33"))
+    else:
+        print(c("  (credentials not issued — R2 permission group not configured)", "90"))
+    return 0
+
+
+def cmd_storage_rm(args: argparse.Namespace) -> int:
+    client_from_config().storage_delete(args.name)
+    print(c("✓", "32") + f" bucket {args.name} deleted")
+    return 0
+
+
 def _fmt_cents(cents: int) -> str:
     return f"${cents / 100:.2f}"
 
@@ -1655,6 +1684,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("tenant", help="tenant id")
     sp.add_argument("amount", type=float, help="amount in USD")
     sp.set_defaults(func=cmd_credits_topup)
+
+    storage = sub.add_parser(
+        "storage", help="object storage — resold R2 buckets"
+    ).add_subparsers(dest="storage_cmd", required=True)
+    storage.add_parser("list", help="list this tenant's buckets").set_defaults(func=cmd_storage_list)
+    sp = storage.add_parser("create", help="provision a bucket (S3 creds shown once)")
+    sp.add_argument("name")
+    sp.set_defaults(func=cmd_storage_create)
+    sp = storage.add_parser("rm", help="delete a bucket")
+    sp.add_argument("name")
+    sp.set_defaults(func=cmd_storage_rm)
 
     previews = sub.add_parser(
         "previews", help="per-branch preview environments"

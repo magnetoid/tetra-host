@@ -54,12 +54,16 @@ from app.api.contracts import (
     BuildDiagnosis,
     BackupConfigSummary,
     BackupCreateRequest,
+    BucketCreated,
+    BucketProvisionRequest,
+    BucketSummary,
     CachePurgeRequest,
     DatabaseProvisionRequest,
     DatabaseSummary,
     DatabaseTargetOption,
     DatabaseTargets,
     DashboardMetrics,
+    StorageStatusResponse,
     DashboardResponse,
     DeploymentDetail,
     DeploymentLogLine,
@@ -137,6 +141,7 @@ from app.models.billing import MICRO_USD_PER_USD
 from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.reseller.ai_service import AiResellerService
+from app.modules.reseller.storage_service import StorageService
 from app.modules.reseller.service import ResellerError, ResellerService
 from app.services.builder import BuildError
 from app.services.docker_engine import DockerEngineError
@@ -3128,3 +3133,64 @@ async def api_create_database_backup(
         ok=bool(result.get("ok", True)),
         message=str(result.get("message", "Backup config created.")),
     )
+
+
+# ── Object storage: resell Cloudflare R2 buckets ───────────────────────────
+@router.get("/storage/status", response_model=StorageStatusResponse)
+async def api_storage_status(
+    request: Request,
+    _: AdminUser = Depends(get_current_api_admin),
+) -> StorageStatusResponse:
+    service = StorageService(request)
+    return StorageStatusResponse(
+        configured=service.is_configured(),
+        can_issue_credentials=service.client.can_issue_credentials(),
+        endpoint=service.client.s3_endpoint if service.is_configured() else "",
+    )
+
+
+@router.get("/storage/buckets", response_model=list[BucketSummary])
+async def api_list_buckets(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[BucketSummary]:
+    rows = await StorageService(request).list_buckets_for_tenant(session, current_admin.tenant_id)
+    return [BucketSummary(**r) for r in rows]
+
+
+@router.post("/storage/buckets", response_model=BucketCreated)
+async def api_provision_bucket(
+    payload: BucketProvisionRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> BucketCreated:
+    """Provision a tenant R2 bucket; S3 credentials (if configured) are returned ONCE."""
+    service = StorageService(request)
+    try:
+        out = await service.provision_bucket_for_tenant(
+            session, current_admin.tenant_id, name=payload.name
+        )
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return BucketCreated(**out)
+
+
+@router.delete("/storage/buckets/{name}")
+async def api_delete_bucket(
+    name: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    service = StorageService(request)
+    try:
+        await service.delete_bucket_for_tenant(session, current_admin.tenant_id, name)
+    except ResellerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
+    return {"ok": True}

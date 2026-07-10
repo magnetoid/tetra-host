@@ -132,6 +132,19 @@ class TetraClient:
             "POST", "/billing/credits", json_body={"tenant_id": tenant_id, "amount_usd": amount_usd}
         )
 
+    # ── Object storage (R2 buckets) ────────────────────────────────────────
+    def storage_status(self) -> Any:
+        return self._request("GET", "/storage/status")
+
+    def storage_buckets(self) -> Any:
+        return self._request("GET", "/storage/buckets")
+
+    def storage_create(self, name: str) -> Any:
+        return self._request("POST", "/storage/buckets", json_body={"name": name})
+
+    def storage_delete(self, name: str) -> Any:
+        return self._request("DELETE", f"/storage/buckets/{name}")
+
     # ── Reseller billing (pricing + ledger) ────────────────────────────────
     def billing_pricing(self) -> Any:
         return self._request("GET", "/billing/pricing")

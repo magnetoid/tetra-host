@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     cloudflare_api_token: str = ""
+    # Cloudflare R2 object-storage reselling. Empty account id = R2 disabled (the Storage
+    # surface shows a "not configured" state). The api_token above must additionally carry
+    # "Workers R2 Storage Write"; to mint per-bucket S3 credentials the token also needs
+    # "API Tokens Write" and `cloudflare_r2_permission_group_id` must be the id of the
+    # "Workers R2 Storage Bucket Item Write" permission group (GET /accounts/{id}/tokens/
+    # permission_groups). jurisdiction ("default"|"eu"|"fedramp") is fixed at bucket creation.
+    cloudflare_account_id: str = ""
+    cloudflare_r2_permission_group_id: str = ""
+    cloudflare_r2_jurisdiction: str = "default"
     # Hetzner Cloud (own-infra provisioning, ADR 0004 Phase 3). Empty token = disabled.
     hetzner_api_token: str = ""
     hetzner_server_type: str = "cx23"

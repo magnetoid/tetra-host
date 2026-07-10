@@ -17,6 +17,7 @@ RESOURCE_TYPE_SERVER = "server"
 RESOURCE_TYPE_APP = "app"
 RESOURCE_TYPE_CLOUDFLARE_SERVICE = "cloudflare_service"  # a resold CF plan/add-on on a tenant zone
 RESOURCE_TYPE_AI_KEY = "ai_key"  # a resold OpenRouter runtime key provisioned for a tenant
+RESOURCE_TYPE_BUCKET = "bucket"  # a resold Cloudflare R2 object-storage bucket for a tenant
 
 PROVIDER_COOLIFY = "coolify"
 PROVIDER_MAILCOW = "mailcow"

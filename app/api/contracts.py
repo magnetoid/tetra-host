@@ -942,3 +942,28 @@ class DatabaseTargets(BaseModel):
 
     servers: list[DatabaseTargetOption] = []
     projects: list[DatabaseTargetOption] = []
+
+
+# ── Object storage (Cloudflare R2 bucket reselling) ─────────────────────────
+class StorageStatusResponse(BaseModel):
+    configured: bool = False
+    can_issue_credentials: bool = False
+    endpoint: str = ""
+
+
+class BucketSummary(BaseModel):
+    name: str
+    display_name: str = ""
+    endpoint: str = ""
+
+
+class BucketProvisionRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+
+
+class BucketCreated(BaseModel):
+    name: str
+    endpoint: str = ""
+    access_key_id: str = ""
+    secret_access_key: str = ""  # S3 secret — surfaced ONCE, never stored
+    credentials_issued: bool = False

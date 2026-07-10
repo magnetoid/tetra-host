@@ -546,3 +546,23 @@ export interface DatabaseTargets {
   servers: DatabaseTargetOption[]
   projects: DatabaseTargetOption[]
 }
+
+export interface BucketRecord {
+  name: string
+  display_name: string
+  endpoint: string
+}
+
+export interface BucketCreated {
+  name: string
+  endpoint: string
+  access_key_id: string
+  secret_access_key: string
+  credentials_issued: boolean
+}
+
+export interface StorageStatus {
+  configured: boolean
+  can_issue_credentials: boolean
+  endpoint: string
+}
