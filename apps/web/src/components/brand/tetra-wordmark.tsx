@@ -21,7 +21,7 @@ export function TetraWordmark({ label = "Tetra AI Cloud" }: { label?: string }) 
           />
         </svg>
       </span>
-      <span className="font-[family-name:var(--font-space-grotesk)] text-lg font-semibold tracking-tight">
+      <span className="font-[family-name:var(--font-geist)] text-lg font-semibold tracking-tight">
         {label}
       </span>
     </span>

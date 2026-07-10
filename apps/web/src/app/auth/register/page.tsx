@@ -40,7 +40,7 @@ export default async function RegisterPage() {
           <Link href="/">
             <TetraWordmark />
           </Link>
-          <span className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="font-[family-name:var(--font-geist-mono)] text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             control&nbsp;plane
           </span>
         </div>
@@ -58,7 +58,7 @@ export default async function RegisterPage() {
         </div>
 
         <div className="relative">
-          <h1 className="font-[family-name:var(--font-space-grotesk)] text-[2.6rem] font-semibold leading-[1.05] tracking-tight">
+          <h1 className="font-[family-name:var(--font-geist)] text-[2.6rem] font-semibold leading-[1.05] tracking-tight">
             Host your stack on{" "}
             <span className="bg-gradient-to-r from-violet-400 via-violet-500 to-cyan-400 bg-clip-text text-transparent">
               one platform.
@@ -69,7 +69,7 @@ export default async function RegisterPage() {
             plane built for serious teams.
           </p>
 
-          <div className="mt-8 grid max-w-md gap-y-3 font-[family-name:var(--font-jetbrains-mono)] text-[12px]">
+          <div className="mt-8 grid max-w-md gap-y-3 font-[family-name:var(--font-geist-mono)] text-[12px]">
             {CAPABILITIES.map((cap) => (
               <div key={cap.code} className="flex items-start gap-3">
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-status-live" />
@@ -92,10 +92,10 @@ export default async function RegisterPage() {
             </Link>
           </div>
 
-          <div className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-primary">
+          <div className="font-[family-name:var(--font-geist-mono)] text-[11px] uppercase tracking-[0.2em] text-primary">
             Get started
           </div>
-          <h2 className="mt-2 font-[family-name:var(--font-space-grotesk)] text-3xl font-semibold tracking-tight">
+          <h2 className="mt-2 font-[family-name:var(--font-geist)] text-3xl font-semibold tracking-tight">
             Create an account
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">

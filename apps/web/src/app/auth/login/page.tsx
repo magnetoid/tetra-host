@@ -54,7 +54,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <Link href="/">
             <TetraWordmark />
           </Link>
-          <span className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="font-[family-name:var(--font-geist-mono)] text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             control&nbsp;plane
           </span>
         </div>
@@ -72,7 +72,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         <div className="relative">
-          <h1 className="font-[family-name:var(--font-space-grotesk)] text-[2.6rem] font-semibold leading-[1.05] tracking-tight">
+          <h1 className="font-[family-name:var(--font-geist)] text-[2.6rem] font-semibold leading-[1.05] tracking-tight">
             Deploy the whole stack
             <br />
             from{" "}
@@ -85,7 +85,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             control plane.
           </p>
 
-          <div className="mt-8 grid max-w-md grid-cols-2 gap-x-8 gap-y-3 font-[family-name:var(--font-jetbrains-mono)] text-[12px]">
+          <div className="mt-8 grid max-w-md grid-cols-2 gap-x-8 gap-y-3 font-[family-name:var(--font-geist-mono)] text-[12px]">
             {PLANES.map((plane, i) => (
               <div key={plane.code} className="flex items-center gap-2.5">
                 <span
@@ -109,10 +109,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </Link>
           </div>
 
-          <div className="font-[family-name:var(--font-jetbrains-mono)] text-[11px] uppercase tracking-[0.2em] text-primary">
+          <div className="font-[family-name:var(--font-geist-mono)] text-[11px] uppercase tracking-[0.2em] text-primary">
             Admin access
           </div>
-          <h2 className="mt-2 font-[family-name:var(--font-space-grotesk)] text-3xl font-semibold tracking-tight">
+          <h2 className="mt-2 font-[family-name:var(--font-geist)] text-3xl font-semibold tracking-tight">
             Sign in
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">Access your Tetra AI Cloud control plane.</p>
@@ -128,12 +128,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <div className="mt-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="font-[family-name:var(--font-jetbrains-mono)] text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="font-[family-name:var(--font-geist-mono)] text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
               Secured
             </span>
             <div className="h-px flex-1 bg-border" />
           </div>
-          <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 font-[family-name:var(--font-jetbrains-mono)] text-[11px] text-muted-foreground">
+          <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 font-[family-name:var(--font-geist-mono)] text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="h-1 w-1 rounded-full bg-status-ok" />
               CSRF protected

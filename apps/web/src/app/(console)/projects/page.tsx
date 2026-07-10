@@ -128,7 +128,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       <PageHeader
         eyebrow="Projects"
         title="Projects"
-        description="Each project holds its deployments — Coolify projects with their resources, and Tetra-engine deployments, in one place."
+        description="Projects hold apps, and each app has its deployments — Coolify projects and Tetra-engine apps in one place."
         action={
           <div className="flex items-center gap-3">
             <RefreshLink href="/projects?refresh=1" label="Refresh" />
@@ -160,7 +160,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                       <SourceBadge source={project.source} />
                     </div>
                     <div className="font-mono text-xs text-muted-foreground">
-                      {project.resources.length} deployment
+                      {project.resources.length} app
                       {project.resources.length === 1 ? "" : "s"}
                     </div>
                   </div>
