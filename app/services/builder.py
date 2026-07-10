@@ -86,6 +86,7 @@ class Builder:
         nixpacks_bin: str = "nixpacks",
         git_bin: str = "git",
         workdir: str = "/tmp/tetra-builds",
+        github_token: str = "",
     ) -> None:
         self._run = runner or _default_runner
         self._stream = stream_runner or _default_stream_runner
@@ -93,6 +94,22 @@ class Builder:
         self.nixpacks = nixpacks_bin
         self.git = git_bin
         self.workdir = workdir.rstrip("/")
+        self.github_token = github_token
+
+    def _auth_url(self, git_url: str) -> str:
+        """Inject the GitHub token so PRIVATE github.com HTTPS repos can clone. Other hosts and
+        non-HTTPS URLs pass through untouched (SSH/public need no token)."""
+        if self.github_token and git_url.startswith("https://github.com/"):
+            return git_url.replace(
+                "https://", f"https://x-access-token:{self.github_token}@", 1
+            )
+        return git_url
+
+    def _scrub(self, text: str) -> str:
+        """Never let the token reach a build log or error surface."""
+        if not self.github_token:
+            return text
+        return text.replace(self.github_token, "***").replace("x-access-token:***@", "")
 
     async def _exec(
         self, argv: list[str], *, cwd: str | None = None, on_line: LineSink | None = None
@@ -117,8 +134,22 @@ class Builder:
         return rc == 0
 
     async def clone(self, git_url: str, ref: str, dest: str) -> str:
-        """Shallow-clone ``ref`` of ``git_url`` into ``dest``; return the resolved commit SHA."""
-        await self._exec([self.git, "clone", "--depth", "1", "--branch", ref, git_url, dest])
+        """Shallow-clone ``ref`` of ``git_url`` into ``dest``; return the resolved commit SHA.
+
+        Private github.com repos are authenticated with the configured token (never logged).
+        A missing-credentials failure on an unauthenticated clone gets a clear hint."""
+        url = self._auth_url(git_url)
+        try:
+            await self._exec([self.git, "clone", "--depth", "1", "--branch", ref, url, dest])
+        except BuildError as exc:
+            message = self._scrub(exc.message)
+            if not self.github_token and "could not read Username" in exc.message:
+                message = (
+                    "Authentication required — this looks like a private repository. "
+                    "Set GITHUB_TOKEN on the host (a PAT with repo:read) to deploy it. "
+                    f"({message})"
+                )
+            raise BuildError(message=message, code=exc.code) from exc
         out = await self._exec([self.git, "-C", dest, "rev-parse", "HEAD"])
         sha = out.strip()
         return sha if _SHA.match(sha) else ""

@@ -140,7 +140,11 @@ class DeploysService:
         self.request = request
         settings = get_settings()
         self.engine = DockerEngine(docker_bin=settings.docker_bin)
-        self.builder = Builder(docker_bin=settings.docker_bin, nixpacks_bin=settings.nixpacks_bin)
+        self.builder = Builder(
+            docker_bin=settings.docker_bin,
+            nixpacks_bin=settings.nixpacks_bin,
+            github_token=settings.github_token,
+        )
         self.registry = ImageRegistry(url=settings.registry_url, docker_bin=settings.docker_bin)
         self.keep_images = settings.registry_keep_images
         self.base_domain = settings.apps_base_domain

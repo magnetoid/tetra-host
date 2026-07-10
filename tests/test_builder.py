@@ -79,3 +79,38 @@ def test_build_raises_on_nonzero_exit():
         asyncio.run(Builder(runner=runner).build("/src", "img:1"))
     assert "kaboom" in str(exc.value)
     assert exc.value.code == 502
+
+
+def test_clone_injects_github_token_for_private_repo():
+    rec: list[list[str]] = []
+    builder = Builder(runner=make_runner(rec, has_dockerfile=True), github_token="ghp_secret")
+    asyncio.run(builder.build_from_git("https://github.com/x/y", "main", project="p"))
+    clone = next(a for a in rec if a[:2] == ["git", "clone"])
+    assert any("https://x-access-token:ghp_secret@github.com/x/y" == part for part in clone)
+
+
+def test_clone_hints_private_repo_when_no_token():
+    async def runner(argv, cwd):
+        if argv[:2] == ["git", "clone"]:
+            return (128, "", "fatal: could not read Username for 'https://github.com': No such device or address")
+        return (0, "", "")
+
+    with pytest.raises(BuildError) as exc:
+        asyncio.run(Builder(runner=runner).build_from_git("https://github.com/x/y", "main", project="p"))
+    msg = str(exc.value)
+    assert "private repository" in msg.lower()
+    assert "GITHUB_TOKEN" in msg
+
+
+def test_clone_scrubs_token_from_errors():
+    async def runner(argv, cwd):
+        if argv[:2] == ["git", "clone"]:
+            return (128, "", "fatal: Authentication failed for 'https://x-access-token:ghp_secret@github.com/x/y'")
+        return (0, "", "")
+
+    builder = Builder(runner=runner, github_token="ghp_secret")
+    with pytest.raises(BuildError) as exc:
+        asyncio.run(builder.build_from_git("https://github.com/x/y", "main", project="p"))
+    msg = str(exc.value)
+    assert "ghp_secret" not in msg
+    assert "x-access-token" not in msg

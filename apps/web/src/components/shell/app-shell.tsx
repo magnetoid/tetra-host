@@ -5,6 +5,7 @@ import { CommandMenu } from "@/components/command/command-menu"
 import { ConsoleNav } from "@/components/shell/console-nav"
 import { PendingGate } from "@/components/shell/pending-gate"
 import { ProjectSwitcher } from "@/components/shell/project-switcher"
+import { SidebarProjectSelector } from "@/components/shell/sidebar-project-selector"
 import { StatusSpine } from "@/components/shell/status-spine"
 import { UserMenu } from "@/components/ui/user-menu"
 import { APP_ENV } from "@/lib/env"
@@ -34,6 +35,8 @@ export function AppShell({
             Control plane
           </div>
         </Link>
+
+        {projects.length > 0 ? <SidebarProjectSelector projects={projects} /> : null}
 
         <div className="mt-6 rounded-xl border border-border bg-background/60 p-4 text-sm">
           <div className="flex items-center justify-between">
