@@ -57,6 +57,8 @@ from app.api.contracts import (
     CachePurgeRequest,
     DatabaseProvisionRequest,
     DatabaseSummary,
+    DatabaseTargetOption,
+    DatabaseTargets,
     DashboardMetrics,
     DashboardResponse,
     DeploymentDetail,
@@ -3026,6 +3028,19 @@ async def api_list_databases(
         )
         for db in databases
     ]
+
+
+@router.get("/databases/targets", response_model=DatabaseTargets)
+async def api_database_targets(
+    request: Request,
+    _: AdminUser = Depends(get_current_api_admin),
+) -> DatabaseTargets:
+    """Coolify servers + projects to populate the provisioning form's pickers."""
+    data = await DatabasesService(request).list_targets()
+    return DatabaseTargets(
+        servers=[DatabaseTargetOption(**s) for s in data["servers"]],
+        projects=[DatabaseTargetOption(**p) for p in data["projects"]],
+    )
 
 
 @router.post("/databases", response_model=ActionResponse)

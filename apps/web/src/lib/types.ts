@@ -520,3 +520,29 @@ export interface AiUsageReport {
   by_model: AiUsageByModel[]
   events: AiUsageEventRecord[]
 }
+
+export interface DatabaseRecord {
+  id: string
+  name: string
+  type: string
+  status: string
+  internal_db_url: string
+  image: string
+}
+
+export interface BackupConfig {
+  id: string
+  frequency: string
+  retention_days: number
+  s3_storage_id: string
+}
+
+export interface DatabaseTargetOption {
+  uuid: string
+  name: string
+}
+
+export interface DatabaseTargets {
+  servers: DatabaseTargetOption[]
+  projects: DatabaseTargetOption[]
+}

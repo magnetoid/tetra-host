@@ -930,3 +930,15 @@ class BackupCreateRequest(BaseModel):
     frequency: str = "0 2 * * *"
     retention_days: int = 7
     s3_storage_id: str = ""
+
+
+class DatabaseTargetOption(BaseModel):
+    uuid: str
+    name: str
+
+
+class DatabaseTargets(BaseModel):
+    """Coolify servers + projects offered as pickers in the provisioning form."""
+
+    servers: list[DatabaseTargetOption] = []
+    projects: list[DatabaseTargetOption] = []

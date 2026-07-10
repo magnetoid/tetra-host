@@ -30,6 +30,28 @@ class DatabasesService:
                 status_code=403,
             )
 
+    async def list_targets(self) -> dict[str, list[dict[str, str]]]:
+        """Coolify servers + projects to populate the provisioning form's pickers.
+
+        Best-effort: returns empty lists if Coolify isn't configured or a call fails, so the
+        console can still render (the form just shows no options)."""
+        servers: list[dict[str, str]] = []
+        projects: list[dict[str, str]] = []
+        try:
+            for s in await self.client.list_servers():
+                if s.is_usable:
+                    servers.append({"uuid": s.id, "name": s.name})
+        except ProviderAPIError:
+            pass
+        try:
+            for p in await self.client.list_projects():
+                uuid = str(p.get("uuid") or p.get("id") or "")
+                if uuid:
+                    projects.append({"uuid": uuid, "name": str(p.get("name") or uuid)})
+        except ProviderAPIError:
+            pass
+        return {"servers": servers, "projects": projects}
+
     async def _ensure_database_access(
         self,
         session: AsyncSession,
