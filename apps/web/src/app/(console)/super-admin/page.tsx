@@ -232,7 +232,14 @@ export default async function SuperAdminPage() {
 
       {/* Recent activity */}
       <Card>
-        <CardHeader title="Recent activity" action={`${recent_events.length} events`} />
+        <CardHeader
+          title="Recent activity"
+          action={
+            <Link href="/audit" className="transition-colors hover:text-foreground">
+              Full audit log →
+            </Link>
+          }
+        />
         <div className="mt-4">
           {recent_events.length === 0 ? (
             <EmptyState

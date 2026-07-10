@@ -93,6 +93,12 @@ export const consoleNavItems: NavItem[] = [
     platformAdminOnly: true,
   },
   {
+    href: "/audit",
+    label: "Audit log",
+    icon: faListCheck,
+    platformAdminOnly: true,
+  },
+  {
     href: "/tenants",
     label: "Tenants",
     icon: faUsers,

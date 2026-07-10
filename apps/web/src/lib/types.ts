@@ -247,6 +247,13 @@ export interface AuditEventRecord {
   created_at: string
 }
 
+export interface AuditLogResponse {
+  events: AuditEventRecord[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface PlatformRevenue {
   resale_total_usd: number
   margin_total_usd: number
