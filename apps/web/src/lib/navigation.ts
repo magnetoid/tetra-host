@@ -3,9 +3,12 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 import {
   faBox,
   faBug,
+  faBuilding,
   faChartBar,
   faChartLine,
+  faClockRotateLeft,
   faCloud,
+  faCoins,
   faCrown,
   faDatabase,
   faEarthAmericas,
@@ -29,9 +32,29 @@ export type NavItem = {
   href: string
   label: string
   icon?: IconDefinition
+  /** Sidebar section this item belongs to (console items only; public nav omits it). */
+  section?: NavSection
   /** When true, only visible to admins with role === "platform_admin". */
   platformAdminOnly?: boolean
 }
+
+/** Sidebar section headers, in display order. */
+export type NavSection =
+  | "Overview"
+  | "Build & run"
+  | "Data"
+  | "Services"
+  | "Workspace"
+  | "Platform admin"
+
+export const NAV_SECTIONS: NavSection[] = [
+  "Overview",
+  "Build & run",
+  "Data",
+  "Services",
+  "Workspace",
+  "Platform admin",
+]
 
 export type ProjectNavItem = {
   href: string
@@ -60,50 +83,72 @@ export function projectNavItems(projectId: string): ProjectNavItem[] {
 }
 
 export const consoleNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Overview", icon: faGaugeHigh },
-  { href: "/projects", label: "Projects", icon: faServer },
-  { href: "/deploys", label: "Deployments", icon: faRocket },
-  { href: "/apps", label: "Apps", icon: faBox },
-  { href: "/databases", label: "Databases", icon: faDatabase },
-  { href: "/storage", label: "Storage", icon: faCloud },
-  { href: "/ai", label: "AI", icon: faWandSparkles },
-  { href: "/jobs", label: "Jobs", icon: faListCheck },
-  { href: "/logs", label: "Logs", icon: faTerminal },
-  { href: "/mail", label: "Mail", icon: faEnvelope },
-  { href: "/dns", label: "DNS", icon: faGlobe },
-  { href: "/domains", label: "Domains", icon: faEarthAmericas },
-  { href: "/team", label: "Team", icon: faUsers },
-  { href: "/marketplace", label: "Marketplace", icon: faStore },
-  { href: "/admin", label: "Admin", icon: faUserShield },
-  { href: "/usage", label: "Usage", icon: faChartBar },
+  // Overview
+  { section: "Overview", href: "/dashboard", label: "Overview", icon: faGaugeHigh },
+
+  // Build & run — everything you ship and operate
+  { section: "Build & run", href: "/projects", label: "Projects", icon: faServer },
+  { section: "Build & run", href: "/deploys", label: "Deployments", icon: faRocket },
+  { section: "Build & run", href: "/apps", label: "Apps", icon: faBox },
+  { section: "Build & run", href: "/jobs", label: "Jobs", icon: faListCheck },
+  { section: "Build & run", href: "/logs", label: "Logs", icon: faTerminal },
+
+  // Data
+  { section: "Data", href: "/databases", label: "Databases", icon: faDatabase },
+  { section: "Data", href: "/storage", label: "Storage", icon: faCloud },
+
+  // Services
+  { section: "Services", href: "/ai", label: "AI", icon: faWandSparkles },
+  { section: "Services", href: "/mail", label: "Mail", icon: faEnvelope },
+  { section: "Services", href: "/dns", label: "DNS", icon: faGlobe },
+  { section: "Services", href: "/domains", label: "Domains", icon: faEarthAmericas },
+
+  // Workspace — account-level
+  { section: "Workspace", href: "/usage", label: "Usage", icon: faChartBar },
+  { section: "Workspace", href: "/team", label: "Team", icon: faUsers },
+  { section: "Workspace", href: "/marketplace", label: "Marketplace", icon: faStore },
+
+  // Platform admin — Cloud Industry operators only
   {
+    section: "Platform admin",
     href: "/super-admin",
-    label: "Super Admin",
+    label: "Platform",
     icon: faCrown,
     platformAdminOnly: true,
   },
   {
+    section: "Platform admin",
+    href: "/admin",
+    label: "Administrators",
+    icon: faUserShield,
+    platformAdminOnly: true,
+  },
+  {
+    section: "Platform admin",
+    href: "/tenants",
+    label: "Tenants",
+    icon: faBuilding,
+    platformAdminOnly: true,
+  },
+  {
+    section: "Platform admin",
     href: "/plans",
     label: "Plans",
     icon: faLayerGroup,
     platformAdminOnly: true,
   },
   {
+    section: "Platform admin",
     href: "/credits",
     label: "AI credits",
-    icon: faKey,
+    icon: faCoins,
     platformAdminOnly: true,
   },
   {
+    section: "Platform admin",
     href: "/audit",
     label: "Audit log",
-    icon: faListCheck,
-    platformAdminOnly: true,
-  },
-  {
-    href: "/tenants",
-    label: "Tenants",
-    icon: faUsers,
+    icon: faClockRotateLeft,
     platformAdminOnly: true,
   },
 ]

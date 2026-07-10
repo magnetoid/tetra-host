@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { consoleNavItems, projectNavItems } from "@/lib/navigation"
+import { consoleNavItems, NAV_SECTIONS, projectNavItems } from "@/lib/navigation"
 import { activeGroup, type ProjectGroup } from "@/lib/projects"
 import { cn } from "@/lib/utils"
 
@@ -96,21 +96,32 @@ export function ConsoleNav({
     )
   }
 
-  // ── Everywhere else: the global menu ─────────────────────────────────────
+  // ── Everywhere else: the global menu, grouped into sections ──────────────
   const visibleItems = consoleNavItems.filter(
     (item) => !item.platformAdminOnly || adminRole === "platform_admin",
   )
   return (
-    <nav className="mt-8 space-y-1 text-sm">
-      {visibleItems.map((item) => (
-        <NavRow
-          key={item.href}
-          href={item.href}
-          label={item.label}
-          icon={item.icon}
-          active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-        />
-      ))}
+    <nav className="mt-8 space-y-6 text-sm">
+      {NAV_SECTIONS.map((section) => {
+        const items = visibleItems.filter((item) => item.section === section)
+        if (items.length === 0) return null
+        return (
+          <div key={section} className="space-y-1">
+            <div className="px-3 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
+              {section}
+            </div>
+            {items.map((item) => (
+              <NavRow
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+              />
+            ))}
+          </div>
+        )
+      })}
     </nav>
   )
 }

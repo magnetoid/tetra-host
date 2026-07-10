@@ -14,10 +14,12 @@ type MailPageProps = {
 export default async function MailPage({ searchParams }: MailPageProps) {
   const session = await requireConsoleSession()
   const params = await searchParams
+  // Mail is dormant until Mailcow is connected — a failed/unconfigured fetch must
+  // degrade to an empty state, never crash the page to the error boundary.
   const mail = await fetchBackend<MailResponse>("/mail", {
     token: session.token,
     searchParams: { refresh: params.refresh === "1" ? "1" : undefined },
-  })
+  }).catch(() => ({ providers: [], domains: [], mailboxes: [] }) as MailResponse)
 
   return (
     <div className="space-y-6">

@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { Command } from "cmdk"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
-import { consoleNavItems } from "@/lib/navigation"
+import { consoleNavItems, NAV_SECTIONS } from "@/lib/navigation"
 import { toggleTheme } from "@/lib/theme"
 import {
   faArrowRightFromBracket,
@@ -104,25 +104,31 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
                   No results.
                 </Command.Empty>
 
-                <Command.Group heading="Navigation">
-                  {navItems.map((item) => (
-                    <Command.Item
-                      key={item.href}
-                      value={`nav ${item.label}`}
-                      onSelect={() => go(item.href)}
-                      className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground data-[selected=true]:bg-accent"
-                    >
-                      {item.icon ? (
-                        <FontAwesomeIcon
-                          icon={item.icon}
-                          className="h-4 w-4 text-muted-foreground"
-                          fixedWidth
-                        />
-                      ) : null}
-                      {item.label}
-                    </Command.Item>
-                  ))}
-                </Command.Group>
+                {NAV_SECTIONS.map((section) => {
+                  const items = navItems.filter((item) => item.section === section)
+                  if (items.length === 0) return null
+                  return (
+                    <Command.Group key={section} heading={section}>
+                      {items.map((item) => (
+                        <Command.Item
+                          key={item.href}
+                          value={`${section} ${item.label}`}
+                          onSelect={() => go(item.href)}
+                          className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground data-[selected=true]:bg-accent"
+                        >
+                          {item.icon ? (
+                            <FontAwesomeIcon
+                              icon={item.icon}
+                              className="h-4 w-4 text-muted-foreground"
+                              fixedWidth
+                            />
+                          ) : null}
+                          {item.label}
+                        </Command.Item>
+                      ))}
+                    </Command.Group>
+                  )
+                })}
 
                 {projects.length > 0 ? (
                   <Command.Group heading="Projects">

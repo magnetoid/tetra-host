@@ -38,7 +38,7 @@ export default async function AccountPage() {
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Role</dt>
-            <dd className="mt-1 text-sm capitalize">{(admin.role || "owner").replace("_", " ")}</dd>
+            <dd className="mt-1 text-sm capitalize">{(admin.role || "member").replace("_", " ")}</dd>
           </div>
         </dl>
       </div>
