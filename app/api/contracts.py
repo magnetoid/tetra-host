@@ -1007,3 +1007,37 @@ class BucketCreated(BaseModel):
     access_key_id: str = ""
     secret_access_key: str = ""  # S3 secret — surfaced ONCE, never stored
     credentials_issued: bool = False
+
+
+# ── Scheduled jobs (cron-triggered HTTP) ────────────────────────────────────
+class ScheduledJobSummary(BaseModel):
+    id: str
+    name: str = ""
+    cron: str = ""
+    url: str = ""
+    method: str = "GET"
+    enabled: bool = True
+    last_run_at: str = ""
+    last_status: str = ""
+    last_detail: str = ""
+
+
+class JobRunSummary(BaseModel):
+    status: str = "ok"
+    detail: str = ""
+    duration_ms: int = 0
+    started_at: str = ""
+
+
+class JobCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    cron: str = Field(..., min_length=1)
+    url: str = Field(..., min_length=1)
+    method: str = "GET"
+
+
+class JobUpdateRequest(BaseModel):
+    cron: str | None = None
+    url: str | None = None
+    method: str | None = None
+    enabled: bool | None = None

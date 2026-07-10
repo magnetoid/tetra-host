@@ -11,6 +11,7 @@ from app.models.billing import (
 from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.domain import Domain
+from app.models.job import JobRun, ScheduledJob
 from app.models.plan import Plan
 from app.models.preview_env import PreviewEnv
 from app.models.tenant import Tenant
@@ -25,7 +26,9 @@ __all__ = [
     "DeployHook",
     "Deployment",
     "Domain",
+    "JobRun",
     "Plan",
+    "ScheduledJob",
     "PreviewEnv",
     "PricingRule",
     "ResellerCharge",

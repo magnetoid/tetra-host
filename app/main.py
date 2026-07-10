@@ -15,6 +15,7 @@ from app.api.routes import router as api_router
 from app.cache import TTLCache
 from app.config import get_settings
 from app.db import close_db, init_db, session_scope
+from app.services.scheduler import start_scheduler, stop_scheduler
 from app.modules import load_plugins
 from app.modules.auth.service import AuthService
 from app.observability import (
@@ -43,9 +44,13 @@ async def lifespan(app: FastAPI):
     async with session_scope() as session:
         auth_service = AuthService(session)
         await auth_service.ensure_bootstrap_admin(settings)
+    if settings.scheduler_enabled:
+        start_scheduler(app)
     try:
         yield
     finally:
+        if settings.scheduler_enabled:
+            await stop_scheduler(app)
         await app.state.http_client.aclose()
         await close_db()
 

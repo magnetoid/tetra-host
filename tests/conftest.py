@@ -13,6 +13,7 @@ os.environ.setdefault("ALLOWED_HOSTS_RAW", "127.0.0.1,localhost,testserver")
 os.environ.setdefault("ADMIN_BOOTSTRAP_EMAIL", "admin@example.com")
 os.environ.setdefault("ADMIN_BOOTSTRAP_PASSWORD", "supersecurepassword")
 os.environ.setdefault("ADMIN_BOOTSTRAP_NAME", "Test Admin")
+os.environ.setdefault("SCHEDULER_ENABLED", "false")
 
 TEST_DB_PATH = Path("data/test_tetra_host.db")
 

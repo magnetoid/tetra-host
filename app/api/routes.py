@@ -59,6 +59,10 @@ from app.api.contracts import (
     BucketProvisionRequest,
     BucketSummary,
     CachePurgeRequest,
+    JobCreateRequest,
+    JobRunSummary,
+    JobUpdateRequest,
+    ScheduledJobSummary,
     DatabaseProvisionRequest,
     DatabaseSummary,
     DatabaseTargetOption,
@@ -150,6 +154,7 @@ from app.models.billing import (
 )
 from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
+from app.modules.jobs.service import JobError, JobsService
 from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.storage_service import StorageService
 from app.modules.reseller.service import ResellerError, ResellerService
@@ -3306,3 +3311,87 @@ async def api_delete_bucket(
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
     return {"ok": True}
+
+
+# ── Scheduled jobs (cron-triggered HTTP, run by the in-process scheduler) ───
+def _job_summary(job) -> ScheduledJobSummary:
+    return ScheduledJobSummary(
+        id=job.id, name=job.name, cron=job.cron, url=job.url, method=job.method,
+        enabled=job.enabled,
+        last_run_at=job.last_run_at.isoformat() if job.last_run_at else "",
+        last_status=job.last_status, last_detail=job.last_detail,
+    )
+
+
+@router.get("/jobs", response_model=list[ScheduledJobSummary])
+async def api_list_jobs(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[ScheduledJobSummary]:
+    jobs = await JobsService(session).list_for_tenant(current_admin.tenant_id)
+    return [_job_summary(j) for j in jobs]
+
+
+@router.post("/jobs", response_model=ScheduledJobSummary)
+async def api_create_job(
+    payload: JobCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ScheduledJobSummary:
+    try:
+        job = await JobsService(session).create(
+            current_admin.tenant_id,
+            name=payload.name, cron=payload.cron, url=payload.url, method=payload.method,
+        )
+    except JobError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return _job_summary(job)
+
+
+@router.patch("/jobs/{job_id}", response_model=ScheduledJobSummary)
+async def api_update_job(
+    job_id: str,
+    payload: JobUpdateRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ScheduledJobSummary:
+    try:
+        job = await JobsService(session).update(
+            current_admin.tenant_id, job_id,
+            cron=payload.cron, url=payload.url, method=payload.method, enabled=payload.enabled,
+        )
+    except JobError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return _job_summary(job)
+
+
+@router.delete("/jobs/{job_id}")
+async def api_delete_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    try:
+        await JobsService(session).delete(current_admin.tenant_id, job_id)
+    except JobError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return {"ok": True}
+
+
+@router.get("/jobs/{job_id}/runs", response_model=list[JobRunSummary])
+async def api_job_runs(
+    job_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[JobRunSummary]:
+    try:
+        runs = await JobsService(session).list_runs(current_admin.tenant_id, job_id)
+    except JobError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return [
+        JobRunSummary(
+            status=r.status, detail=r.detail, duration_ms=r.duration_ms,
+            started_at=r.started_at.isoformat() if r.started_at else "",
+        )
+        for r in runs
+    ]
