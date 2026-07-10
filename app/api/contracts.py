@@ -783,6 +783,19 @@ class TenantCreditOverview(BaseModel):
     requests_30d: int = 0
 
 
+# ── Public platform status page ─────────────────────────────────────────────
+class StatusComponent(BaseModel):
+    name: str
+    status: str = "operational"  # operational | degraded | down
+    detail: str = ""
+
+
+class StatusResponse(BaseModel):
+    overall: str = "operational"
+    updated_at: str = ""
+    components: list[StatusComponent] = []
+
+
 # ── Reseller billing (pricing rules + charge ledger) ────────────────────────
 class PricingRuleSummary(BaseModel):
     offering_key: str

@@ -64,6 +64,8 @@ from app.api.contracts import (
     DatabaseTargetOption,
     DatabaseTargets,
     DashboardMetrics,
+    StatusComponent,
+    StatusResponse,
     StorageStatusResponse,
     DashboardResponse,
     DeploymentDetail,
@@ -345,6 +347,54 @@ async def api_ready(request: Request) -> dict[str, object]:
             "csrf": True,
         },
     }
+
+
+@router.get("/status", response_model=StatusResponse)
+async def api_status(request: Request) -> StatusResponse:
+    """PUBLIC platform status page feed. Liveness of the control plane + configured providers,
+    cached 30s so public traffic can't amplify into provider load."""
+    from datetime import UTC, datetime
+
+    from app.services.cloudflare import CloudflareClient
+    from app.services.coolify import CoolifyClient
+
+    async def compute() -> dict:
+        http = request.app.state.http_client
+        cache = request.app.state.cache
+        components: list[dict] = [
+            {"name": "Control plane API", "status": "operational", "detail": "Responding"}
+        ]
+
+        coolify = CoolifyClient.from_settings(http_client=http, cache=cache)
+        if coolify.is_configured():
+            try:
+                await coolify.list_projects()
+                components.append({"name": "Applications", "status": "operational", "detail": "Reachable"})
+            except ProviderAPIError as exc:
+                components.append({"name": "Applications", "status": "degraded", "detail": str(exc)[:120]})
+
+        cloudflare = CloudflareClient.from_settings(http_client=http, cache=cache)
+        if cloudflare.is_configured():
+            try:
+                await cloudflare.list_zones()
+                components.append({"name": "DNS", "status": "operational", "detail": "Reachable"})
+            except ProviderAPIError as exc:
+                components.append({"name": "DNS", "status": "degraded", "detail": str(exc)[:120]})
+
+        settings = request.state.settings
+        if settings.openrouter_runtime_key or settings.openrouter_provisioning_key:
+            components.append({"name": "AI gateway", "status": "operational", "detail": "Configured"})
+
+        statuses = {c["status"] for c in components}
+        overall = "down" if "down" in statuses else "degraded" if "degraded" in statuses else "operational"
+        return {"overall": overall, "updated_at": datetime.now(UTC).isoformat(), "components": components}
+
+    data = await request.app.state.cache.get_or_set("status:public", 30, compute)
+    return StatusResponse(
+        overall=data["overall"],
+        updated_at=data["updated_at"],
+        components=[StatusComponent(**c) for c in data["components"]],
+    )
 
 
 @router.post("/auth/login", response_model=AuthResponse)

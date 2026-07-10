@@ -102,5 +102,6 @@ export const consoleNavItems: NavItem[] = [
 
 export const publicNavItems: NavItem[] = [
   { href: "/docs", label: "Docs" },
+  { href: "/status", label: "Status" },
   { href: "/auth/login", label: "Sign in" },
 ]

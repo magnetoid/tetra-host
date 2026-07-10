@@ -589,3 +589,15 @@ export interface AiStatus {
   platform_credit_usd: number
   platform_used_usd: number
 }
+
+export interface StatusComponent {
+  name: string
+  status: string
+  detail: string
+}
+
+export interface StatusResponse {
+  overall: string
+  updated_at: string
+  components: StatusComponent[]
+}
