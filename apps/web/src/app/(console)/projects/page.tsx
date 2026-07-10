@@ -62,6 +62,11 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     repository: p.repository,
   }))
 
+  // A project can surface from BOTH Coolify and native deployments — collapse those so it
+  // appears once (fixes duplicate "alethia" / "alethia new" style entries).
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const seen = new Set(coolify.map((p) => norm(p.name)))
+
   // Group native deployments by project name → one platform project per group.
   const groups = new Map<string, DeploymentRecord[]>()
   for (const record of native) {
@@ -70,6 +75,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     groups.set(record.project, list)
   }
   for (const [name, records] of groups) {
+    if (seen.has(norm(name))) continue // already represented (Coolify or an earlier group)
+    seen.add(norm(name))
     const latest = records.reduce((a, b) => (a.created_at >= b.created_at ? a : b))
     const unified = unifyNative(latest)
     projects.push({

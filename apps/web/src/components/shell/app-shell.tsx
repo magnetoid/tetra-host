@@ -55,7 +55,7 @@ export function AppShell({
           ) : null}
         </div>
 
-        <ConsoleNav adminRole={admin.role} projects={projects} />
+        <ConsoleNav adminRole={admin.role} tenantName={admin.tenant_name} projects={projects} />
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
