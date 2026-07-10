@@ -9,8 +9,29 @@ import { StatCard } from "@/components/ui/stat-card"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
-import { faBox, faDatabase, faLayerGroup, faUsers, faUserShield } from "@/lib/icons"
-import type { PlatformOverview } from "@/lib/types"
+import {
+  faBox,
+  faChartBar,
+  faChartLine,
+  faDatabase,
+  faKey,
+  faLayerGroup,
+  faUsers,
+  faUserShield,
+  faWandSparkles,
+} from "@/lib/icons"
+import type { PlatformOverview, StatusResponse } from "@/lib/types"
+
+function usd(v: number): string {
+  const abs = Math.abs(v)
+  return `$${v.toFixed(abs > 0 && abs < 1 ? 4 : 2)}`
+}
+
+const DOT: Record<string, string> = {
+  operational: "bg-status-ok",
+  degraded: "bg-status-warn",
+  down: "bg-status-err",
+}
 
 function vcpus(millicores: number): string {
   return (millicores / 1000).toFixed(millicores % 1000 === 0 ? 0 : 1)
@@ -46,10 +67,12 @@ export default async function SuperAdminPage() {
     )
   }
 
-  const overview = await fetchBackend<PlatformOverview>("/admin/overview", {
-    token: session.token,
-  })
-  const { tenant_status, totals, committed_resources, pending_tenants, recent_events } = overview
+  const [overview, status] = await Promise.all([
+    fetchBackend<PlatformOverview>("/admin/overview", { token: session.token }),
+    fetchBackend<StatusResponse>("/status", { token: session.token }).catch(() => null),
+  ])
+  const { tenant_status, totals, committed_resources, revenue, ai, pending_tenants, recent_events } =
+    overview
 
   return (
     <div className="space-y-6">
@@ -67,6 +90,67 @@ export default async function SuperAdminPage() {
         <StatCard icon={faDatabase} label="Databases" value={totals.databases} accent="text-status-warn" />
         <StatCard icon={faLayerGroup} label="Plans" value={totals.plans} accent="text-status-err" />
       </section>
+
+      {/* Revenue & AI money */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <StatCard icon={faChartBar} label="Resale (all-time)" value={usd(revenue.resale_total_usd)} accent="text-status-ok" />
+        <StatCard icon={faChartLine} label="Margin (all-time)" value={usd(revenue.margin_total_usd)} hint={`${revenue.charges} charges`} accent="text-primary" />
+        <StatCard icon={faChartBar} label="Resale (30d)" value={usd(revenue.resale_30d_usd)} accent="text-status-live" />
+        <StatCard icon={faKey} label="AI credit float" value={usd(ai.credit_float_usd)} hint="tenant prepaid liability" accent="text-status-warn" />
+        <StatCard icon={faWandSparkles} label="AI spend (30d)" value={usd(ai.spend_30d_usd)} accent="text-primary" />
+        <StatCard icon={faWandSparkles} label="AI calls (30d)" value={ai.requests_30d} accent="text-muted-foreground" />
+      </section>
+
+      {/* Quick actions */}
+      <section className="flex flex-wrap gap-2">
+        {[
+          { href: "/tenants", label: "Tenants" },
+          { href: "/plans", label: "Plans" },
+          { href: "/credits", label: "AI credits" },
+          { href: "/usage", label: "Usage & spend" },
+          { href: "/status", label: "Status page" },
+        ].map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:border-primary/40 hover:bg-accent"
+          >
+            {a.label}
+          </Link>
+        ))}
+      </section>
+
+      {/* Platform health */}
+      <Card>
+        <CardHeader
+          title="Platform health"
+          action={
+            <Link href="/status" className="transition-colors hover:text-foreground">
+              Status page →
+            </Link>
+          }
+        />
+        <div className="mt-4">
+          {status ? (
+            <div className="divide-y divide-border">
+              {status.components.map((c) => (
+                <div key={c.name} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{c.name}</div>
+                    {c.detail ? <div className="truncate text-xs text-muted-foreground">{c.detail}</div> : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className={`size-2 rounded-full ${DOT[c.status] ?? "bg-muted-foreground"}`} />
+                    <span className="text-sm capitalize text-muted-foreground">{c.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Health feed unavailable.</p>
+          )}
+        </div>
+      </Card>
 
       {/* Tenant status breakdown */}
       <Card>

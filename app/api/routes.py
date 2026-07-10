@@ -99,8 +99,10 @@ from app.api.contracts import (
     PlanCreateRequest,
     PlanSummary,
     PlanUpdateRequest,
+    PlatformAiSummary,
     PlatformOverview,
     PlatformResourceUsage,
+    PlatformRevenue,
     PlatformTotals,
     PreviewSummary,
     ProjectAnalytics,
@@ -140,7 +142,12 @@ from app.modules.domains.service import DomainsService
 from app.modules.dns.service import DnsService
 from app.modules.errors.service import ErrorsService
 from app.modules.plans.service import PlanService
-from app.models.billing import MICRO_USD_PER_USD
+from app.models.billing import (
+    MICRO_USD_PER_USD,
+    AiUsageEvent,
+    ResellerCharge,
+    TenantCredit,
+)
 from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.reseller.ai_service import AiResellerService
@@ -2140,6 +2147,48 @@ async def api_admin_overview(
         _tenant_summary(t, plan_key_map.get(t.plan_id, "") if t.plan_id else "") for t in pending
     ]
 
+    # Reseller revenue rolled up from the charge ledger + AI money across all tenants.
+    from datetime import UTC, datetime, timedelta
+
+    since = datetime.now(UTC) - timedelta(days=30)
+    rev = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(ResellerCharge.resale_price_cents), 0),
+                func.coalesce(func.sum(ResellerCharge.margin_cents), 0),
+                func.count(),
+            )
+        )
+    ).one()
+    resale_30d = await session.scalar(
+        select(func.coalesce(func.sum(ResellerCharge.resale_price_cents), 0)).where(
+            ResellerCharge.created_at >= since
+        )
+    ) or 0
+    revenue = PlatformRevenue(
+        resale_total_usd=int(rev[0] or 0) / 100,
+        margin_total_usd=int(rev[1] or 0) / 100,
+        resale_30d_usd=int(resale_30d) / 100,
+        charges=int(rev[2] or 0),
+    )
+
+    credit_float = await session.scalar(
+        select(func.coalesce(func.sum(TenantCredit.balance_micro_usd), 0))
+    ) or 0
+    ai_row = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(AiUsageEvent.billed_micro_usd), 0),
+                func.count(),
+            ).where(AiUsageEvent.created_at >= since)
+        )
+    ).one()
+    ai_summary = PlatformAiSummary(
+        credit_float_usd=int(credit_float) / MICRO_USD_PER_USD,
+        spend_30d_usd=int(ai_row[0] or 0) / MICRO_USD_PER_USD,
+        requests_30d=int(ai_row[1] or 0),
+    )
+
     # Most recent audit events across the whole platform.
     events = list(
         (
@@ -2153,6 +2202,8 @@ async def api_admin_overview(
         tenant_status=tenant_status,
         totals=totals,
         committed_resources=committed,
+        revenue=revenue,
+        ai=ai_summary,
         pending_tenants=pending_tenants,
         recent_events=[_audit_event_summary(e) for e in events],
     )

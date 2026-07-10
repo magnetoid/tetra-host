@@ -247,10 +247,25 @@ export interface AuditEventRecord {
   created_at: string
 }
 
+export interface PlatformRevenue {
+  resale_total_usd: number
+  margin_total_usd: number
+  resale_30d_usd: number
+  charges: number
+}
+
+export interface PlatformAiSummary {
+  credit_float_usd: number
+  spend_30d_usd: number
+  requests_30d: number
+}
+
 export interface PlatformOverview {
   tenant_status: TenantStatusCounts
   totals: PlatformTotals
   committed_resources: PlatformResourceUsage
+  revenue: PlatformRevenue
+  ai: PlatformAiSummary
   pending_tenants: TenantRecord[]
   recent_events: AuditEventRecord[]
 }

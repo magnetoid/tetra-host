@@ -618,6 +618,23 @@ class PlatformResourceUsage(BaseModel):
     disk_mb: int = 0
 
 
+class PlatformRevenue(BaseModel):
+    """Reseller revenue rolled up from the charge ledger (all-time + last 30 days)."""
+
+    resale_total_usd: float = 0.0
+    margin_total_usd: float = 0.0
+    resale_30d_usd: float = 0.0
+    charges: int = 0
+
+
+class PlatformAiSummary(BaseModel):
+    """AI gateway money at a glance across all tenants."""
+
+    credit_float_usd: float = 0.0  # sum of all tenants' prepaid balances (liability)
+    spend_30d_usd: float = 0.0
+    requests_30d: int = 0
+
+
 class AuditEventSummary(BaseModel):
     actor_email: str
     action: str
@@ -849,6 +866,8 @@ class PlatformOverview(BaseModel):
     tenant_status: TenantStatusCounts
     totals: PlatformTotals
     committed_resources: PlatformResourceUsage
+    revenue: PlatformRevenue = PlatformRevenue()
+    ai: PlatformAiSummary = PlatformAiSummary()
     pending_tenants: list[TenantSummary] = []
     recent_events: list[AuditEventSummary] = []
 
