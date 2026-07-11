@@ -2,10 +2,11 @@ import Link from "next/link"
 
 import { SourceBadge } from "@/components/deploys/deployment-card"
 import { ProjectActions } from "@/components/projects/project-actions"
+import { AlertBanner } from "@/components/ui/alert-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { fetchBackend } from "@/lib/api"
+import { ApiError, fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { unifyNative } from "@/lib/deployments"
 import type { DeploymentRecord, ProjectRecord } from "@/lib/types"
@@ -52,15 +53,29 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const params = await searchParams
   const refresh = params.refresh === "1" ? "1" : undefined
 
-  const [coolify, native] = await Promise.all([
+  // Distinguish "no Coolify projects" from "Coolify fetch failed" — a swallowed
+  // error otherwise silently collapses the page to just the native deploys,
+  // which reads as "only 2 projects" instead of "the app list didn't load".
+  const [coolifyResult, native] = await Promise.all([
     fetchBackend<ProjectRecord[]>("/projects", {
       token: session.token,
       searchParams: { refresh },
-    }).catch(() => [] as ProjectRecord[]),
+    }).then(
+      (data) => ({ data, error: null as string | null }),
+      (err: unknown) => ({
+        data: [] as ProjectRecord[],
+        error:
+          err instanceof ApiError
+            ? `Couldn't load hosted apps (Coolify returned ${err.status}).`
+            : "Couldn't reach the Coolify backend.",
+      }),
+    ),
     fetchBackend<DeploymentRecord[]>("/deploys", { token: session.token }).catch(
       () => [] as DeploymentRecord[],
     ),
   ])
+  const coolify = coolifyResult.data
+  const coolifyError = coolifyResult.error
 
   // Group Coolify applications under their owning Coolify project (mirrors
   // Coolify's own project → resources layout). Apps with no project fall back
@@ -143,6 +158,16 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           </div>
         }
       />
+
+      {coolifyError ? (
+        <AlertBanner tone="error">
+          {coolifyError} Only native deployments are shown below —{" "}
+          <Link href="/projects?refresh=1" className="font-medium underline underline-offset-2">
+            refresh to retry
+          </Link>
+          .
+        </AlertBanner>
+      ) : null}
 
       <section className="grid gap-4">
         {projects.length > 0 ? (

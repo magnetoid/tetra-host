@@ -3,12 +3,9 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 import {
   faBox,
   faBug,
-  faBuilding,
   faChartBar,
   faChartLine,
-  faClockRotateLeft,
   faCloud,
-  faCoins,
   faCrown,
   faDatabase,
   faEarthAmericas,
@@ -17,13 +14,11 @@ import {
   faGear,
   faGlobe,
   faKey,
-  faLayerGroup,
   faListCheck,
   faServer,
   faStore,
   faTerminal,
   faUsers,
-  faUserShield,
   faWandSparkles,
 } from "@/lib/icons"
 
@@ -107,47 +102,14 @@ export const consoleNavItems: NavItem[] = [
   { section: "Workspace", href: "/team", label: "Team", icon: faUsers },
   { section: "Workspace", href: "/marketplace", label: "Marketplace", icon: faStore },
 
-  // Platform admin — Cloud Industry operators only
+  // Platform admin — a single door into the operator hub. Every platform
+  // surface (tenants, administrators, plans, AI credits, audit) lives ON the
+  // Super Admin page, not as flat sidebar items.
   {
     section: "Platform admin",
     href: "/super-admin",
-    label: "Platform",
+    label: "Super Admin",
     icon: faCrown,
-    platformAdminOnly: true,
-  },
-  {
-    section: "Platform admin",
-    href: "/admin",
-    label: "Administrators",
-    icon: faUserShield,
-    platformAdminOnly: true,
-  },
-  {
-    section: "Platform admin",
-    href: "/tenants",
-    label: "Tenants",
-    icon: faBuilding,
-    platformAdminOnly: true,
-  },
-  {
-    section: "Platform admin",
-    href: "/plans",
-    label: "Plans",
-    icon: faLayerGroup,
-    platformAdminOnly: true,
-  },
-  {
-    section: "Platform admin",
-    href: "/credits",
-    label: "AI credits",
-    icon: faCoins,
-    platformAdminOnly: true,
-  },
-  {
-    section: "Platform admin",
-    href: "/audit",
-    label: "Audit log",
-    icon: faClockRotateLeft,
     platformAdminOnly: true,
   },
 ]
