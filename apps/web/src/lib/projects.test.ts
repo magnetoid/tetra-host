@@ -29,6 +29,8 @@ describe("groupProjects", () => {
     const alethia = groups.find((g) => g.name === "Alethia")!
     expect(alethia.memberIds).toEqual(["a1", "a2", "a3"])
     expect(alethia.id).toBe("a1") // representative = first app
+    expect(alethia.slug).toBe("p1") // Coolify project uuid → URL slug
+    expect(alethia.apps.map((a) => a.name)).toEqual(["Alethia", "Alethia NEW", "crawl4ai"])
   })
 
   it("falls back to normalized name when unlinked to a project", () => {
@@ -40,12 +42,13 @@ describe("groupProjects", () => {
     expect(groups[0].memberIds).toEqual(["s1", "s2"])
   })
 
-  it("activeGroup matches any member app id", () => {
+  it("activeGroup matches by slug (and falls back to member app id)", () => {
     const groups = groupProjects([
       rec({ id: "a1", project_uuid: "p1", project_name: "Alethia" }),
       rec({ id: "a2", project_uuid: "p1", project_name: "Alethia" }),
     ])
-    expect(activeGroup(groups, "a2")?.name).toBe("Alethia")
+    expect(activeGroup(groups, "p1")?.name).toBe("Alethia") // by slug (URL segment)
+    expect(activeGroup(groups, "a2")?.name).toBe("Alethia") // by member app id
     expect(activeGroup(groups, "nope")).toBeUndefined()
     expect(activeGroup(groups, undefined)).toBeUndefined()
   })

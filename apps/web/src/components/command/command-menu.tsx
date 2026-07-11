@@ -7,6 +7,7 @@ import { Command } from "cmdk"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 import { consoleNavItems, NAV_SECTIONS } from "@/lib/navigation"
+import { projectSlug } from "@/lib/projects"
 import { toggleTheme } from "@/lib/theme"
 import {
   faArrowRightFromBracket,
@@ -16,7 +17,7 @@ import {
   faServer,
 } from "@/lib/icons"
 
-type ProjectLite = { id: string; name: string }
+type ProjectLite = { id: string; name: string; slug: string }
 
 /**
  * ⌘K command palette — global search + actions (navigation, project jump, theme, docs,
@@ -45,9 +46,9 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
     let active = true
     fetch("/api/proxy/projects", { headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: ProjectLite[]) => {
+      .then((data: (ProjectLite & Parameters<typeof projectSlug>[0])[]) => {
         if (active && Array.isArray(data)) {
-          setProjects(data.map((p) => ({ id: p.id, name: p.name })))
+          setProjects(data.map((p) => ({ id: p.id, name: p.name, slug: projectSlug(p) })))
         }
       })
       .catch(() => {})
@@ -136,7 +137,7 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
                       <Command.Item
                         key={project.id}
                         value={`project ${project.name}`}
-                        onSelect={() => go(`/projects/${project.id}`)}
+                        onSelect={() => go(`/projects/${project.slug}/apps/${project.id}`)}
                         className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground data-[selected=true]:bg-accent"
                       >
                         <FontAwesomeIcon

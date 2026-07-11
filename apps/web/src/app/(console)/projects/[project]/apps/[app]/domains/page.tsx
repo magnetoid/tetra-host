@@ -8,18 +8,18 @@ import { requireConsoleSession } from "@/lib/auth"
 import type { ProjectRecord } from "@/lib/types"
 
 type DomainsPageProps = {
-  params: Promise<{ id: string }>
+  params: Promise<{ app: string }>
 }
 
 export default async function DomainsPage({ params }: DomainsPageProps) {
   const session = await requireConsoleSession()
-  const { id } = await params
+  const { app } = await params
 
   const projects = await fetchBackend<ProjectRecord[]>("/projects", {
     token: session.token,
   }).catch(() => [] as ProjectRecord[])
 
-  const project = projects.find((p) => p.id === id)
+  const project = projects.find((p) => p.id === app)
   if (!project) {
     notFound()
   }
@@ -29,7 +29,7 @@ export default async function DomainsPage({ params }: DomainsPageProps) {
       <PageHeader
         eyebrow="Networking"
         title="Domains"
-        description="Primary domain assigned to this project. Manage DNS records in the DNS section."
+        description="Primary domain assigned to this app. Manage DNS records in the DNS section."
       />
 
       <Card>
@@ -52,7 +52,7 @@ export default async function DomainsPage({ params }: DomainsPageProps) {
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No primary domain configured for this project.</p>
+          <p className="text-sm text-muted-foreground">No primary domain configured for this app.</p>
         )}
       </Card>
 

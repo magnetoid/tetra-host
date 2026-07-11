@@ -39,6 +39,7 @@ type Resource = {
  */
 type UnifiedProject = {
   key: string
+  slug: string // URL segment for the project detail page (Coolify only)
   name: string
   source: "coolify" | "git"
   resources: Resource[]
@@ -70,7 +71,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     const projectName = p.project_name || p.name
     const group =
       coolifyGroups.get(groupKey) ??
-      ({ key: `coolify:${groupKey}`, name: projectName, source: "coolify", resources: [] } as UnifiedProject)
+      ({ key: `coolify:${groupKey}`, slug: groupKey, name: projectName, source: "coolify", resources: [] } as UnifiedProject)
     group.name = p.project_name || group.name
     group.resources.push({
       id: p.id,
@@ -79,7 +80,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       domain: p.primary_domain,
       repository: p.repository,
       detail: formatRelativeLabel(p.updated_at),
-      href: `/projects/${p.id}`,
+      href: `/projects/${groupKey}/apps/${p.id}`,
       linkLabel: "Open",
       applicationId: p.id,
     })
@@ -104,6 +105,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     const unified = unifyNative(latest)
     projects.push({
       key: `native:${name}`,
+      slug: `name:${norm(name)}`,
       name,
       source: "git",
       resources: [
@@ -156,7 +158,16 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="truncate font-semibold">{project.name}</h2>
+                      {project.source === "coolify" ? (
+                        <Link
+                          href={`/projects/${project.slug}`}
+                          className="truncate font-semibold transition-colors hover:text-primary"
+                        >
+                          {project.name}
+                        </Link>
+                      ) : (
+                        <h2 className="truncate font-semibold">{project.name}</h2>
+                      )}
                       <SourceBadge source={project.source} />
                     </div>
                     <div className="font-mono text-xs text-muted-foreground">
@@ -165,6 +176,14 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                     </div>
                   </div>
                 </div>
+                {project.source === "coolify" ? (
+                  <Link
+                    href={`/projects/${project.slug}`}
+                    className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                  >
+                    Open project →
+                  </Link>
+                ) : null}
               </div>
 
               {/* Resources / deployments inside this project */}

@@ -39,7 +39,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
       ) : null}
 
       <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-border bg-muted p-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Mail domains</h2>
             <span className="text-sm text-muted-foreground">{mail.domains.length} total</span>
@@ -60,7 +60,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-muted p-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Recent mailboxes</h2>
             <span className="text-sm text-muted-foreground">{mail.mailboxes.length} shown</span>

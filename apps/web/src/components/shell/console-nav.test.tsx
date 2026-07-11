@@ -7,7 +7,15 @@ vi.mock("@fortawesome/react-fontawesome", () => ({ FontAwesomeIcon: () => null }
 import { usePathname } from "next/navigation"
 import { ConsoleNav } from "@/components/shell/console-nav"
 
-const projects = [{ id: "proj-1", name: "Cool App", memberIds: ["proj-1"] }]
+const projects = [
+  {
+    slug: "proj-1",
+    id: "app-1",
+    name: "Cool Project",
+    memberIds: ["app-1"],
+    apps: [{ id: "app-1", name: "Cool App" }],
+  },
+]
 
 afterEach(() => {
   cleanup()
@@ -15,11 +23,11 @@ afterEach(() => {
 })
 
 describe("ConsoleNav context switch", () => {
-  it("shows the global menu and no project header outside a project", () => {
+  it("shows the global menu and no app header outside an app", () => {
     vi.mocked(usePathname).mockReturnValue("/dashboard")
     render(<ConsoleNav adminRole="platform_admin" projects={projects} />)
     expect(screen.getByRole("link", { name: /mail/i })).toHaveAttribute("href", "/mail")
-    // strictly the global menu — no project header is rendered outside a project
+    // strictly the global menu — no app header is rendered outside an app
     expect(screen.queryByRole("heading", { level: 2 })).toBeNull()
     expect(screen.queryByText("Cool App")).toBeNull()
   })
@@ -30,26 +38,37 @@ describe("ConsoleNav context switch", () => {
     expect(screen.queryByText("Cool App")).toBeNull()
   })
 
-  it("shows ONLY the project menu inside a project (no global spillover)", () => {
-    vi.mocked(usePathname).mockReturnValue("/projects/proj-1/logs")
+  it("treats the project detail page as global (app menu only appears inside an app)", () => {
+    vi.mocked(usePathname).mockReturnValue("/projects/proj-1")
+    render(<ConsoleNav adminRole="owner" projects={projects} />)
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull()
+    expect(screen.getByRole("link", { name: /mail/i })).toHaveAttribute("href", "/mail")
+  })
+
+  it("shows ONLY the app menu inside an app (no global spillover)", () => {
+    vi.mocked(usePathname).mockReturnValue("/projects/proj-1/apps/app-1/logs")
     render(<ConsoleNav adminRole="platform_admin" projects={projects} />)
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Cool App")
     const logs = screen.getByRole("link", { name: /logs/i })
-    expect(logs).toHaveAttribute("href", "/projects/proj-1/logs")
+    expect(logs).toHaveAttribute("href", "/projects/proj-1/apps/app-1/logs")
     expect(logs).toHaveClass("bg-accent")
-    // strict isolation — global items must NOT be present inside a project
+    // strict isolation — global items must NOT be present inside an app
     expect(screen.queryByRole("link", { name: /mail/i })).toBeNull()
     expect(screen.queryByRole("link", { name: /^dns$/i })).toBeNull()
-    expect(screen.getByRole("link", { name: /all projects/i })).toHaveAttribute("href", "/projects")
+    // back link returns to the owning project detail page
+    expect(screen.getByRole("link", { name: /cool project/i })).toHaveAttribute(
+      "href",
+      "/projects/proj-1",
+    )
   })
 
-  it("falls back to 'Project' when the id is not in the known list", () => {
-    vi.mocked(usePathname).mockReturnValue("/projects/ghost/env")
+  it("falls back to 'App' when the app is not in the known list", () => {
+    vi.mocked(usePathname).mockReturnValue("/projects/ghost/apps/appX/env")
     render(<ConsoleNav adminRole="owner" projects={projects} />)
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Project")
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("App")
     expect(screen.getByRole("link", { name: /env/i })).toHaveAttribute(
       "href",
-      "/projects/ghost/env",
+      "/projects/ghost/apps/appX/env",
     )
   })
 

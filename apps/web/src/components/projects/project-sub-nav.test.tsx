@@ -20,45 +20,54 @@ afterEach(() => {
 })
 
 describe("ProjectSubNav", () => {
-  const projectId = "proj-abc"
-  const projectName = "My Awesome App"
+  const projectSlug = "proj-abc"
+  const appId = "app-xyz"
+  const projectName = "My Project"
+  const appName = "My Awesome App"
+  const base = `/projects/${projectSlug}/apps/${appId}`
 
   function setup(pathname: string) {
     vi.mocked(usePathname).mockReturnValue(pathname)
-    return render(<ProjectSubNav projectId={projectId} projectName={projectName} />)
+    return render(
+      <ProjectSubNav
+        projectSlug={projectSlug}
+        appId={appId}
+        projectName={projectName}
+        appName={appName}
+      />,
+    )
   }
 
   it("renders all 7 nav links (plus a back link)", () => {
-    setup(`/projects/${projectId}/deployments`)
-    // The 7 menu items live in the <nav>; a "← Projects" back link sits in the header.
+    setup(`${base}/deployments`)
+    // The 7 menu items live in the <nav>; a back link sits in the header.
     const nav = screen.getByRole("navigation")
     expect(within(nav).getAllByRole("link")).toHaveLength(7)
-    expect(screen.getByRole("link", { name: /back to projects/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: new RegExp(`back to ${projectName}`, "i") })).toHaveAttribute(
       "href",
-      "/projects",
+      `/projects/${projectSlug}`,
     )
   })
 
-  it("renders the project name", () => {
-    setup(`/projects/${projectId}/deployments`)
-    expect(screen.getByText(projectName)).toBeInTheDocument()
+  it("renders the app name", () => {
+    setup(`${base}/deployments`)
+    expect(screen.getByText(appName)).toBeInTheDocument()
   })
 
   it("marks Deployments active on its sub-path", () => {
-    setup(`/projects/${projectId}/deployments`)
+    setup(`${base}/deployments`)
     const deploymentsLink = screen.getByRole("link", { name: /deployments/i })
     expect(deploymentsLink).toHaveClass("bg-accent")
   })
 
   it("marks Logs active on its sub-path", () => {
-    setup(`/projects/${projectId}/logs`)
+    setup(`${base}/logs`)
     const logsLink = screen.getByRole("link", { name: /logs/i })
     expect(logsLink).toHaveClass("bg-accent")
   })
 
-  it("links point to the correct project URLs", () => {
-    setup(`/projects/${projectId}/deployments`)
-    const base = `/projects/${projectId}`
+  it("links point to the correct app URLs", () => {
+    setup(`${base}/deployments`)
     expect(screen.getByRole("link", { name: /deployments/i })).toHaveAttribute(
       "href",
       `${base}/deployments`,

@@ -15,7 +15,7 @@ export default async function AccountPage() {
     <div className="space-y-6">
       <PageHeader eyebrow="Your profile" title="Account" description="Your profile and workspace." />
 
-      <div className="rounded-2xl border border-border bg-muted/40 p-6">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="grid h-14 w-14 place-items-center rounded-full bg-primary text-lg font-bold text-white">
             {initial}
@@ -46,7 +46,7 @@ export default async function AccountPage() {
       {isPlatformAdmin ? (
         <Link
           href="/super-admin"
-          className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 p-5 transition-colors hover:bg-accent"
+          className="flex items-center justify-between rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-accent"
         >
           <div>
             <div className="font-medium">Super Admin</div>

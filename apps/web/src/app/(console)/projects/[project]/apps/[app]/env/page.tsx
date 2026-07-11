@@ -7,21 +7,21 @@ import { requireConsoleSession } from "@/lib/auth"
 import type { ProjectRecord } from "@/lib/types"
 
 type EnvPageProps = {
-  params: Promise<{ id: string }>
+  params: Promise<{ app: string }>
 }
 
 export default async function EnvPage({ params }: EnvPageProps) {
   const session = await requireConsoleSession()
-  const { id } = await params
+  const { app } = await params
 
   const [projects, envs] = await Promise.all([
     fetchBackend<ProjectRecord[]>("/projects", { token: session.token }),
-    fetchBackend<EnvVar[]>(`/projects/${id}/envs`, { token: session.token }).catch(
+    fetchBackend<EnvVar[]>(`/projects/${app}/envs`, { token: session.token }).catch(
       () => [] as EnvVar[],
     ),
   ])
 
-  const project = projects.find((p) => p.id === id)
+  const project = projects.find((p) => p.id === app)
   if (!project) {
     notFound()
   }
@@ -31,9 +31,9 @@ export default async function EnvPage({ params }: EnvPageProps) {
       <PageHeader
         eyebrow="Configuration"
         title="Environment variables"
-        description="Manage secrets and runtime configuration for this project."
+        description="Manage secrets and runtime configuration for this app."
       />
-      <EnvManager applicationId={id} initialEnvs={envs} />
+      <EnvManager applicationId={app} initialEnvs={envs} />
     </div>
   )
 }

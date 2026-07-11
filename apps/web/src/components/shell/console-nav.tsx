@@ -43,10 +43,10 @@ function NavRow({
 }
 
 /**
- * The console sidebar nav. Strictly context-scoped: inside a project
- * (`/projects/<id>/…`) it renders ONLY that project's menu (+ a back link and a
- * tenant › project header) — the global menu is not mounted, so nothing spills
- * over. Everywhere else it renders the global menu.
+ * The console sidebar nav. Strictly context-scoped: inside an app
+ * (`/projects/<project>/apps/<app>/…`) it renders ONLY that app's menu (+ a
+ * back link and a tenant › project › app header) — the global menu is not
+ * mounted, so nothing spills over. Everywhere else it renders the global menu.
  */
 export function ConsoleNav({
   adminRole,
@@ -59,27 +59,31 @@ export function ConsoleNav({
 }) {
   const pathname = usePathname()
 
-  // Project context = /projects/<id> or /projects/<id>/… — but NOT the list at /projects.
-  const match = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)
-  const activeProjectId = match?.[1]
+  // App context = /projects/<project>/apps/<app>[/…]. The project detail page
+  // (/projects/<project>) and the list (/projects) keep the global menu.
+  const match = /^\/projects\/([^/]+)\/apps\/([^/]+)(?:\/|$)/.exec(pathname)
+  const activeProjectSlug = match?.[1]
+  const activeAppId = match?.[2]
 
-  // ── Inside a project: ONLY the project menu ──────────────────────────────
-  if (activeProjectId) {
-    const projectName = activeGroup(projects, activeProjectId)?.name ?? "Project"
-    const projectItems = projectNavItems(activeProjectId)
+  // ── Inside an app: ONLY the app menu ─────────────────────────────────────
+  if (activeProjectSlug && activeAppId) {
+    const group = activeGroup(projects, activeProjectSlug)
+    const projectName = group?.name ?? "Project"
+    const appName = group?.apps.find((a) => a.id === activeAppId)?.name ?? "App"
+    const projectItems = projectNavItems(activeProjectSlug, activeAppId)
     return (
       <div className="mt-8 text-sm">
         <Link
-          href="/projects"
+          href={`/projects/${activeProjectSlug}`}
           className="mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition hover:bg-accent hover:text-foreground"
         >
-          <span aria-hidden>←</span> All projects
+          <span aria-hidden>←</span> {projectName}
         </Link>
         <div className="mb-3 px-3">
           <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {tenantName ? `${tenantName} ›` : "Project"}
+            {tenantName ? `${tenantName} › ${projectName}` : projectName}
           </p>
-          <h2 className="mt-1 truncate text-sm font-semibold text-foreground">{projectName}</h2>
+          <h2 className="mt-1 truncate text-sm font-semibold text-foreground">{appName}</h2>
         </div>
         <nav className="space-y-1">
           {projectItems.map((item) => (

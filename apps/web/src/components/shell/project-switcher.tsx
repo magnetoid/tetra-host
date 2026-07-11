@@ -24,8 +24,8 @@ export function ProjectSwitcher({ projects }: { projects: ProjectMeta[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
-  const activeId = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
-  const active = activeGroup(projects, activeId)
+  const activeSlug = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
+  const active = activeGroup(projects, activeSlug)
   const activeName = active?.name
 
   const filtered = useMemo(() => {
@@ -91,11 +91,11 @@ export function ProjectSwitcher({ projects }: { projects: ProjectMeta[] }) {
               <div className="px-3 py-2 text-sm text-muted-foreground">No projects found.</div>
             ) : (
               filtered.map((project) => {
-                const isActive = active?.id === project.id
+                const isActive = active?.slug === project.slug
                 return (
                   <Link
-                    key={project.id}
-                    href={`/projects/${project.id}/deployments`}
+                    key={project.slug}
+                    href={`/projects/${project.slug}`}
                     role="menuitem"
                     onClick={() => setOpen(false)}
                     className={cn(

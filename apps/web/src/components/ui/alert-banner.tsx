@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils"
 
+// Theme-aware tones built on the semantic status tokens (readable in light + dark).
 const toneStyles = {
-  error: "border-red-900 bg-red-950/70 text-red-100",
-  success: "border-emerald-900 bg-emerald-950/70 text-emerald-200",
-  info: "border-border bg-muted text-zinc-300",
+  error: "border-status-err/30 bg-status-err/10 text-status-err",
+  success: "border-status-ok/30 bg-status-ok/10 text-status-ok",
+  info: "border-border bg-muted text-muted-foreground",
 } as const
 
 export function AlertBanner({

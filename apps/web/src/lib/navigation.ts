@@ -19,7 +19,6 @@ import {
   faKey,
   faLayerGroup,
   faListCheck,
-  faRocket,
   faServer,
   faStore,
   faTerminal,
@@ -38,20 +37,20 @@ export type NavItem = {
   platformAdminOnly?: boolean
 }
 
-/** Sidebar section headers, in display order. */
+/** Sidebar section headers, in display order (grouped by user intent). */
 export type NavSection =
   | "Overview"
-  | "Build & run"
-  | "Data"
-  | "Services"
+  | "Deploy"
+  | "Resources"
+  | "Networking"
   | "Workspace"
   | "Platform admin"
 
 export const NAV_SECTIONS: NavSection[] = [
   "Overview",
-  "Build & run",
-  "Data",
-  "Services",
+  "Deploy",
+  "Resources",
+  "Networking",
   "Workspace",
   "Platform admin",
 ]
@@ -65,12 +64,12 @@ export type ProjectNavItem = {
 }
 
 /**
- * The per-project menu. The console sidebar slides to show this set when the
- * route is inside a project (`/projects/<id>/…`), Vercel-style; the mobile
- * project bar renders the same items. Single source of truth for both.
+ * The per-app menu. The console sidebar slides to show this set when the route
+ * is inside an app (`/projects/<project>/apps/<app>/…`), Vercel-style; the
+ * mobile project bar renders the same items. Single source of truth for both.
  */
-export function projectNavItems(projectId: string): ProjectNavItem[] {
-  const base = `/projects/${projectId}`
+export function projectNavItems(projectSlug: string, appId: string): ProjectNavItem[] {
+  const base = `/projects/${projectSlug}/apps/${appId}`
   return [
     { href: `${base}/deployments`, label: "Deployments", icon: faListCheck },
     { href: `${base}/logs`, label: "Logs", icon: faTerminal },
@@ -86,24 +85,24 @@ export const consoleNavItems: NavItem[] = [
   // Overview
   { section: "Overview", href: "/dashboard", label: "Overview", icon: faGaugeHigh },
 
-  // Build & run — everything you ship and operate
-  { section: "Build & run", href: "/projects", label: "Projects", icon: faServer },
-  { section: "Build & run", href: "/deploys", label: "Deployments", icon: faRocket },
-  { section: "Build & run", href: "/apps", label: "Apps", icon: faBox },
-  { section: "Build & run", href: "/jobs", label: "Jobs", icon: faListCheck },
-  { section: "Build & run", href: "/logs", label: "Logs", icon: faTerminal },
+  // Deploy — everything that gets your code running. Deployments + Logs are
+  // per-app now, so they live inside a project's app rather than as flat
+  // siblings here (tenant > project > app > deployment).
+  { section: "Deploy", href: "/projects", label: "Projects", icon: faServer },
+  { section: "Deploy", href: "/apps", label: "App catalog", icon: faBox },
+  { section: "Deploy", href: "/jobs", label: "Jobs", icon: faListCheck },
 
-  // Data
-  { section: "Data", href: "/databases", label: "Databases", icon: faDatabase },
-  { section: "Data", href: "/storage", label: "Storage", icon: faCloud },
+  // Resources — the managed services your apps consume.
+  { section: "Resources", href: "/databases", label: "Databases", icon: faDatabase },
+  { section: "Resources", href: "/storage", label: "Storage", icon: faCloud },
+  { section: "Resources", href: "/mail", label: "Mail", icon: faEnvelope },
 
-  // Services
-  { section: "Services", href: "/ai", label: "AI", icon: faWandSparkles },
-  { section: "Services", href: "/mail", label: "Mail", icon: faEnvelope },
-  { section: "Services", href: "/dns", label: "DNS", icon: faGlobe },
-  { section: "Services", href: "/domains", label: "Domains", icon: faEarthAmericas },
+  // Networking — in the order you use them: attach a domain, then manage its DNS.
+  { section: "Networking", href: "/domains", label: "Domains", icon: faEarthAmericas },
+  { section: "Networking", href: "/dns", label: "DNS", icon: faGlobe },
 
-  // Workspace — account-level
+  // Workspace — account-level: AI, spend, teammates, and add-ons.
+  { section: "Workspace", href: "/ai", label: "AI", icon: faWandSparkles },
   { section: "Workspace", href: "/usage", label: "Usage", icon: faChartBar },
   { section: "Workspace", href: "/team", label: "Team", icon: faUsers },
   { section: "Workspace", href: "/marketplace", label: "Marketplace", icon: faStore },

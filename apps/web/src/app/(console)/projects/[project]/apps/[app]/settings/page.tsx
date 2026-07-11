@@ -8,18 +8,18 @@ import { requireConsoleSession } from "@/lib/auth"
 import type { ProjectRecord } from "@/lib/types"
 
 type SettingsPageProps = {
-  params: Promise<{ id: string }>
+  params: Promise<{ app: string }>
 }
 
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const session = await requireConsoleSession()
-  const { id } = await params
+  const { app } = await params
 
   const projects = await fetchBackend<ProjectRecord[]>("/projects", {
     token: session.token,
   }).catch(() => [] as ProjectRecord[])
 
-  const project = projects.find((p) => p.id === id)
+  const project = projects.find((p) => p.id === app)
   if (!project) {
     notFound()
   }
@@ -29,13 +29,13 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       <PageHeader
         eyebrow="Configuration"
         title="Settings"
-        description="Lifecycle actions and project controls."
+        description="Lifecycle actions and controls for this app."
       />
 
       <Card>
         <CardHeader title="Actions" />
         <div className="mt-4">
-          <ProjectActions applicationId={id} />
+          <ProjectActions applicationId={app} />
         </div>
       </Card>
     </div>

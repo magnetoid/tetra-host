@@ -3,9 +3,9 @@ import { cva } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-const cardVariants = cva("rounded-2xl border border-border bg-muted p-6")
+const cardVariants = cva("rounded-2xl border border-border bg-card p-6 shadow-sm")
 
-/** The one surface panel — consistent radius, border, muted bg, and padding. */
+/** The one surface panel — consistent radius, hairline border, card bg, and padding. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn(cardVariants(), className)} {...props} />
 }
@@ -21,7 +21,7 @@ export function CardHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <h2 className="text-lg font-semibold">{title}</h2>
-      {action ? <div className="text-sm text-zinc-500">{action}</div> : null}
+      {action ? <div className="text-sm text-muted-foreground">{action}</div> : null}
     </div>
   )
 }

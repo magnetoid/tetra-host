@@ -22,8 +22,8 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
   const [query, setQuery] = useState("")
   const ref = useRef<HTMLDivElement>(null)
 
-  const activeId = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
-  const active = activeGroup(projects, activeId)
+  const activeSlug = /^\/projects\/([^/]+)(?:\/|$)/.exec(pathname)?.[1]
+  const active = activeGroup(projects, activeSlug)
   const activeName = active?.name
 
   const filtered = useMemo(() => {
@@ -65,12 +65,12 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
         aria-expanded={open}
         className={cn(
           "flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition",
-          activeId ? "border-primary/40 bg-primary/5" : "border-border bg-background/60",
+          activeSlug ? "border-primary/40 bg-primary/5" : "border-border bg-background/60",
           "hover:border-primary/40",
         )}
       >
         <FontAwesomeIcon
-          icon={activeId ? faServer : faLayerGroup}
+          icon={activeSlug ? faServer : faLayerGroup}
           className="h-3.5 w-3.5 shrink-0 text-primary"
         />
         <span className="min-w-0 flex-1 truncate text-left font-medium">
@@ -107,12 +107,12 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
               onClick={() => go("/dashboard")}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition hover:bg-accent",
-                !activeId && "bg-accent font-medium",
+                !activeSlug && "bg-accent font-medium",
               )}
             >
               <FontAwesomeIcon icon={faLayerGroup} className="h-3.5 w-3.5 text-muted-foreground" fixedWidth />
               <span className="flex-1">Platform</span>
-              {!activeId ? <FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3 text-primary" /> : null}
+              {!activeSlug ? <FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3 text-primary" /> : null}
             </button>
           </div>
 
@@ -121,13 +121,13 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
               <div className="px-3 py-2 text-sm text-muted-foreground">No projects found.</div>
             ) : (
               filtered.map((p) => {
-                const isActive = active?.id === p.id
+                const isActive = active?.slug === p.slug
                 return (
                   <button
-                    key={p.id}
+                    key={p.slug}
                     type="button"
                     role="menuitem"
-                    onClick={() => go(`/projects/${p.id}/deployments`)}
+                    onClick={() => go(`/projects/${p.slug}`)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition hover:bg-accent",
                       isActive && "bg-accent font-medium",

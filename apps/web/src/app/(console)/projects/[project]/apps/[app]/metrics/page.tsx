@@ -28,15 +28,15 @@ function fmtDuration(seconds: number): string {
   return m ? `${m}m ${s}s` : `${s}s`
 }
 
-export default async function MetricsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function MetricsPage({ params }: { params: Promise<{ app: string }> }) {
   const session = await requireConsoleSession()
-  const { id } = await params
+  const { app } = await params
 
   const [analytics, deployments] = await Promise.all([
-    fetchBackend<ProjectAnalytics>(`/projects/${id}/analytics?period=7d`, {
+    fetchBackend<ProjectAnalytics>(`/projects/${app}/analytics?period=7d`, {
       token: session.token,
     }).catch(() => null),
-    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${id}/deployments`, {
+    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, {
       token: session.token,
     }).catch(() => [] as ProjectDeploymentRecord[]),
   ])

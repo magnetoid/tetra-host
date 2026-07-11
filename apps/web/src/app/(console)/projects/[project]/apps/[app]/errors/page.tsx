@@ -7,11 +7,11 @@ import { requireConsoleSession } from "@/lib/auth"
 import type { ProjectErrors } from "@/lib/types"
 import { formatRelativeLabel } from "@/lib/utils"
 
-export default async function ErrorsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ErrorsPage({ params }: { params: Promise<{ app: string }> }) {
   const session = await requireConsoleSession()
-  const { id } = await params
+  const { app } = await params
 
-  const errors = await fetchBackend<ProjectErrors>(`/projects/${id}/errors`, {
+  const errors = await fetchBackend<ProjectErrors>(`/projects/${app}/errors`, {
     token: session.token,
   }).catch(() => null)
 

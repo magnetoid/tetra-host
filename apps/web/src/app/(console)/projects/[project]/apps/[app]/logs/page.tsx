@@ -8,21 +8,21 @@ import { requireConsoleSession } from "@/lib/auth"
 import type { ProjectDeploymentRecord, ProjectRecord } from "@/lib/types"
 
 type LogsPageProps = {
-  params: Promise<{ id: string }>
+  params: Promise<{ app: string }>
 }
 
 export default async function LogsPage({ params }: LogsPageProps) {
   const session = await requireConsoleSession()
-  const { id } = await params
+  const { app } = await params
 
   const [projects, deployments] = await Promise.all([
     fetchBackend<ProjectRecord[]>("/projects", { token: session.token }),
-    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${id}/deployments`, {
+    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, {
       token: session.token,
     }).catch(() => [] as ProjectDeploymentRecord[]),
   ])
 
-  const project = projects.find((p) => p.id === id)
+  const project = projects.find((p) => p.id === app)
   if (!project) {
     notFound()
   }
@@ -40,7 +40,7 @@ export default async function LogsPage({ params }: LogsPageProps) {
           <h2 className="text-lg font-semibold">Runtime</h2>
           <p className="text-sm text-muted-foreground">Live output from the running container.</p>
         </div>
-        <RuntimeLogs projectId={id} />
+        <RuntimeLogs projectId={app} />
       </section>
 
       <section className="space-y-3">
@@ -48,7 +48,7 @@ export default async function LogsPage({ params }: LogsPageProps) {
           <h2 className="text-lg font-semibold">Build logs</h2>
           <p className="text-sm text-muted-foreground">Select a deployment to stream its build output.</p>
         </div>
-        <DeployConsole applicationId={id} initialDeployments={deployments} />
+        <DeployConsole applicationId={app} initialDeployments={deployments} />
       </section>
     </div>
   )
