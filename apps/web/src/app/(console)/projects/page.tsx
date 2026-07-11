@@ -128,7 +128,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Projects"
+        eyebrow={session.admin.tenant_name || "Workspace"}
         title="Projects"
         description="Projects hold apps, and each app has its deployments — Coolify projects and Tetra-engine apps in one place."
         action={

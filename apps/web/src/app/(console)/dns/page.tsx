@@ -88,7 +88,7 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
           </div>
         </section>
       ) : (
-        <EmptyState title="No zones returned." />
+        <EmptyState title="No DNS zones yet." />
       )}
     </div>
   )

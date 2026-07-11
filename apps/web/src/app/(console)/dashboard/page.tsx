@@ -70,7 +70,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Cloud Industry PaaS"
+        eyebrow="Tetra AI Cloud"
         title="Overview"
         description="Operational command center with live provider visibility and secured administrative access."
         action={

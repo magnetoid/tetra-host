@@ -48,7 +48,7 @@ export default async function MetricsPage({ params }: { params: Promise<{ app: s
       <PageHeader
         eyebrow="Observability"
         title="Metrics"
-        description="Deployment health and reliability for this project, plus privacy-first web analytics."
+        description="Deployment health and reliability for this app, plus privacy-first web analytics."
       />
 
       {/* ── Deployment statistics — always available, derived from deploy history ── */}
@@ -149,8 +149,8 @@ function WebAnalytics({ analytics }: { analytics: ProjectAnalytics | null }) {
   if (!analytics.ready) {
     return (
       <EmptyState
-        title="Analytics not available for this project"
-        description={analytics.reason || "This project can't be attached to analytics yet."}
+        title="Analytics not available for this app"
+        description={analytics.reason || "This app can't be attached to analytics yet."}
       />
     )
   }

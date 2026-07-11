@@ -55,7 +55,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
                 </div>
               ))
             ) : (
-              <EmptyState title="No domains returned." />
+              <EmptyState title="No mail domains yet." />
             )}
           </div>
         </div>
@@ -90,7 +90,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
                 ) : (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-muted-foreground">
-                      No mailboxes returned.
+                      No mailboxes yet.
                     </td>
                   </tr>
                 )}

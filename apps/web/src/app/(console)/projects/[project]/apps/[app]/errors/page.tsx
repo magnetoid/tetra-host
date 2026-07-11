@@ -19,7 +19,7 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
     <PageHeader
       eyebrow="Observability"
       title="Errors"
-      description="Unresolved exceptions captured for this project, via GlitchTip."
+      description="Unresolved exceptions captured for this app, via GlitchTip."
     />
   )
 
@@ -40,8 +40,8 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
       <div className="space-y-6">
         {header}
         <EmptyState
-          title="Error tracking not available for this project"
-          description={errors.reason || "This project can't be attached to error tracking yet."}
+          title="Error tracking not available for this app"
+          description={errors.reason || "This app can't be attached to error tracking yet."}
         />
       </div>
     )
