@@ -15,9 +15,9 @@ export default async function AppsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Tetra Engine"
+        eyebrow="Managed containers"
         title="App catalog"
-        description="Install pre-defined Docker apps in one click — run directly by Tetra's own engine."
+        description="One-click container apps — small Docker services Tetra provisions and runs on managed infrastructure (Cloudflare, Hetzner) and bills as a managed service."
         action={<RefreshLink href="/apps" label="Refresh" />}
       />
 

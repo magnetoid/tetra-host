@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
@@ -74,6 +75,14 @@ export function StorageManager({
       <EmptyState
         title="Object storage isn't configured"
         description="A platform admin connects Cloudflare R2 (set CLOUDFLARE_ACCOUNT_ID + an R2-scoped token) to offer S3-compatible buckets here."
+        action={
+          <Link
+            href="/docs"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
+          >
+            Read the storage setup guide →
+          </Link>
+        }
       />
     )
   }

@@ -153,7 +153,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               href="/deploys"
               className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
             >
-              New deployment
+              + New project
             </Link>
           </div>
         }
@@ -259,7 +259,23 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         ) : (
           <EmptyState
             title="No projects yet"
-            description="Deploy a git repository or install a marketplace app, or connect Coolify on the backend."
+            description="Create your first project by deploying a git repository, or install a container app from the catalog."
+            action={
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/deploys"
+                  className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+                >
+                  + New project
+                </Link>
+                <Link
+                  href="/apps"
+                  className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
+                >
+                  Browse app catalog
+                </Link>
+              </div>
+            }
           />
         )}
       </section>

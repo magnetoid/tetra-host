@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
@@ -21,6 +23,11 @@ export default async function MailPage({ searchParams }: MailPageProps) {
     searchParams: { refresh: params.refresh === "1" ? "1" : undefined },
   }).catch(() => ({ providers: [], domains: [], mailboxes: [] }) as MailResponse)
 
+  // Dormant = Mailcow not connected → show one clear "connect" state instead of
+  // a stack of empty "No X yet" panels.
+  const dormant =
+    mail.providers.length === 0 && mail.domains.length === 0 && mail.mailboxes.length === 0
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -30,15 +37,30 @@ export default async function MailPage({ searchParams }: MailPageProps) {
         action={<RefreshLink href="/mail?refresh=1" label="Refresh mail state" />}
       />
 
-      {mail.providers.length > 0 ? (
-        <section className="grid gap-3 md:grid-cols-3">
-          {mail.providers.map((provider) => (
-            <ProviderCard key={provider.name} provider={provider} />
-          ))}
-        </section>
-      ) : null}
+      {dormant ? (
+        <EmptyState
+          title="Mail isn't connected yet"
+          description="Mail runs on a Mailcow instance off this host. A platform admin sets MAILCOW_URL + MAILCOW_API_KEY to light up domains, mailboxes, and aliases here."
+          action={
+            <Link
+              href="/docs"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
+            >
+              Read the mail setup guide →
+            </Link>
+          }
+        />
+      ) : (
+        <>
+          {mail.providers.length > 0 ? (
+            <section className="grid gap-3 md:grid-cols-3">
+              {mail.providers.map((provider) => (
+                <ProviderCard key={provider.name} provider={provider} />
+              ))}
+            </section>
+          ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Mail domains</h2>
@@ -98,7 +120,9 @@ export default async function MailPage({ searchParams }: MailPageProps) {
             </table>
           </div>
         </div>
-      </section>
+          </section>
+        </>
+      )}
     </div>
   )
 }
