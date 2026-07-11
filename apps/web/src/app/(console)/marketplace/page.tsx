@@ -5,7 +5,7 @@ import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import type { AiKey, AiModel, DNSResponse, ResellableService } from "@/lib/types"
 
-export const metadata = { title: "Marketplace" }
+export const metadata = { title: "Add-ons" }
 
 const EMPTY_DNS: DNSResponse = { providers: [], zones: [], records: [], selected_zone: "" }
 
@@ -24,8 +24,8 @@ export default async function MarketplacePage() {
     <div className="space-y-10">
       <PageHeader
         eyebrow="Reseller"
-        title="Marketplace"
-        description="Resell Cloudflare plans & services and AI models to your workspace."
+        title="Add-ons"
+        description="Paid services & plans for your workspace — Cloudflare plans, security add-ons, and AI models. (For deployable container apps, see the App catalog.)"
         action={<RefreshLink href="/marketplace" label="Refresh" />}
       />
 

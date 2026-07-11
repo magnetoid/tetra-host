@@ -36,6 +36,7 @@ export type NavItem = {
 export type NavSection =
   | "Overview"
   | "Deploy"
+  | "AI"
   | "Resources"
   | "Networking"
   | "Workspace"
@@ -44,6 +45,7 @@ export type NavSection =
 export const NAV_SECTIONS: NavSection[] = [
   "Overview",
   "Deploy",
+  "AI",
   "Resources",
   "Networking",
   "Workspace",
@@ -96,11 +98,13 @@ export const consoleNavItems: NavItem[] = [
   { section: "Networking", href: "/domains", label: "Domains", icon: faEarthAmericas },
   { section: "Networking", href: "/dns", label: "DNS", icon: faGlobe },
 
-  // Workspace — account-level: AI, spend, teammates, and add-ons.
-  { section: "Workspace", href: "/ai", label: "AI", icon: faWandSparkles },
+  // AI — a first-class pillar (Tetra AI Cloud), not buried in account settings.
+  { section: "AI", href: "/ai", label: "Playground", icon: faWandSparkles },
+
+  // Workspace — account-level: spend, teammates, and paid add-ons.
   { section: "Workspace", href: "/usage", label: "Usage", icon: faChartBar },
   { section: "Workspace", href: "/team", label: "Team", icon: faUsers },
-  { section: "Workspace", href: "/marketplace", label: "Marketplace", icon: faStore },
+  { section: "Workspace", href: "/marketplace", label: "Add-ons", icon: faStore },
 
   // Platform admin — a single door into the operator hub. Every platform
   // surface (tenants, administrators, plans, AI credits, audit) lives ON the
