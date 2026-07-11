@@ -1,6 +1,8 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { ProjectSubNav } from "@/components/projects/project-sub-nav"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import type { ProjectRecord } from "@/lib/types"
@@ -23,15 +25,51 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     notFound()
   }
 
+  const projectName = record.project_name || record.name
+
   return (
     <div className="space-y-6">
+      {/* Persistent entity header — every app tab is anchored by name · status ·
+          live domain · breadcrumb, so you always know what you're operating on. */}
+      <header className="space-y-2 border-b border-border pb-5">
+        <nav className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+          <Link href="/projects" className="transition-colors hover:text-foreground">
+            Projects
+          </Link>
+          <span aria-hidden>/</span>
+          <Link
+            href={`/projects/${project}`}
+            className="truncate transition-colors hover:text-foreground"
+          >
+            {projectName}
+          </Link>
+          <span aria-hidden>/</span>
+          <span className="truncate text-foreground">{record.name}</span>
+        </nav>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{record.name}</h1>
+          <StatusBadge value={record.status} />
+          {record.primary_domain ? (
+            <a
+              href={`https://${record.primary_domain}`}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+            >
+              <span className="font-mono text-xs">{record.primary_domain}</span>
+              <span aria-hidden>↗</span>
+            </a>
+          ) : null}
+        </div>
+      </header>
+
       {/* Desktop: the main sidebar slides to this app's menu (see ConsoleNav).
           Mobile (no sidebar): a horizontal app bar carries the same menu. */}
       <div className="lg:hidden">
         <ProjectSubNav
           projectSlug={project}
           appId={app}
-          projectName={record.project_name || record.name}
+          projectName={projectName}
           appName={record.name}
         />
       </div>
