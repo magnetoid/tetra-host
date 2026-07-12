@@ -51,6 +51,15 @@ export interface ProjectRecord {
   // Coolify project grouping (tenant > project > deployment).
   project_uuid?: string
   project_name?: string
+  // Editable build/run settings (app Settings tab).
+  fqdn?: string
+  build_pack?: string
+  install_command?: string
+  build_command?: string
+  start_command?: string
+  base_directory?: string
+  publish_directory?: string
+  ports_exposes?: string
 }
 
 export interface MailDomainRecord {

@@ -502,6 +502,21 @@ def cmd_projects(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_update_app(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    result = client.update_project(
+        args.project,
+        name=args.name,
+        fqdn=args.domain,
+        install_command=args.install,
+        build_command=args.build,
+        start_command=args.start,
+        ports_exposes=args.ports,
+    )
+    print(c("✓", "32") + " " + str(result.get("message", "App updated.")))
+    return 0
+
+
 def cmd_deployments(args: argparse.Namespace) -> int:
     deps = client_from_config().deployments(args.project)
     rows = [[d["id"][:16], status_color(d["status"]), (d.get("commit") or "")[:8],
@@ -1456,6 +1471,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("dashboard", help="show platform metrics").set_defaults(func=cmd_dashboard)
     sub.add_parser("usage", help="show quota usage vs plan limits").set_defaults(func=cmd_usage)
     sub.add_parser("projects", help="list projects").set_defaults(func=cmd_projects)
+
+    sp = sub.add_parser("update-app", help="edit an app's name/domain/build settings")
+    sp.add_argument("project")
+    sp.add_argument("--name")
+    sp.add_argument("--domain")
+    sp.add_argument("--install", help="install command")
+    sp.add_argument("--build", help="build command")
+    sp.add_argument("--start", help="start command")
+    sp.add_argument("--ports", help="exposed ports (comma-separated)")
+    sp.set_defaults(func=cmd_update_app)
 
     sp = sub.add_parser("deploy", help="trigger a deployment")
     sp.add_argument("project")

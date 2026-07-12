@@ -78,6 +78,30 @@ class ProjectSummary(BaseModel):
     # platform deployments, which group on their own.
     project_uuid: str = ""
     project_name: str = ""
+    # Editable build/run settings (surfaced on the app Settings tab).
+    fqdn: str = ""
+    build_pack: str = ""
+    install_command: str = ""
+    build_command: str = ""
+    start_command: str = ""
+    base_directory: str = ""
+    publish_directory: str = ""
+    ports_exposes: str = ""
+
+
+class ProjectUpdateRequest(BaseModel):
+    """Editable app settings — only provided (non-null) fields are sent to Coolify."""
+
+    name: str | None = None
+    description: str | None = None
+    fqdn: str | None = None
+    build_pack: str | None = None
+    install_command: str | None = None
+    build_command: str | None = None
+    start_command: str | None = None
+    base_directory: str | None = None
+    publish_directory: str | None = None
+    ports_exposes: str | None = None
 
 
 class ActionResponse(BaseModel):

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 
+import { EditAppForm } from "@/components/projects/edit-app-form"
 import { ProjectActions } from "@/components/projects/project-actions"
 import { Card, CardHeader } from "@/components/ui/card"
 import { PageHeader } from "@/components/ui/page-header"
@@ -29,8 +30,15 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       <PageHeader
         eyebrow="Configuration"
         title="Settings"
-        description="Lifecycle actions and controls for this app."
+        description="Edit this app's identity and build settings, or run lifecycle actions."
       />
+
+      <Card>
+        <CardHeader title="Edit app" />
+        <div className="mt-4">
+          <EditAppForm app={project} />
+        </div>
+      </Card>
 
       <Card>
         <CardHeader title="Actions" />

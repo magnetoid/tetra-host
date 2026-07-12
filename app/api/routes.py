@@ -128,6 +128,7 @@ from app.api.contracts import (
     ActionResponse,
     ProjectDeploymentSummary,
     ProjectSummary,
+    ProjectUpdateRequest,
     TenantAdminCreateRequest,
     TenantCreateRequest,
     TenantResourceCreateRequest,
@@ -650,6 +651,27 @@ async def api_projects(
         refresh=request.query_params.get("refresh") == "1",
     )
     return [ProjectSummary(**site.model_dump()) for site in sites]
+
+
+@router.patch("/projects/{application_id}", response_model=ActionResponse)
+async def api_update_project(
+    application_id: str,
+    payload: ProjectUpdateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    data = {key: value for key, value in payload.model_dump().items() if value is not None}
+    if not data:
+        return ActionResponse(ok=True, message="No changes to save.")
+    service = ProjectsService(request)
+    try:
+        await service.update_site_for_tenant(session, current_admin.tenant_id, application_id, data)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(ok=True, message="App settings saved. Redeploy to apply build changes.")
 
 
 @router.post("/projects/{application_id}/deploy", response_model=ActionResponse)

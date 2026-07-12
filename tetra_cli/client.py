@@ -237,6 +237,10 @@ class TetraClient:
     def deploy(self, project_id: str, force: bool = False) -> Any:
         return self._request("POST", f"/projects/{project_id}/deploy", params={"force": "1"} if force else None)
 
+    def update_project(self, project_id: str, **fields: Any) -> Any:
+        body = {k: v for k, v in fields.items() if v is not None}
+        return self._request("PATCH", f"/projects/{project_id}", json_body=body)
+
     def deployments(self, project_id: str) -> list[dict]:
         return self._request("GET", f"/projects/{project_id}/deployments")
 
