@@ -29,7 +29,11 @@ export default async function MailPage({ searchParams }: MailPageProps) {
 
   const configured = mail.providers.length > 0
   // Domains you already host on apps → offered as one-click "enable mail" picks.
-  const appDomains = [...new Set(projects.map((p) => p.primary_domain).filter(Boolean))]
+  // Skip throwaway auto-domains (Coolify's *.sslip.io / *.nip.io previews) — you
+  // never want a mailbox on those.
+  const appDomains = [...new Set(projects.map((p) => p.primary_domain).filter(Boolean))].filter(
+    (d) => !d.includes(".sslip.io") && !d.includes(".nip.io"),
+  )
 
   return (
     <div className="space-y-6">
