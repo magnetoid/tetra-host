@@ -11,6 +11,18 @@ from app.services.http import ProviderAPIError, request_json
 # (occasionally a bare object) — a 200 "danger"/"error" is a FAILED operation.
 _FAILURE_TYPES = {"danger", "error"}
 
+# Dedicated, TLS-non-verifying client for a self-signed Mailcow endpoint (e.g. the
+# co-located loopback instance). Cached at module scope so we don't leak a client
+# per request; only built when mailcow_verify_tls is false.
+_insecure_client: httpx.AsyncClient | None = None
+
+
+def _insecure_http_client() -> httpx.AsyncClient:
+    global _insecure_client
+    if _insecure_client is None:
+        _insecure_client = httpx.AsyncClient(verify=False, timeout=httpx.Timeout(30.0))
+    return _insecure_client
+
 _CACHE_KEYS = ("mailcow:domains", "mailcow:mailboxes", "mailcow:aliases")
 
 
@@ -111,10 +123,11 @@ class MailcowClient:
         cache: TTLCache,
     ) -> "MailcowClient":
         s = get_settings()
+        client = http_client if s.mailcow_verify_tls else _insecure_http_client()
         return cls(
             base_url=s.mailcow_url,
             api_key=s.mailcow_api_key,
-            http_client=http_client,
+            http_client=client,
             cache=cache,
         )
 

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     coolify_token: str = ""
     mailcow_url: str = ""
     mailcow_api_key: str = ""
+    # Verify Mailcow's TLS cert. Set false when Mailcow runs on a self-signed
+    # loopback endpoint (e.g. co-located on the box at https://127.0.0.1:8480).
+    mailcow_verify_tls: bool = True
     cloudflare_api_token: str = ""
     # Cloudflare R2 object-storage reselling. Empty account id = R2 disabled (the Storage
     # surface shows a "not configured" state). The api_token above must additionally carry
