@@ -1,3 +1,4 @@
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
@@ -5,7 +6,8 @@ import { ProjectSubNav } from "@/components/projects/project-sub-nav"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
-import type { ProjectRecord } from "@/lib/types"
+import { faEnvelope } from "@/lib/icons"
+import type { MailResponse, ProjectRecord } from "@/lib/types"
 
 type AppLayoutProps = {
   children: React.ReactNode
@@ -16,9 +18,14 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   const session = await requireConsoleSession()
   const { project, app } = await params
 
-  const projects = await fetchBackend<ProjectRecord[]>("/projects", {
-    token: session.token,
-  }).catch(() => [] as ProjectRecord[])
+  const [projects, mail] = await Promise.all([
+    fetchBackend<ProjectRecord[]>("/projects", { token: session.token }).catch(
+      () => [] as ProjectRecord[],
+    ),
+    fetchBackend<MailResponse>("/mail", { token: session.token }).catch(
+      () => ({ providers: [], domains: [], mailboxes: [] }) as MailResponse,
+    ),
+  ])
 
   const record = projects.find((p) => p.id === app)
   if (!record) {
@@ -26,6 +33,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   }
 
   const projectName = record.project_name || record.name
+  const mailDomain = mail.domains.find((d) => d.domain_name === record.primary_domain)
 
   return (
     <div className="space-y-6">
@@ -49,6 +57,16 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{record.name}</h1>
           <StatusBadge value={record.status} />
+          {mailDomain ? (
+            <Link
+              href={`/projects/${project}/apps/${app}/domains`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              title={`${mailDomain.mailboxes} mailboxes on ${mailDomain.domain_name}`}
+            >
+              <FontAwesomeIcon icon={faEnvelope} className="h-3 w-3" />
+              <span className="tabular-nums">{mailDomain.mailboxes}</span>
+            </Link>
+          ) : null}
           {record.primary_domain ? (
             <a
               href={`https://${record.primary_domain}`}
