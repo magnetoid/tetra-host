@@ -104,6 +104,19 @@ class ProjectUpdateRequest(BaseModel):
     ports_exposes: str | None = None
 
 
+class AppStorageSummary(BaseModel):
+    id: str
+    name: str = ""
+    mount_path: str = ""
+    host_path: str = ""
+
+
+class AppStorageCreateRequest(BaseModel):
+    name: str
+    mount_path: str
+    host_path: str = ""
+
+
 class ActionResponse(BaseModel):
     ok: bool = True
     message: str

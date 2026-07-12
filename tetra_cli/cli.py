@@ -502,6 +502,24 @@ def cmd_projects(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_volumes_list(args: argparse.Namespace) -> int:
+    for v in client_from_config().app_storages(args.project) or []:
+        print(f"  {v.get('mount_path','?'):30} {v.get('name','')}  {c(v.get('id',''), '90')}")
+    return 0
+
+
+def cmd_volumes_add(args: argparse.Namespace) -> int:
+    result = client_from_config().app_storage_add(args.project, args.name or "", args.mount, args.host or "")
+    print(c("✓", "32") + " " + str(result.get("message", "Volume added.")))
+    return 0
+
+
+def cmd_volumes_rm(args: argparse.Namespace) -> int:
+    result = client_from_config().app_storage_rm(args.project, args.id)
+    print(c("✓", "32") + " " + str(result.get("message", "Volume removed.")))
+    return 0
+
+
 def cmd_update_app(args: argparse.Namespace) -> int:
     client = client_from_config()
     result = client.update_project(
@@ -1471,6 +1489,21 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("dashboard", help="show platform metrics").set_defaults(func=cmd_dashboard)
     sub.add_parser("usage", help="show quota usage vs plan limits").set_defaults(func=cmd_usage)
     sub.add_parser("projects", help="list projects").set_defaults(func=cmd_projects)
+
+    vol = sub.add_parser("volumes", help="persistent storage volumes for an app").add_subparsers(dest="voper")
+    vp = vol.add_parser("list", help="list volumes")
+    vp.add_argument("project")
+    vp.set_defaults(func=cmd_volumes_list)
+    vp = vol.add_parser("add", help="add a volume")
+    vp.add_argument("project")
+    vp.add_argument("mount", help="mount path, e.g. /app/data")
+    vp.add_argument("--name")
+    vp.add_argument("--host", help="host path (optional)")
+    vp.set_defaults(func=cmd_volumes_add)
+    vp = vol.add_parser("rm", help="remove a volume")
+    vp.add_argument("project")
+    vp.add_argument("id")
+    vp.set_defaults(func=cmd_volumes_rm)
 
     sp = sub.add_parser("update-app", help="edit an app's name/domain/build settings")
     sp.add_argument("project")

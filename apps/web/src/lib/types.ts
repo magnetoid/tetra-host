@@ -62,6 +62,13 @@ export interface ProjectRecord {
   ports_exposes?: string
 }
 
+export interface AppStorageRecord {
+  id: string
+  name: string
+  mount_path: string
+  host_path: string
+}
+
 export interface MailDomainRecord {
   domain_name: string
   mailboxes: number

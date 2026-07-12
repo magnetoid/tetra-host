@@ -126,6 +126,8 @@ from app.api.contracts import (
     ProviderSummary,
     SignupRequest,
     ActionResponse,
+    AppStorageCreateRequest,
+    AppStorageSummary,
     ProjectDeploymentSummary,
     ProjectSummary,
     ProjectUpdateRequest,
@@ -672,6 +674,67 @@ async def api_update_project(
             status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
     return ActionResponse(ok=True, message="App settings saved. Redeploy to apply build changes.")
+
+
+@router.get("/projects/{application_id}/storages", response_model=list[AppStorageSummary])
+async def api_list_app_storages(
+    application_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[AppStorageSummary]:
+    service = ProjectsService(request)
+    try:
+        items = await service.list_storages_for_tenant(session, current_admin.tenant_id, application_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return [
+        AppStorageSummary(id=s.id, name=s.name, mount_path=s.mount_path, host_path=s.host_path)
+        for s in items
+    ]
+
+
+@router.post("/projects/{application_id}/storages", response_model=ActionResponse)
+async def api_create_app_storage(
+    application_id: str,
+    payload: AppStorageCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    data: dict[str, object] = {"name": payload.name.strip(), "mount_path": payload.mount_path.strip()}
+    if payload.host_path.strip():
+        data["host_path"] = payload.host_path.strip()
+    service = ProjectsService(request)
+    try:
+        await service.create_storage_for_tenant(session, current_admin.tenant_id, application_id, data)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(ok=True, message="Volume added. Redeploy to mount it.")
+
+
+@router.delete("/projects/{application_id}/storages/{storage_uuid}", response_model=ActionResponse)
+async def api_delete_app_storage(
+    application_id: str,
+    storage_uuid: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = ProjectsService(request)
+    try:
+        await service.delete_storage_for_tenant(
+            session, current_admin.tenant_id, application_id, storage_uuid
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(ok=True, message="Volume removed.")
 
 
 @router.post("/projects/{application_id}/deploy", response_model=ActionResponse)

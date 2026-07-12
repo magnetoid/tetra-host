@@ -241,6 +241,18 @@ class TetraClient:
         body = {k: v for k, v in fields.items() if v is not None}
         return self._request("PATCH", f"/projects/{project_id}", json_body=body)
 
+    def app_storages(self, project_id: str) -> Any:
+        return self._request("GET", f"/projects/{project_id}/storages")
+
+    def app_storage_add(self, project_id: str, name: str, mount_path: str, host_path: str = "") -> Any:
+        body: dict = {"name": name, "mount_path": mount_path}
+        if host_path:
+            body["host_path"] = host_path
+        return self._request("POST", f"/projects/{project_id}/storages", json_body=body)
+
+    def app_storage_rm(self, project_id: str, storage_uuid: str) -> Any:
+        return self._request("DELETE", f"/projects/{project_id}/storages/{storage_uuid}")
+
     def deployments(self, project_id: str) -> list[dict]:
         return self._request("GET", f"/projects/{project_id}/deployments")
 
