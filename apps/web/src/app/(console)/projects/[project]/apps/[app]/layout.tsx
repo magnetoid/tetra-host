@@ -3,7 +3,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { ProjectSubNav } from "@/components/projects/project-sub-nav"
-import { StatusBadge } from "@/components/ui/status-badge"
+import { AppStatus } from "@/components/ui/app-status"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { faEnvelope } from "@/lib/icons"
@@ -56,7 +56,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         </nav>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{record.name}</h1>
-          <StatusBadge value={record.status} />
+          <AppStatus value={record.status} />
           {mailDomain ? (
             <Link
               href={`/projects/${project}/apps/${app}/domains`}

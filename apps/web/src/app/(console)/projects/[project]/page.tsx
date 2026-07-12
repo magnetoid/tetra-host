@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 
 import { ProjectActions } from "@/components/projects/project-actions"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
-import { StatusBadge } from "@/components/ui/status-badge"
+import { AppStatus } from "@/components/ui/app-status"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { projectSlug } from "@/lib/projects"
@@ -68,7 +68,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                   </div>
                 </div>
               </div>
-              <StatusBadge value={app.status} />
+              <AppStatus value={app.status} />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">

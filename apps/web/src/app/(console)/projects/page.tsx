@@ -5,7 +5,7 @@ import { ProjectActions } from "@/components/projects/project-actions"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
-import { StatusBadge } from "@/components/ui/status-badge"
+import { AppStatus } from "@/components/ui/app-status"
 import { ApiError, fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { unifyNative } from "@/lib/deployments"
@@ -221,7 +221,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium">{res.name}</span>
-                        <StatusBadge value={res.status} />
+                        <AppStatus value={res.status} />
                       </div>
                       <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
                         {res.domain ? (

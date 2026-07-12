@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest"
 
-import { formatBytes, safeNextPath, statusTone } from "@/lib/utils"
+import { formatBytes, normalizeStatus, safeNextPath, statusTone } from "@/lib/utils"
+
+describe("normalizeStatus", () => {
+  const cases: Array<[string, string, boolean]> = [
+    ["running:healthy", "Running", false],
+    ["running:unhealthy", "Unhealthy", false],
+    ["exited:unhealthy", "Stopped", false],
+    ["0:unhealthy", "Stopped", false],
+    ["restarting", "Deploying", true],
+    ["in_progress", "Deploying", true],
+    ["", "Unknown", false],
+    ["unknown", "Unknown", false],
+  ]
+  it.each(cases)("maps %s → %s (pulse=%s)", (raw, label, pulse) => {
+    const v = normalizeStatus(raw)
+    expect(v.label).toBe(label)
+    expect(v.pulse).toBe(pulse)
+  })
+})
 
 describe("utils", () => {
   it("formats byte sizes", () => {
