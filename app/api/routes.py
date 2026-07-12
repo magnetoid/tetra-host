@@ -445,6 +445,21 @@ async def api_login(
 ) -> AuthResponse:
     email = payload.get("email", "")
     password = payload.get("password", "")
+    
+    # Rate limit by client IP to prevent brute-force attacks.
+    limiter = request.app.state.rate_limiter
+    client_host = request.client.host if request.client else "unknown"
+    decision = await limiter.check(
+        f"api_login:{client_host}",
+        limit=request.state.settings.login_rate_limit_attempts,
+        window_seconds=request.state.settings.login_rate_limit_window_seconds,
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many login attempts. Try again in {decision.retry_after_seconds}s.",
+        )
+    
     admin = await auth_service.authenticate(email, password)
     if admin is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
