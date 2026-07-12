@@ -3,11 +3,12 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { ProjectSubNav } from "@/components/projects/project-sub-nav"
-import { AppStatus } from "@/components/ui/app-status"
+import { LiveStatus } from "@/components/ui/live-status"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { isDeploymentActive } from "@/lib/deploy-stats"
 import { faEnvelope } from "@/lib/icons"
-import type { MailResponse, ProjectRecord } from "@/lib/types"
+import type { MailResponse, ProjectDeploymentRecord, ProjectRecord } from "@/lib/types"
 
 type AppLayoutProps = {
   children: React.ReactNode
@@ -18,13 +19,16 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   const session = await requireConsoleSession()
   const { project, app } = await params
 
-  const [projects, mail] = await Promise.all([
+  const [projects, mail, deployments] = await Promise.all([
     fetchBackend<ProjectRecord[]>("/projects", { token: session.token }).catch(
       () => [] as ProjectRecord[],
     ),
     fetchBackend<MailResponse>("/mail", { token: session.token }).catch(
       () => ({ providers: [], domains: [], mailboxes: [] }) as MailResponse,
     ),
+    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, {
+      token: session.token,
+    }).catch(() => [] as ProjectDeploymentRecord[]),
   ])
 
   const record = projects.find((p) => p.id === app)
@@ -34,6 +38,12 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
 
   const projectName = record.project_name || record.name
   const mailDomain = mail.domains.find((d) => d.domain_name === record.primary_domain)
+  // Is a build in flight right now? → the status shows a live, pulsing "Deploying".
+  const latestDeploy = deployments.reduce<ProjectDeploymentRecord | null>(
+    (newest, d) => (!newest || d.created_at > newest.created_at ? d : newest),
+    null,
+  )
+  const deploying = latestDeploy ? isDeploymentActive(latestDeploy.status) : false
 
   return (
     <div className="space-y-6">
@@ -56,7 +66,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         </nav>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{record.name}</h1>
-          <AppStatus value={record.status} />
+          <LiveStatus appId={app} status={record.status} deploying={deploying} />
           {mailDomain ? (
             <Link
               href={`/projects/${project}/apps/${app}/domains`}

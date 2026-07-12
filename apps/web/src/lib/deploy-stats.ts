@@ -31,6 +31,11 @@ export function classifyDeploy(status: string): DeployOutcome {
   return "running" // unknown → neutral (excluded from the success rate)
 }
 
+/** True while a deployment is actively building/queued (not finished or failed). */
+export function isDeploymentActive(status: string): boolean {
+  return /(queue|build|progress|pending|deploying|starting)/.test((status || "").toLowerCase())
+}
+
 function dayKey(iso: string): string {
   // The date part of an ISO timestamp; falls back to the raw first 10 chars.
   return (iso || "").slice(0, 10)

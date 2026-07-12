@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest"
 
-import { classifyDeploy, computeDeployStats } from "@/lib/deploy-stats"
+import { classifyDeploy, computeDeployStats, isDeploymentActive } from "@/lib/deploy-stats"
 import type { ProjectDeploymentRecord } from "@/lib/types"
+
+describe("isDeploymentActive", () => {
+  it("is true while building/queued, false when finished or failed", () => {
+    expect(isDeploymentActive("in_progress")).toBe(true)
+    expect(isDeploymentActive("queued")).toBe(true)
+    expect(isDeploymentActive("building")).toBe(true)
+    expect(isDeploymentActive("finished")).toBe(false)
+    expect(isDeploymentActive("failed")).toBe(false)
+    expect(isDeploymentActive("")).toBe(false)
+  })
+})
 
 function dep(status: string, created_at: string, id = created_at): ProjectDeploymentRecord {
   return { id, status, created_at, updated_at: created_at, commit: "abc", branch: "main" }
