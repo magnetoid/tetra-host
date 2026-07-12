@@ -76,6 +76,22 @@ export interface MailResponse {
   mailboxes: MailboxRecord[]
 }
 
+export interface MailDnsRecordReport {
+  name: string
+  record_type: string
+  status: string // created | failed | skipped
+  detail: string
+}
+
+export interface MailDomainCreateResult {
+  domain: string
+  dkim_name: string
+  dkim_txt: string
+  relay_assigned: boolean
+  dns_zone: string
+  dns_records: MailDnsRecordReport[]
+}
+
 export interface DNSZoneRecord {
   id: string
   name: string
