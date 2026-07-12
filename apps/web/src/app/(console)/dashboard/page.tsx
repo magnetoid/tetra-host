@@ -72,26 +72,36 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="Tetra AI Cloud"
         title="Overview"
-        description="Operational command center with live provider visibility and secured administrative access."
+        description="A live view of your projects, mail, DNS, and provider health."
         action={
           <div className="flex gap-2">
-            <RefreshLink href="/dashboard" label="Refresh providers" />
-            <Link
-              href="/admin"
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-accent"
-            >
-              Platform controls
-            </Link>
+            <RefreshLink href="/dashboard" label="Refresh" />
+            {session.admin.role === "platform_admin" ? (
+              <Link
+                href="/super-admin"
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-accent"
+              >
+                Super Admin
+              </Link>
+            ) : null}
           </div>
         }
       />
 
+      {/* Restraint: icons stay neutral; color is reserved for meaning — the
+          Unhealthy tile turns red only when something actually needs attention. */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={faServer} label="Projects" value={m.projects} hint={`${m.unhealthy_projects} need attention`} accent="text-primary" />
-        <StatCard icon={faTriangleExclamation} label="Unhealthy" value={m.unhealthy_projects} hint="Degraded apps" accent="text-status-err" />
-        <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-status-ok" />
-        <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-status-warn" />
-        <StatCard icon={faUsers} label="Admins" value={m.admins} hint={session.admin.tenant_name ?? "Current tenant"} accent="text-status-live" />
+        <StatCard icon={faServer} label="Projects" value={m.projects} hint={session.admin.tenant_name ?? "Your workspace"} accent="text-primary" />
+        <StatCard
+          icon={faTriangleExclamation}
+          label="Unhealthy"
+          value={m.unhealthy_projects}
+          hint={m.unhealthy_projects > 0 ? "Need attention" : "All healthy"}
+          accent={m.unhealthy_projects > 0 ? "text-status-err" : "text-muted-foreground"}
+        />
+        <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-muted-foreground" />
+        <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-muted-foreground" />
+        <StatCard icon={faUsers} label="Admins" value={m.admins} hint="This workspace" accent="text-muted-foreground" />
       </section>
 
       {/* Bento: one asymmetric grid mixing the traffic hero, provider health,
@@ -150,7 +160,7 @@ export default async function DashboardPage() {
         <PreviewPanel
           title="Recent projects"
           href="/projects"
-          empty="No Coolify applications available yet."
+          empty="No projects yet."
           className="lg:col-span-2"
         >
           {projects.slice(0, 3).map((project) => (
@@ -160,7 +170,7 @@ export default async function DashboardPage() {
         <PreviewPanel
           title="Mail domains"
           href="/mail"
-          empty="Mailcow returned no domains."
+          empty="No mail domains yet."
           className="lg:col-span-2"
         >
           {mail.domains.slice(0, 3).map((domain) => (
@@ -174,7 +184,7 @@ export default async function DashboardPage() {
         <PreviewPanel
           title="DNS zones"
           href="/dns"
-          empty="Cloudflare returned no zones."
+          empty="No DNS zones yet."
           className="lg:col-span-2"
         >
           {dns.zones.slice(0, 3).map((zone) => (
