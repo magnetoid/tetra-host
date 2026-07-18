@@ -121,6 +121,22 @@ class Settings(BaseSettings):
     mail_dmarc_record: str = "v=DMARC1; p=quarantine"
     mail_default_relayhost_id: int = 0
 
+    # ── OIDC Identity Provider (passwordless webmail, ADR pending) ───────────
+    # Tetra acts as an OIDC IdP so Mailcow can drop an already-authenticated
+    # tenant straight into SOGo webmail (Mailcow "Proxy Auth"). Dormant unless a
+    # signing key + client credentials are set. `oidc_issuer` is Tetra's public
+    # base URL (e.g. https://panel.cloud-industry.com); the private key is a
+    # PEM RSA key (generate with scripts/gen-oidc-key.sh). `oidc_client_id` /
+    # `oidc_client_secret` are the single client (Mailcow). `oidc_redirect_uris`
+    # is a comma-separated allowlist of Mailcow callback URLs. `oidc_webmail_url`
+    # is where the "Open webmail" button sends the browser to start the flow.
+    oidc_issuer: str = ""
+    oidc_private_key_pem: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_redirect_uris_raw: str = ""
+    oidc_webmail_url: str = ""
+
     # Image registry for rollback durability (ADR 0014). Empty = disabled: built images
     # stay local-only and rollback depends on them not being pruned. Set a host:port
     # (e.g. 127.0.0.1:5000, see scripts/install-registry.sh) to push every successful
@@ -207,6 +223,23 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @computed_field
+    @property
+    def oidc_redirect_uris(self) -> list[str]:
+        return [uri.strip() for uri in self.oidc_redirect_uris_raw.split(",") if uri.strip()]
+
+    @computed_field
+    @property
+    def oidc_configured(self) -> bool:
+        """OIDC IdP is live only when a signing key + client + issuer are set."""
+        return bool(
+            self.oidc_issuer
+            and self.oidc_private_key_pem
+            and self.oidc_client_id
+            and self.oidc_client_secret
+            and self.oidc_redirect_uris
+        )
 
     @computed_field
     @property

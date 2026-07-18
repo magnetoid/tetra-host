@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { requireConsoleSession } from "@/lib/auth"
+import { PANEL_PUBLIC_URL } from "@/lib/env"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { MailResponse, ProjectRecord } from "@/lib/types"
 
@@ -61,7 +62,12 @@ export default async function MailPage({ searchParams }: MailPageProps) {
               <ProviderCard key={provider.name} provider={provider} />
             ))}
           </section>
-          <MailManager domains={mail.domains} mailboxes={mail.mailboxes} appDomains={appDomains} />
+          <MailManager
+            domains={mail.domains}
+            mailboxes={mail.mailboxes}
+            appDomains={appDomains}
+            webmailBase={PANEL_PUBLIC_URL}
+          />
           {mail.domains.length > 0 ? <BulkMailboxImport domains={mail.domains} /> : null}
           {mail.domains.length > 0 ? <QuarantinePanel /> : null}
         </>

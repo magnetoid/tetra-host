@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { useAction } from "@/hooks/use-action"
 import { apiFetch } from "@/lib/client-api"
-import { faKey, faPlus, faTrash, faXmark } from "@/lib/icons"
+import { faArrowUpRightFromSquare, faKey, faPlus, faTrash, faXmark } from "@/lib/icons"
 import type { MailAppPassword, MailAppPasswordCreateResult, MailboxRecord } from "@/lib/types"
 
 const inputClass =
@@ -22,12 +22,18 @@ const inputClass =
  */
 export function MailboxPanel({
   mailbox,
+  webmailBase = "",
   onClose,
 }: {
   mailbox: MailboxRecord
+  /** Panel public origin; when set, an "Open webmail" (OIDC SSO) button appears. */
+  webmailBase?: string
   onClose: () => void
 }) {
   const enc = encodeURIComponent(mailbox.username)
+  const webmailHref = webmailBase
+    ? `${webmailBase.replace(/\/$/, "")}/oidc/launch?mailbox=${enc}`
+    : ""
 
   return (
     <section className="rounded-lg border border-primary/30 bg-card p-6 shadow-sm">
@@ -36,14 +42,27 @@ export function MailboxPanel({
           <h2 className="text-lg font-semibold">Manage mailbox</h2>
           <p className="mt-0.5 font-mono text-sm text-muted-foreground">{mailbox.username}</p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Close mailbox management"
-        >
-          <FontAwesomeIcon icon={faXmark} className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {webmailHref ? (
+            <a
+              href={webmailHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-2.5 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3.5 w-3.5" />
+              Open webmail
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Close mailbox management"
+          >
+            <FontAwesomeIcon icon={faXmark} className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-2">
