@@ -7,7 +7,7 @@
 
 ## Provider checks
 
-- Coolify: verify `COOLIFY_URL` and `COOLIFY_TOKEN`, then confirm the `/sites` page lists applications.
+- Coolify: verify `COOLIFY_URL` and `COOLIFY_TOKEN`, then confirm the `/projects` page lists applications and deployments.
 - Mailcow: verify `MAILCOW_URL` and `MAILCOW_API_KEY`, then confirm the `/mail` page lists domains and mailboxes.
 - Cloudflare: verify `CLOUDFLARE_API_TOKEN`, then confirm the `/dns` page lists zones and records.
 

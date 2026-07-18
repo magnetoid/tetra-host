@@ -23,7 +23,7 @@ export default function DocsPage() {
             <Link
               key={entry.slug}
               href={`/docs/${entry.slug}`}
-              className="rounded-2xl border border-border bg-muted p-6 transition hover:border-zinc-600"
+              className="rounded-lg border border-border bg-muted p-6 transition hover:border-zinc-600"
             >
               <h2 className="text-xl font-semibold">{entry.title}</h2>
               <p className="mt-3 text-sm text-zinc-400">{entry.summary}</p>

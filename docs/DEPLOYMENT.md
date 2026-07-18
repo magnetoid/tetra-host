@@ -30,7 +30,7 @@ sudo ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='replace-me' bash scripts/boot
 1. Pull the new release to the host.
 2. Run `scripts/check-production.sh`.
 3. Re-run `scripts/install.sh`.
-4. Smoke test `/auth/login`, `/dashboard`, `/sites`, `/mail`, `/dns`, and `/admin`.
+4. Smoke test `/auth/login`, `/dashboard`, `/projects`, `/mail`, `/dns`, and `/admin`.
 
 ## Rollback
 
