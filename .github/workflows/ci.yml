@@ -20,7 +20,9 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -r requirements.txt
+          pip install -e ".[dev]"
       - name: Lint
         run: ruff check .
       - name: Test
@@ -34,9 +36,9 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
+      # pnpm version comes from the root package.json "packageManager" field;
+      # specifying it here too would error ("Multiple versions of pnpm specified").
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
