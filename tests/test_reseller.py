@@ -109,6 +109,40 @@ def test_zone_not_owned_is_404(client):
     assert client.get("/api/v1/cloudflare/zones/zX/plans", headers=headers).status_code == 404
 
 
+def test_zone_plans_map_to_cloudflare_plan_summary(client, monkeypatch):
+    """Regression: the endpoint must map Cloudflare plan *dicts* to
+    CloudflarePlanSummary. A duplicate module-level ``_plan_summary`` used to
+    shadow this one with the platform-plan version (attribute access on a dict →
+    500). The two are now disambiguated (``_cf_plan_summary``)."""
+    asyncio.run(_seed(slug="rp", email="p@rp.test", own_zone="zP"))
+    headers = _login(client, "p@rp.test")
+
+    async def fake_list_plans(self, session, tenant_id, zone_id):
+        assert zone_id == "zP"
+        return [
+            {
+                "id": "pro",
+                "name": "Pro",
+                "price": 20,
+                "currency": "USD",
+                "frequency": "monthly",
+                "can_subscribe": True,
+                "is_subscribed": False,
+            }
+        ]
+
+    from app.modules.reseller.service import ResellerService
+
+    monkeypatch.setattr(ResellerService, "list_plans_for_tenant", fake_list_plans)
+
+    response = client.get("/api/v1/cloudflare/zones/zP/plans", headers=headers)
+    assert response.status_code == 200
+    plan = response.json()[0]
+    assert plan["id"] == "pro"
+    assert plan["name"] == "Pro"
+    assert plan["can_subscribe"] is True
+
+
 def test_activate_plan_gated_then_records(client, monkeypatch):
     asyncio.run(_seed(slug="re", email="e@re.test", own_zone="zOwned"))
     headers = _login(client, "e@re.test")

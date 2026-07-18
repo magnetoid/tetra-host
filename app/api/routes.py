@@ -2414,7 +2414,7 @@ async def api_audit_log(
 
 
 # ── Reseller: Cloudflare plans + services on tenant zones (Path A) ─────────
-def _plan_summary(plan: dict) -> CloudflarePlanSummary:
+def _cf_plan_summary(plan: dict) -> CloudflarePlanSummary:
     return CloudflarePlanSummary(
         id=str(plan.get("id") or ""),
         name=str(plan.get("name") or ""),
@@ -2474,7 +2474,7 @@ async def api_cf_zone_plans(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
-    return _paginate(response, [_plan_summary(p) for p in plans], limit, offset)
+    return _paginate(response, [_cf_plan_summary(p) for p in plans], limit, offset)
 
 
 @router.get("/cloudflare/zones/{zone_id}/subscription", response_model=ZoneSubscriptionSummary)
