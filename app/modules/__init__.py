@@ -8,6 +8,7 @@ from app.modules.dns.plugin import DnsPlugin
 from app.modules.domains.plugin import DomainsPlugin
 from app.modules.mail.plugin import MailPlugin
 from app.modules.maintenance.plugin import MaintenancePlugin
+from app.modules.oidc.plugin import OIDCPlugin
 from app.modules.plans.plugin import PlansPlugin
 from app.modules.public.plugin import PublicPlugin
 from app.modules.servers.plugin import ServersPlugin
@@ -23,6 +24,7 @@ def load_plugins() -> None:
     registry.add(DatabasesPlugin())
     registry.add(ServersPlugin())
     registry.add(MailPlugin())
+    registry.add(OIDCPlugin())
     registry.add(DnsPlugin())
     registry.add(DomainsPlugin())
     registry.add(MaintenancePlugin())

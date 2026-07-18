@@ -20,11 +20,14 @@ export function MailManager({
   domains,
   mailboxes,
   appDomains,
+  webmailBase = "",
 }: {
   domains: MailDomainRecord[]
   mailboxes: MailboxRecord[]
   /** Distinct domains you already host on apps — offered as one-click quick-picks. */
   appDomains: string[]
+  /** Panel public origin for the OIDC "Open webmail" launch; "" hides the button. */
+  webmailBase?: string
 }) {
   const { run, pending, error } = useAction()
   const [report, setReport] = useState<MailDomainCreateResult | null>(null)
@@ -99,7 +102,11 @@ export function MailManager({
       />
 
       {managedMailbox ? (
-        <MailboxPanel mailbox={managedMailbox} onClose={() => setManaged(null)} />
+        <MailboxPanel
+          mailbox={managedMailbox}
+          webmailBase={webmailBase}
+          onClose={() => setManaged(null)}
+        />
       ) : null}
     </div>
   )
