@@ -197,6 +197,9 @@ class DeploysService:
             session.add(deployment)
             await session.flush()
             deployment_id = deployment.id
+        logger.info(
+            "deployment %s queued for project '%s' (tenant %s)", deployment_id, project, tenant_id
+        )
         asyncio.create_task(
             self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
         )
@@ -280,9 +283,13 @@ class DeploysService:
                 image=image_ref, builder=build.builder, commit=build.commit,
                 port=effective_port, domain=domain,
             )
+            logger.info(
+                "deployment %s ready: project '%s' image %s", deployment_id, project, image_ref
+            )
             if env_project is None:
                 await self._prune_old_images(tenant_id, project)
         except (BuildError, DockerEngineError) as exc:
+            logger.warning("deployment %s failed for project '%s': %s", deployment_id, project, exc)
             log.append(f"✗ {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             # Release the pre-build reservation so no orphan slot is left.
@@ -290,6 +297,9 @@ class DeploysService:
             async with session_scope() as release_session:
                 await QuotaService(release_session, tenant_id or "").release(project)
         except Exception as exc:  # never leave a deployment stuck in "building"
+            logger.exception(
+                "deployment %s crashed unexpectedly (project '%s')", deployment_id, project
+            )
             log.append(f"✗ unexpected: {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             async with session_scope() as release_session:
@@ -393,6 +403,7 @@ class DeploysService:
                     for row in error_rows:
                         row.image = ""
         except Exception:  # noqa: BLE001 — retention is best-effort by contract
+            logger.exception("image retention pass failed for project '%s'", project)
             return
 
     def stream_logs(
@@ -590,6 +601,7 @@ class DeploysService:
             await session.flush()
             new_id = new_deployment.id
             project, image, port = target.project, target.image, target.port
+        logger.info("rollback %s queued for project '%s' -> image %s", new_id, project, image)
         asyncio.create_task(
             self._run_rollback(new_id, tenant_id, project=project, image=image, port=port)
         )

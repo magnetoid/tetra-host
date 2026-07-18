@@ -1,34 +1,24 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faTrash } from "@/lib/icons"
 import type { PreviewRecord } from "@/lib/types"
 
 export function PreviewsManager({ previews }: { previews: PreviewRecord[] }) {
-  const router = useRouter()
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { run, pending, error } = useAction()
 
-  async function removePreview(previewId: string) {
-    setPending(previewId)
-    setError(null)
-    try {
-      const response = await fetch(`/api/proxy/previews/${previewId}`, { method: "DELETE" })
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-        setError(payload.detail ?? "Could not tear down the preview.")
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+  function removePreview(previewId: string) {
+    return run(
+      () =>
+        apiFetch(`/api/proxy/previews/${previewId}`, {
+          method: "DELETE",
+          errorMessage: "Could not tear down the preview.",
+        }),
+      { key: previewId, successMessage: "Preview torn down" },
+    )
   }
 
   return (
@@ -45,7 +35,7 @@ export function PreviewsManager({ previews }: { previews: PreviewRecord[] }) {
           {previews.map((preview) => (
             <div
               key={preview.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted px-4 py-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted px-4 py-3"
             >
               <div className="flex min-w-0 items-center gap-3 text-sm">
                 <span className="font-medium">{preview.project}</span>

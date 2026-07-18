@@ -9,10 +9,13 @@ output.
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # (argv, stdin, env) -> (returncode, stdout, stderr)
 CommandRunner = Callable[[list[str], str | None, dict[str, str] | None], Awaitable[tuple[int, str, str]]]
@@ -94,6 +97,7 @@ class DockerEngine:
         try:
             rc, out, err = await self._run([self.docker, *args], stdin, env)
         except OSError as exc:  # docker binary missing / not reachable
+            logger.warning("docker binary unavailable: %s", exc)
             raise DockerEngineError(message=f"Docker is not available: {exc}", code=503) from exc
         if rc != 0:
             detail = err.strip() or out.strip() or f"docker {args[0] if args else ''} failed"
@@ -124,6 +128,7 @@ class DockerEngine:
         which is how the rendered SERVICE_* secrets reach the template.
         """
         project = sanitize_project_name(project)
+        logger.info("deploying compose stack %s", project)
         await self._docker(
             "compose", "-p", project, "-f", "-", "up", "-d", "--remove-orphans",
             stdin=compose_yaml, env=env,
@@ -141,16 +146,19 @@ class DockerEngine:
 
     async def start_stack(self, project: str) -> dict[str, Any]:
         project = sanitize_project_name(project)
+        logger.info("starting compose stack %s", project)
         await self._docker("compose", "-p", project, "start")
         return {"ok": True, "project": project}
 
     async def stop_stack(self, project: str) -> dict[str, Any]:
         project = sanitize_project_name(project)
+        logger.info("stopping compose stack %s", project)
         await self._docker("compose", "-p", project, "stop")
         return {"ok": True, "project": project}
 
     async def remove_stack(self, project: str, *, volumes: bool = False) -> dict[str, Any]:
         project = sanitize_project_name(project)
+        logger.info("removing compose stack %s (volumes=%s)", project, volumes)
         args = ["compose", "-p", project, "down", "--remove-orphans"]
         if volumes:
             args.append("--volumes")

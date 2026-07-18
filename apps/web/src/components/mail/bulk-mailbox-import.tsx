@@ -80,7 +80,7 @@ export function BulkMailboxImport({ domains }: { domains: MailDomainRecord[] }) 
     "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+    <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
       <h2 className="text-lg font-semibold">Bulk import mailboxes</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         One per line — <span className="font-mono text-xs">local</span> or{" "}

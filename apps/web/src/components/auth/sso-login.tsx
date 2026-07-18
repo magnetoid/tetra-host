@@ -36,7 +36,7 @@ export function SsoLogin() {
       />
       <button
         type="submit"
-        className="shrink-0 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition hover:bg-foreground/90"
+        className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
       >
         Continue
       </button>

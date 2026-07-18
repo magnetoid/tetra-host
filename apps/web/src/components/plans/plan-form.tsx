@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faPlus, faSliders, faTrash } from "@/lib/icons"
 import type { Plan } from "@/lib/types"
 
@@ -61,10 +62,8 @@ function Label({ children }: { children: React.ReactNode }) {
 
 export function PlanForm({ plan, onDone }: PlanFormProps) {
   const mode: Mode = plan ? "edit" : "create"
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [fields, setFields] = useState<FormState>(() => initState(plan))
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
 
   function set(key: keyof FormState, value: string) {
     setFields((prev) => ({ ...prev, [key]: value }))
@@ -72,94 +71,59 @@ export function PlanForm({ plan, onDone }: PlanFormProps) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError(null)
-    setBusy(true)
-    try {
-      const url = mode === "create" ? "/api/proxy/plans" : `/api/proxy/plans/${plan!.id}`
-      const method = mode === "create" ? "POST" : "PATCH"
+    const url = mode === "create" ? "/api/proxy/plans" : `/api/proxy/plans/${plan!.id}`
+    const method = mode === "create" ? "POST" : "PATCH"
 
-      const body =
-        mode === "create"
-          ? {
-              key: fields.key,
-              name: fields.name,
-              description: fields.description,
-              price_cents: Number(fields.price_cents),
-              currency: fields.currency,
-              max_apps: Number(fields.max_apps),
-              max_domains: Number(fields.max_domains),
-              cpu_millicores: Number(fields.cpu_millicores),
-              mem_mb: Number(fields.mem_mb),
-              disk_mb: Number(fields.disk_mb),
-              sort_order: Number(fields.sort_order),
-            }
-          : {
-              name: fields.name || undefined,
-              description: fields.description || undefined,
-              price_cents: fields.price_cents !== "" ? Number(fields.price_cents) : undefined,
-              currency: fields.currency || undefined,
-              max_apps: fields.max_apps !== "" ? Number(fields.max_apps) : undefined,
-              max_domains: fields.max_domains !== "" ? Number(fields.max_domains) : undefined,
-              cpu_millicores:
-                fields.cpu_millicores !== "" ? Number(fields.cpu_millicores) : undefined,
-              mem_mb: fields.mem_mb !== "" ? Number(fields.mem_mb) : undefined,
-              disk_mb: fields.disk_mb !== "" ? Number(fields.disk_mb) : undefined,
-              sort_order: fields.sort_order !== "" ? Number(fields.sort_order) : undefined,
-            }
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-
-      if (!res.ok) {
-        let detail = res.statusText
-        try {
-          const payload = (await res.json()) as { detail?: string }
-          if (payload.detail) {
-            detail = payload.detail
+    const body =
+      mode === "create"
+        ? {
+            key: fields.key,
+            name: fields.name,
+            description: fields.description,
+            price_cents: Number(fields.price_cents),
+            currency: fields.currency,
+            max_apps: Number(fields.max_apps),
+            max_domains: Number(fields.max_domains),
+            cpu_millicores: Number(fields.cpu_millicores),
+            mem_mb: Number(fields.mem_mb),
+            disk_mb: Number(fields.disk_mb),
+            sort_order: Number(fields.sort_order),
           }
-        } catch {
-          // keep statusText
-        }
-        setError(detail)
-        return
-      }
+        : {
+            name: fields.name || undefined,
+            description: fields.description || undefined,
+            price_cents: fields.price_cents !== "" ? Number(fields.price_cents) : undefined,
+            currency: fields.currency || undefined,
+            max_apps: fields.max_apps !== "" ? Number(fields.max_apps) : undefined,
+            max_domains: fields.max_domains !== "" ? Number(fields.max_domains) : undefined,
+            cpu_millicores:
+              fields.cpu_millicores !== "" ? Number(fields.cpu_millicores) : undefined,
+            mem_mb: fields.mem_mb !== "" ? Number(fields.mem_mb) : undefined,
+            disk_mb: fields.disk_mb !== "" ? Number(fields.disk_mb) : undefined,
+            sort_order: fields.sort_order !== "" ? Number(fields.sort_order) : undefined,
+          }
 
-      router.refresh()
-      onDone?.()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
-    }
+    const ok = await run(
+      () => apiFetch(url, { method, body, errorMessage: "Could not save the plan." }),
+      {
+        key: "save",
+        successMessage: mode === "create" ? "Plan created" : "Plan updated",
+      },
+    )
+    if (ok) onDone?.()
   }
 
   async function handleArchive() {
     if (!plan) return
-    setError(null)
-    setBusy(true)
-    try {
-      const res = await fetch(`/api/proxy/plans/${plan.id}/archive`, { method: "POST" })
-      if (!res.ok) {
-        let detail = res.statusText
-        try {
-          const payload = (await res.json()) as { detail?: string }
-          if (payload.detail) detail = payload.detail
-        } catch {
-          // keep statusText
-        }
-        setError(detail)
-        return
-      }
-      router.refresh()
-      onDone?.()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
-    }
+    const ok = await run(
+      () =>
+        apiFetch(`/api/proxy/plans/${plan.id}/archive`, {
+          method: "POST",
+          errorMessage: "Could not archive the plan.",
+        }),
+      { key: "archive", successMessage: "Plan archived" },
+    )
+    if (ok) onDone?.()
   }
 
   return (
@@ -308,7 +272,7 @@ export function PlanForm({ plan, onDone }: PlanFormProps) {
           type="submit"
           variant="primary"
           icon={mode === "create" ? faPlus : faSliders}
-          disabled={busy}
+          disabled={pending !== null}
         >
           {mode === "create" ? "Create plan" : "Save changes"}
         </Button>
@@ -318,7 +282,7 @@ export function PlanForm({ plan, onDone }: PlanFormProps) {
             type="button"
             variant="danger"
             icon={faTrash}
-            disabled={busy}
+            disabled={pending !== null}
             onClick={handleArchive}
           >
             Archive
@@ -326,7 +290,7 @@ export function PlanForm({ plan, onDone }: PlanFormProps) {
         )}
 
         {onDone && (
-          <Button type="button" variant="ghost" disabled={busy} onClick={onDone}>
+          <Button type="button" variant="ghost" disabled={pending !== null} onClick={onDone}>
             Cancel
           </Button>
         )}

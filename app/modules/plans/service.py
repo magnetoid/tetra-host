@@ -1,10 +1,14 @@
 """PlanService — business logic for subscription plan management."""
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import Plan
+
+logger = logging.getLogger(__name__)
 
 
 class PlanService:
@@ -85,6 +89,7 @@ class PlanService:
         self._session.add(plan)
         await self._session.flush()
         await self._session.refresh(plan)
+        logger.info("plan '%s' created (%s)", plan.key, plan.id)
         return plan
 
     async def update(self, plan_id: str, **fields: object) -> Plan | None:
@@ -102,6 +107,7 @@ class PlanService:
 
         await self._session.flush()
         await self._session.refresh(plan)
+        logger.info("plan '%s' updated (%d field(s))", plan.key, len(fields))
         return plan
 
     async def archive(self, plan_id: str) -> Plan | None:
@@ -111,4 +117,5 @@ class PlanService:
         plan.is_archived = True
         await self._session.flush()
         await self._session.refresh(plan)
+        logger.info("plan '%s' archived", plan.key)
         return plan

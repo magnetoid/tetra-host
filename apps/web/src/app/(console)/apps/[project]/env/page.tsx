@@ -1,9 +1,10 @@
 import Link from "next/link"
 
-import { EnvManager } from "@/components/apps/env-manager"
+import { EnvManager } from "@/components/env/env-manager"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { AppEnvVar } from "@/lib/types"
 
 export default async function AppEnvPage({
@@ -14,9 +15,10 @@ export default async function AppEnvPage({
   const session = await requireConsoleSession()
   const { project } = await params
 
-  const vars = await fetchBackend<AppEnvVar[]>(`/deploys/${project}/env`, {
+  const varsRes = await fetchDegraded<AppEnvVar[]>(`/deploys/${project}/env`, "Env vars", [], {
     token: session.token,
-  }).catch(() => [])
+  })
+  const vars = varsRes.data
 
   return (
     <div className="space-y-6">
@@ -28,7 +30,8 @@ export default async function AppEnvPage({
         title={project}
         description="Variables injected into this app's containers — secrets are encrypted at rest."
       />
-      <EnvManager project={project} vars={vars} />
+      <DegradedBanner sources={degradedSources([varsRes])} />
+      <EnvManager target={{ kind: "deploy", project }} vars={vars} />
     </div>
   )
 }

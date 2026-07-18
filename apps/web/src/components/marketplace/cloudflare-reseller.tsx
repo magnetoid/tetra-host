@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCircleCheck, faPlus } from "@/lib/icons"
 import type { CloudflarePlan, DNSZoneRecord, ResellableService, ZoneSubscription } from "@/lib/types"
 
@@ -39,19 +40,19 @@ export function CloudflareReseller({
    *  backend hard-blocks them too (reseller_cloudflare_billing_enabled). */
   billingEnabled?: boolean
 }) {
-  const router = useRouter()
+  const { run, pending: busy, error: actionError } = useAction()
   const [zoneId, setZoneId] = useState(zones[0]?.id ?? "")
   const [plans, setPlans] = useState<CloudflarePlan[]>([])
   const [subscription, setSubscription] = useState<ZoneSubscription | null>(null)
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const error = actionError ?? loadError
 
   const loadZone = useCallback(async (id: string) => {
     if (!id) return
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const [plansRes, subRes] = await Promise.all([
         fetch(`/api/proxy/cloudflare/zones/${id}/plans`),
@@ -59,9 +60,9 @@ export function CloudflareReseller({
       ])
       setPlans(plansRes.ok ? ((await plansRes.json()) as CloudflarePlan[]) : [])
       setSubscription(subRes.ok ? ((await subRes.json()) as ZoneSubscription) : null)
-      if (!plansRes.ok) setError(await readError(plansRes))
+      if (!plansRes.ok) setLoadError(await readError(plansRes))
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
+      setLoadError(err instanceof Error ? err.message : "Unexpected error")
     } finally {
       setLoading(false)
     }
@@ -78,47 +79,37 @@ export function CloudflareReseller({
     }
   }, [zoneId, loadZone])
 
-  async function activatePlan(ratePlanId: string) {
-    setBusy(`plan:${ratePlanId}`)
-    setError(null)
+  function activatePlan(ratePlanId: string) {
+    setLoadError(null)
     setNotice(null)
-    try {
-      const res = await fetch(`/api/proxy/cloudflare/zones/${zoneId}/subscription`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rate_plan_id: ratePlanId, frequency: "monthly" }),
-      })
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
-      setNotice(`Activated the ${ratePlanId} plan.`)
-      await loadZone(zoneId)
-      router.refresh()
-    } finally {
-      setBusy(null)
-    }
+    return run(
+      async () => {
+        await apiFetch(`/api/proxy/cloudflare/zones/${zoneId}/subscription`, {
+          method: "POST",
+          body: { rate_plan_id: ratePlanId, frequency: "monthly" },
+          errorMessage: "Activation failed.",
+        })
+        setNotice(`Activated the ${ratePlanId} plan.`)
+        await loadZone(zoneId)
+      },
+      { key: `plan:${ratePlanId}` },
+    )
   }
 
-  async function activateService(key: string) {
-    setBusy(`svc:${key}`)
-    setError(null)
+  function activateService(key: string) {
+    setLoadError(null)
     setNotice(null)
-    try {
-      const res = await fetch(`/api/proxy/cloudflare/zones/${zoneId}/services/${key}/activate`, {
-        method: "POST",
-      })
-      const payload = (await res.json().catch(() => ({}))) as { detail?: string; note?: string }
-      if (!res.ok) {
-        setError(payload.detail ?? "Activation failed.")
-        return
-      }
-      setNotice(payload.note ?? "Service activated.")
-      await loadZone(zoneId)
-      router.refresh()
-    } finally {
-      setBusy(null)
-    }
+    return run(
+      async () => {
+        const payload = await apiFetch<{ note?: string }>(
+          `/api/proxy/cloudflare/zones/${zoneId}/services/${key}/activate`,
+          { method: "POST", errorMessage: "Activation failed." },
+        )
+        setNotice(payload.note ?? "Service activated.")
+        await loadZone(zoneId)
+      },
+      { key: `svc:${key}` },
+    )
   }
 
   if (zones.length === 0) {
@@ -173,7 +164,7 @@ export function CloudflareReseller({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {plans.map((p) => (
-              <div key={p.id} className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/40 p-4">
+              <div key={p.id} className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{p.name || p.id}</span>
                   {p.is_subscribed ? (

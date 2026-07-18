@@ -1,24 +1,19 @@
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 
-import { TenantRowActions } from "@/components/tenants/tenant-row-actions"
+import { AdminLinks } from "@/components/admin/admin-links"
+import { AuditEventsTable } from "@/components/audit/audit-events-table"
+import { PendingTenantsTable } from "@/components/tenants/pending-tenants-table"
 import { Card, CardHeader } from "@/components/ui/card"
-import { EmptyState } from "@/components/ui/empty-state"
 import { MetricCard } from "@/components/ui/metric-card"
 import { PageHeader } from "@/components/ui/page-header"
 import { StatCard } from "@/components/ui/stat-card"
-import { StatusBadge } from "@/components/ui/status-badge"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import {
   faBox,
-  faBuilding,
   faChartBar,
   faChartLine,
-  faClockRotateLeft,
-  faCoins,
   faDatabase,
-  faGaugeHigh,
   faKey,
   faLayerGroup,
   faUsers,
@@ -26,17 +21,6 @@ import {
   faWandSparkles,
 } from "@/lib/icons"
 import type { PlatformOverview, StatusResponse } from "@/lib/types"
-
-/** The platform-admin destinations that used to live in the left sidebar —
- *  they now live here, on the Super Admin hub. */
-const ADMIN_LINKS = [
-  { href: "/tenants", label: "Tenants", icon: faBuilding, desc: "Approve, suspend, and manage tenant organizations." },
-  { href: "/admin", label: "Administrators", icon: faUserShield, desc: "Platform administrators and provider readiness." },
-  { href: "/plans", label: "Plans", icon: faLayerGroup, desc: "Subscription plans available to tenants." },
-  { href: "/credits", label: "AI credits", icon: faCoins, desc: "Fund tenants' prepaid AI credit and track spend." },
-  { href: "/audit", label: "Audit log", icon: faClockRotateLeft, desc: "Every audited platform action." },
-  { href: "/status", label: "Status page", icon: faGaugeHigh, desc: "Public component-by-component health." },
-] as const
 
 function usd(v: number): string {
   const abs = Math.abs(v)
@@ -55,12 +39,6 @@ function vcpus(millicores: number): string {
 
 function gib(mb: number): string {
   return (mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)
-}
-
-function formatWhen(iso: string): string {
-  if (!iso) return ""
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
 }
 
 export default async function SuperAdminPage() {
@@ -99,31 +77,7 @@ export default async function SuperAdminPage() {
       />
 
       {/* Platform administration — the menu for every operator surface. */}
-      <section className="space-y-3">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Platform administration
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ADMIN_LINKS.map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-accent"
-            >
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-background text-primary">
-                <FontAwesomeIcon icon={a.icon} className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <div className="font-medium">{a.label}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">{a.desc}</div>
-              </div>
-              <span className="ml-auto text-muted-foreground transition-transform group-hover:translate-x-0.5">
-                →
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <AdminLinks />
 
       {/* Headline totals */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -217,89 +171,22 @@ export default async function SuperAdminPage() {
       </Card>
 
       {/* Pending approval queue */}
-      <Card>
-        <CardHeader title="Pending approval" action={`${pending_tenants.length} waiting`} />
-        <div className="mt-4">
-          {pending_tenants.length === 0 ? (
-            <EmptyState
-              title="No tenants awaiting approval"
-              description="New signups in the pending state appear here for review."
-            />
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-border">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Slug</th>
-                    <th className="px-4 py-3 font-medium">Plan</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border bg-background">
-                  {pending_tenants.map((tenant) => (
-                    <tr key={tenant.id}>
-                      <td className="px-4 py-3 font-medium">{tenant.name}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tenant.slug}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tenant.plan_key || "—"}</td>
-                      <td className="px-4 py-3">
-                        <TenantRowActions tenant={tenant} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </Card>
+      <PendingTenantsTable tenants={pending_tenants} />
 
       {/* Recent activity */}
-      <Card>
-        <CardHeader
-          title="Recent activity"
-          action={
-            <Link href="/audit" className="transition-colors hover:text-foreground">
-              Full audit log →
-            </Link>
-          }
-        />
-        <div className="mt-4">
-          {recent_events.length === 0 ? (
-            <EmptyState
-              title="No activity yet"
-              description="Audited platform actions — approvals, suspensions, and more — appear here."
-            />
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-border">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">When</th>
-                    <th className="px-4 py-3 font-medium">Action</th>
-                    <th className="px-4 py-3 font-medium">Actor</th>
-                    <th className="px-4 py-3 font-medium">Target</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border bg-background">
-                  {recent_events.map((event, i) => (
-                    <tr key={`${event.action}-${event.created_at}-${i}`}>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
-                        {formatWhen(event.created_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge value={event.action} />
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{event.actor_email}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{event.target}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </Card>
+      <AuditEventsTable
+        events={recent_events}
+        title="Recent activity"
+        action={
+          <Link
+            href="/audit"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Full audit log →
+          </Link>
+        }
+        emptyMessage="No activity yet. Audited platform actions — approvals, suspensions, and more — appear here."
+      />
     </div>
   )
 }

@@ -7,6 +7,7 @@ OpenRouter meters + auto-disables at the cap. The create response returns the se
 All calls go through the shared retrying ``request_json`` helper.
 """
 
+import logging
 from typing import Any
 
 import httpx
@@ -14,6 +15,8 @@ import httpx
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import ProviderAPIError, request_json
+
+logger = logging.getLogger(__name__)
 
 OPENROUTER_API = "https://openrouter.ai/api/v1"
 
@@ -117,6 +120,7 @@ class OpenRouterClient:
         self, name: str, *, limit: float | None = None, limit_reset: str | None = None
     ) -> dict[str, Any]:
         """POST /keys — mint a runtime key. Returns {key: <secret, once>, data: {hash,...}}."""
+        logger.info("minting OpenRouter runtime key '%s' (limit=%s)", name, limit)
         body: dict[str, Any] = {"name": name}
         if limit is not None:
             body["limit"] = limit
@@ -146,6 +150,7 @@ class OpenRouterClient:
     async def update_key(
         self, key_hash: str, *, limit: float | None = None, disabled: bool | None = None
     ) -> dict[str, Any]:
+        logger.info("updating OpenRouter key %s (limit=%s, disabled=%s)", key_hash, limit, disabled)
         body: dict[str, Any] = {}
         if limit is not None:
             body["limit"] = limit
@@ -158,6 +163,7 @@ class OpenRouterClient:
         return payload.get("data", {}) if isinstance(payload, dict) else {}
 
     async def delete_key(self, key_hash: str) -> None:
+        logger.info("deleting OpenRouter key %s", key_hash)
         await request_json(
             self.http_client, service="OpenRouter", method="DELETE",
             url=f"{OPENROUTER_API}/keys/{key_hash}", headers=self.headers(),

@@ -1,11 +1,12 @@
 "use client"
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faPlus, faTrash } from "@/lib/icons"
 import type { AppStorageRecord } from "@/lib/types"
 
@@ -17,52 +18,37 @@ const inputClass =
  * (uploads, databases-in-container, caches). Coolify-backed.
  */
 export function AppVolumes({ appId, volumes }: { appId: string; volumes: AppStorageRecord[] }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [name, setName] = useState("")
   const [mountPath, setMountPath] = useState("")
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   async function add(event: React.FormEvent) {
     event.preventDefault()
-    setError(null)
-    setPending("add")
-    try {
-      const res = await fetch(`/api/proxy/projects/${appId}/storages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), mount_path: mountPath.trim() }),
-      })
-      const payload = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(payload.detail ?? "Couldn't add volume.")
-        return
-      }
+    const ok = await run(
+      () =>
+        apiFetch(`/api/proxy/projects/${appId}/storages`, {
+          method: "POST",
+          body: { name: name.trim(), mount_path: mountPath.trim() },
+          errorMessage: "Couldn't add volume.",
+        }),
+      { key: "add", successMessage: "Volume added" },
+    )
+    if (ok) {
       setName("")
       setMountPath("")
-      router.refresh()
-    } catch {
-      setError("Network error — please retry.")
-    } finally {
-      setPending(null)
     }
   }
 
-  async function remove(vol: AppStorageRecord) {
+  function remove(vol: AppStorageRecord) {
     if (!window.confirm(`Remove volume ${vol.mount_path || vol.name}? Its data will be lost.`)) return
-    setError(null)
-    setPending(vol.id)
-    try {
-      const res = await fetch(`/api/proxy/projects/${appId}/storages/${vol.id}`, { method: "DELETE" })
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}))
-        setError(payload.detail ?? "Couldn't remove volume.")
-        return
-      }
-      router.refresh()
-    } finally {
-      setPending(null)
-    }
+    return run(
+      () =>
+        apiFetch(`/api/proxy/projects/${appId}/storages/${vol.id}`, {
+          method: "DELETE",
+          errorMessage: "Couldn't remove volume.",
+        }),
+      { key: vol.id, successMessage: "Volume removed" },
+    )
   }
 
   return (

@@ -9,11 +9,14 @@ This is **opt-in**: only active when ``edge_network`` + ``apps_base_domain`` are
 deploying the code with the infra absent is a safe no-op (apps deploy exactly as before).
 """
 
+import logging
 from typing import Any
 
 import yaml
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def edge_enabled() -> bool:
@@ -85,6 +88,7 @@ def apply_edge(
     try:
         doc = yaml.safe_load(compose_yaml)
     except yaml.YAMLError:
+        logger.warning("edge routing skipped for project %s: compose YAML failed to parse", project)
         return compose_yaml
     if not isinstance(doc, dict):
         return compose_yaml
@@ -109,6 +113,10 @@ def apply_edge(
     labels["tetra.reverse_proxy"] = upstream
     svc["labels"] = labels
 
+    logger.info(
+        "edge route attached for project %s: %s (+%d custom host(s))",
+        project, host, len(extra_hosts or []),
+    )
     svc["networks"] = _networks_with(svc.get("networks"), network)
     top_networks = doc.get("networks")
     if not isinstance(top_networks, dict):

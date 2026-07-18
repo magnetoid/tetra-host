@@ -56,7 +56,7 @@ export function DeploymentCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border bg-muted transition-colors",
+        "overflow-hidden rounded-lg border bg-muted transition-colors",
         expanded ? "border-primary/40" : "border-border hover:border-primary/30",
       )}
     >

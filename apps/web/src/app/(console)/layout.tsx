@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/shell/app-shell"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { fetchDegraded } from "@/lib/fetch-degraded"
 import { groupProjects } from "@/lib/projects"
 import type { ProjectRecord } from "@/lib/types"
 
@@ -14,9 +14,11 @@ export default async function ConsoleLayout({
   // Powers the sidebar's project-context switch (resolves the project name when
   // the route is inside a project). The per-project layout fetches the same list
   // for validation; identical GETs are request-memoized within a render.
-  const projects = await fetchBackend<ProjectRecord[]>("/projects", {
+  // degraded label intentionally unused — pages surface their own banners
+  const projectsRes = await fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], {
     token: session.token,
-  }).catch(() => [] as ProjectRecord[])
+  })
+  const projects = projectsRes.data
 
   return (
     <AppShell admin={session.admin} projects={groupProjects(projects)}>

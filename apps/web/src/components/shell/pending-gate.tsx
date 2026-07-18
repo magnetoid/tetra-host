@@ -4,7 +4,7 @@ import type { AdminRecord } from "@/lib/types"
 export function PendingGate({ admin }: { admin: AdminRecord }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
-      <div className="mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-muted text-3xl">
+      <div className="mb-6 grid h-16 w-16 place-items-center rounded-lg bg-muted text-3xl">
         ⏳
       </div>
       <h1 className="text-2xl font-semibold tracking-tight">Account awaiting approval</h1>
@@ -20,7 +20,7 @@ export function PendingGate({ admin }: { admin: AdminRecord }) {
       <p className="mt-2 text-sm text-zinc-500">
         You will receive access once your account is approved.
       </p>
-      <div className="mt-8 rounded-2xl border border-border bg-muted p-6 text-left text-sm">
+      <div className="mt-8 rounded-lg border border-border bg-muted p-6 text-left text-sm">
         <div className="font-medium text-zinc-300">Account details</div>
         <div className="mt-3 space-y-1 text-zinc-500">
           <div>

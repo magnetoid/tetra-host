@@ -47,7 +47,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/auth/register"
-              className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+              className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
               Get started
             </Link>
@@ -127,7 +127,7 @@ export default function HomePage() {
             <div
               key={capability.title}
               style={{ animationDelay: `${index * 0.06}s` }}
-              className={`animate-fade-up rounded-2xl border border-border bg-muted p-6 transition-colors hover:border-primary/30 ${capability.span ?? ""}`}
+              className={`animate-fade-up rounded-lg border border-border bg-muted p-6 transition-colors hover:border-primary/30 ${capability.span ?? ""}`}
             >
               <span className="grid size-10 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
                 <FontAwesomeIcon icon={capability.icon} className="h-4 w-4" />

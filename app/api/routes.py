@@ -1,7 +1,8 @@
 import asyncio
 import json
+from typing import TypeVar
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -257,6 +258,19 @@ async def _stream_deployment_logs(
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
+_T = TypeVar("_T")
+
+
+def _paginate(response: Response, items: list[_T], limit: int, offset: int) -> list[_T]:
+    """Opt-in pagination for plain-array list endpoints.
+
+    The body stays a plain array (the console, CLI, and MCP all expect that shape);
+    ``X-Total-Count`` carries the pre-slice length. The default limit (500) keeps
+    today's behavior effectively unchanged while capping pathological payloads.
+    """
+    response.headers["X-Total-Count"] = str(len(items))
+    return items[offset : offset + limit]
+
 
 def _provider_summary(name: str, configured: bool, detail: str) -> ProviderSummary:
     return ProviderSummary(
@@ -362,31 +376,8 @@ async def require_tenant_owner(current_admin: AdminUser = Depends(get_current_ap
     return current_admin
 
 
-@router.get("/health")
-async def api_health(request: Request) -> dict[str, object]:
-    return {
-        "ok": True,
-        "app": request.state.settings.app_name,
-        "env": request.state.settings.app_env,
-        "version": "python-core",
-        "request_id": getattr(request.state, "request_id", ""),
-    }
-
-
-@router.get("/ready")
-async def api_ready(request: Request) -> dict[str, object]:
-    return {
-        "ok": True,
-        "providers": {
-            "coolify": bool(request.state.settings.coolify_url and request.state.settings.coolify_token),
-            "mailcow": bool(request.state.settings.mailcow_url and request.state.settings.mailcow_api_key),
-            "cloudflare": bool(request.state.settings.cloudflare_api_token),
-        },
-        "auth": {
-            "session": True,
-            "csrf": True,
-        },
-    }
+# Liveness/readiness live at the app root (/health, /ready in app/main.py) —
+# the /api/v1 copies were divergent duplicates and had no consumers.
 
 
 @router.get("/status", response_model=StatusResponse)
@@ -643,6 +634,9 @@ async def api_dashboard(
 @router.get("/projects", response_model=list[ProjectSummary])
 async def api_projects(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[ProjectSummary]:
@@ -652,7 +646,8 @@ async def api_projects(
         current_admin.tenant_id,
         refresh=request.query_params.get("refresh") == "1",
     )
-    return [ProjectSummary(**site.model_dump()) for site in sites]
+    items = [ProjectSummary(**site.model_dump()) for site in sites]
+    return _paginate(response, items, limit, offset)
 
 
 @router.patch("/projects/{application_id}", response_model=ActionResponse)
@@ -680,6 +675,9 @@ async def api_update_project(
 async def api_list_app_storages(
     application_id: str,
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[AppStorageSummary]:
@@ -690,10 +688,11 @@ async def api_list_app_storages(
         raise HTTPException(
             status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
-    return [
+    summaries = [
         AppStorageSummary(id=s.id, name=s.name, mount_path=s.mount_path, host_path=s.host_path)
         for s in items
     ]
+    return _paginate(response, summaries, limit, offset)
 
 
 @router.post("/projects/{application_id}/storages", response_model=ActionResponse)
@@ -796,6 +795,9 @@ async def api_restart_project(
 async def api_project_deployments(
     application_id: str,
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[ProjectDeploymentSummary]:
@@ -805,7 +807,8 @@ async def api_project_deployments(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return [ProjectDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
+    items = [ProjectDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
+    return _paginate(response, items, limit, offset)
 
 
 @router.post("/projects/{application_id}/stop", response_model=ActionResponse)
@@ -884,6 +887,9 @@ async def api_project_errors(
 async def api_project_envs(
     application_id: str,
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[dict[str, object]]:
@@ -893,7 +899,7 @@ async def api_project_envs(
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return envs
+    return _paginate(response, envs, limit, offset)
 
 
 @router.post("/projects/{application_id}/envs", response_model=ActionResponse)
@@ -1129,6 +1135,9 @@ async def api_delete_mailbox(
 @router.get("/mail/aliases", response_model=list[MailAliasSummary])
 async def api_mail_aliases(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[MailAliasSummary]:
@@ -1142,7 +1151,8 @@ async def api_mail_aliases(
         raise HTTPException(
             status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
-    return [MailAliasSummary(**alias.model_dump()) for alias in aliases]
+    items = [MailAliasSummary(**alias.model_dump()) for alias in aliases]
+    return _paginate(response, items, limit, offset)
 
 
 @router.post("/mail/aliases", response_model=ActionResponse)
@@ -1201,6 +1211,9 @@ async def api_mail_dkim(
 @router.get("/mail/relayhosts", response_model=list[MailRelayhostSummary])
 async def api_list_mail_relayhosts(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     _: AdminUser = Depends(require_platform_admin),
 ) -> list[MailRelayhostSummary]:
     service = MailService(request)
@@ -1210,7 +1223,8 @@ async def api_list_mail_relayhosts(
         raise HTTPException(
             status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
-    return [MailRelayhostSummary(**host) for host in hosts]
+    items = [MailRelayhostSummary(**host) for host in hosts]
+    return _paginate(response, items, limit, offset)
 
 
 @router.post("/mail/relayhosts", response_model=MailRelayhostCreateResponse)
@@ -1492,6 +1506,9 @@ def _engine_exc_to_http(exc: Exception) -> HTTPException:
 @router.get("/apps/catalog", response_model=list[AppTemplateSummary])
 async def api_apps_catalog(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[AppTemplateSummary]:
@@ -1503,24 +1520,29 @@ async def api_apps_catalog(
         )
     except (ProviderAPIError, DockerEngineError) as exc:
         raise _engine_exc_to_http(exc) from exc
-    return [
+    items = [
         AppTemplateSummary(
             slug=t.slug, name=t.name, description=t.description,
             category=t.category, tags=t.tags, logo=t.logo, port=t.port,
         )
         for t in templates
     ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.get("/apps", response_model=list[InstalledAppSummary])
 async def api_apps_installed(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[InstalledAppSummary]:
     service = AppsService(request)
     apps = await service.list_installed_for_tenant(session, current_admin.tenant_id)
-    return [InstalledAppSummary(**app.model_dump()) for app in apps]
+    items = [InstalledAppSummary(**app.model_dump()) for app in apps]
+    return _paginate(response, items, limit, offset)
 
 
 @router.post("/apps/install", response_model=AppActionResponse)
@@ -1666,12 +1688,16 @@ async def api_deploy_git(
 @router.get("/deploys", response_model=list[DeploymentStatus])
 async def api_list_deploys(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[DeploymentStatus]:
     service = DeploysService(request)
     deployments = await service.list_deployments_for_tenant(session, current_admin.tenant_id)
-    return [_deployment_status(deployment) for deployment in deployments]
+    items = [_deployment_status(deployment) for deployment in deployments]
+    return _paginate(response, items, limit, offset)
 
 
 @router.get("/deploys/{deployment_id}", response_model=DeploymentStatus)
@@ -1777,16 +1803,19 @@ def _infra_summary(server) -> InfraServerSummary:
 @router.get("/infra/servers", response_model=list[InfraServerSummary])
 async def api_infra_servers(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     _: AdminUser = Depends(require_platform_admin),
 ) -> list[InfraServerSummary]:
     client = _hetzner(request)
     if not client.is_configured():
-        return []
+        return _paginate(response, [], limit, offset)
     try:
         servers = await client.list_servers()
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
-    return [_infra_summary(s) for s in servers]
+    return _paginate(response, [_infra_summary(s) for s in servers], limit, offset)
 
 
 @router.post("/infra/servers", response_model=InfraServerCreated)
@@ -1906,13 +1935,16 @@ async def api_add_domain(
 
 @router.get("/domains", response_model=list[DomainSummary])
 async def api_list_domains(
+    response: Response,
     project: str | None = None,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[DomainSummary]:
     service = DomainsService()
     domains = await service.list_for_tenant(session, current_admin.tenant_id, project)
-    return [_domain_summary(service, d) for d in domains]
+    return _paginate(response, [_domain_summary(service, d) for d in domains], limit, offset)
 
 
 @router.post("/domains/{domain_id}/verify", response_model=DomainSummary)
@@ -1971,12 +2003,15 @@ def _env_summary(row) -> AppEnvVarSummary:
 async def api_list_deploy_env(
     project: str,
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[AppEnvVarSummary]:
     service = DeploysService(request)
     rows = await service.list_env_for_tenant(session, current_admin.tenant_id, project)
-    return [_env_summary(row) for row in rows]
+    return _paginate(response, [_env_summary(row) for row in rows], limit, offset)
 
 
 @router.post("/deploys/{project}/env", response_model=list[AppEnvVarSummary])
@@ -2039,18 +2074,22 @@ async def api_create_deploy_hook(
 @router.get("/deploy-hooks", response_model=list[DeployHookSummary])
 async def api_list_deploy_hooks(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[DeployHookSummary]:
     service = DeploysService(request)
     hooks = await service.list_hooks_for_tenant(session, current_admin.tenant_id)
-    return [
+    items = [
         DeployHookSummary(
             id=h.id, project=h.project, git_url=h.git_url, ref=h.ref, port=h.port,
             enabled=h.enabled, previews=h.previews,
         )
         for h in hooks
     ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.delete("/deploy-hooks/{hook_id}")
@@ -2147,7 +2186,10 @@ async def api_github_webhook(
 @router.get("/previews", response_model=list[PreviewSummary])
 async def api_list_previews(
     request: Request,
+    response: Response,
     project: str | None = None,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[PreviewSummary]:
@@ -2155,13 +2197,14 @@ async def api_list_previews(
     previews = await service.list_previews_for_tenant(
         session, current_admin.tenant_id, project=project
     )
-    return [
+    items = [
         PreviewSummary(
             id=p.id, project=p.project, branch=p.branch, preview_project=p.preview_project,
             domain=p.domain, last_deployment_id=p.last_deployment_id,
         )
         for p in previews
     ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.delete("/previews/{preview_id}")
@@ -2398,22 +2441,29 @@ def _subscription_summary(sub: dict) -> ZoneSubscriptionSummary:
 @router.get("/cloudflare/services", response_model=list[ResellableServiceSummary])
 async def api_cf_services(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     _: AdminUser = Depends(get_current_api_admin),
 ) -> list[ResellableServiceSummary]:
     """The resellable Cloudflare catalog (plans + security/performance/developer services)."""
-    return [
+    items = [
         ResellableServiceSummary(
             key=s.key, name=s.name, category=s.category, activation=s.activation,
             rate_plan=s.rate_plan, description=s.description,
         )
         for s in ResellerService(request).catalog()
     ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.get("/cloudflare/zones/{zone_id}/plans", response_model=list[CloudflarePlanSummary])
 async def api_cf_zone_plans(
     zone_id: str,
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[CloudflarePlanSummary]:
@@ -2424,7 +2474,7 @@ async def api_cf_zone_plans(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
-    return [_plan_summary(p) for p in plans]
+    return _paginate(response, [_plan_summary(p) for p in plans], limit, offset)
 
 
 @router.get("/cloudflare/zones/{zone_id}/subscription", response_model=ZoneSubscriptionSummary)
@@ -2518,6 +2568,9 @@ def _ai_key_summary(data: dict) -> AiKeySummary:
 @router.get("/ai/models", response_model=list[AiModelSummary])
 async def api_ai_models(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     _: AdminUser = Depends(get_current_api_admin),
 ) -> list[AiModelSummary]:
     """The resellable OpenRouter model catalog."""
@@ -2525,17 +2578,20 @@ async def api_ai_models(
         models = await AiResellerService(request).list_models()
     except ProviderAPIError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=str(exc)) from exc
-    return [_ai_model_summary(m) for m in models]
+    return _paginate(response, [_ai_model_summary(m) for m in models], limit, offset)
 
 
 @router.get("/ai/keys", response_model=list[AiKeySummary])
 async def api_ai_keys(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[AiKeySummary]:
     keys = await AiResellerService(request).list_keys_for_tenant(session, current_admin.tenant_id)
-    return [_ai_key_summary(k) for k in keys]
+    return _paginate(response, [_ai_key_summary(k) for k in keys], limit, offset)
 
 
 @router.post("/ai/keys", response_model=AiKeyCreated)
@@ -2688,12 +2744,15 @@ async def api_billing_credits(
 
 @router.get("/billing/credits/overview", response_model=list[TenantCreditOverview])
 async def api_billing_credits_overview(
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     _: AdminUser = Depends(require_platform_admin),
 ) -> list[TenantCreditOverview]:
     """Platform-admin: every tenant's AI credit balance + 30-day spend."""
     rows = await CreditService(session).overview()
-    return [TenantCreditOverview(**r) for r in rows]
+    return _paginate(response, [TenantCreditOverview(**r) for r in rows], limit, offset)
 
 
 @router.post("/billing/credits", response_model=CreditBalanceResponse)
@@ -2734,11 +2793,15 @@ def _charge_summary(charge) -> ResellerChargeSummary:
 @router.get("/billing/pricing", response_model=list[PricingRuleSummary])
 async def api_billing_pricing(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     _: AdminUser = Depends(require_platform_admin),
 ) -> list[PricingRuleSummary]:
     service = BillingService(session, request.state.settings)
-    return [_pricing_rule_summary(r) for r in await service.list_rules()]
+    rules = await service.list_rules()
+    return _paginate(response, [_pricing_rule_summary(r) for r in rules], limit, offset)
 
 
 @router.put("/billing/pricing/{offering_key}", response_model=PricingRuleSummary)
@@ -2779,13 +2842,17 @@ async def api_billing_quote(
 @router.get("/billing/charges", response_model=list[ResellerChargeSummary])
 async def api_billing_charges(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[ResellerChargeSummary]:
     """The reseller charge ledger — platform-admins see all tenants; others see their own."""
     service = BillingService(session, request.state.settings)
     tenant_scope = None if current_admin.role == ROLE_PLATFORM_ADMIN else current_admin.tenant_id
-    return [_charge_summary(c) for c in await service.list_charges(tenant_id=tenant_scope)]
+    charges = await service.list_charges(tenant_id=tenant_scope)
+    return _paginate(response, [_charge_summary(c) for c in charges], limit, offset)
 
 
 @router.get("/admin", response_model=AdminResponse)
@@ -2843,6 +2910,9 @@ async def api_create_tenant(
 
 @router.get("/tenants", response_model=list[TenantSummary])
 async def api_list_tenants(
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     _: AdminUser = Depends(require_platform_admin),
 ) -> list[TenantSummary]:
@@ -2853,7 +2923,10 @@ async def api_list_tenants(
     if plan_ids:
         plans = list((await session.scalars(select(Plan).where(Plan.id.in_(plan_ids)))).all())
         plan_key_map = {p.id: p.key for p in plans}
-    return [_tenant_summary(t, plan_key_map.get(t.plan_id, "") if t.plan_id else "") for t in tenants]
+    items = [
+        _tenant_summary(t, plan_key_map.get(t.plan_id, "") if t.plan_id else "") for t in tenants
+    ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.post("/tenants/{tenant_slug}/activate", response_model=TenantSummary)
@@ -3089,13 +3162,16 @@ def _plan_summary(plan) -> PlanSummary:
 
 @router.get("/plans", response_model=list[PlanSummary])
 async def api_list_plans(
+    response: Response,
     include_archived: bool = False,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     _: AdminUser = Depends(get_current_api_admin),
 ) -> list[PlanSummary]:
     service = PlanService(session)
     plans = await service.list_plans(include_archived=include_archived)
-    return [_plan_summary(p) for p in plans]
+    return _paginate(response, [_plan_summary(p) for p in plans], limit, offset)
 
 
 @router.post("/plans", response_model=PlanSummary)
@@ -3239,6 +3315,9 @@ async def api_usage(
 @router.get("/databases", response_model=list[DatabaseSummary])
 async def api_list_databases(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[DatabaseSummary]:
@@ -3249,7 +3328,7 @@ async def api_list_databases(
         current_admin.tenant_id,
         refresh=request.query_params.get("refresh") == "1",
     )
-    return [
+    items = [
         DatabaseSummary(
             id=db.id,
             name=db.name,
@@ -3260,6 +3339,7 @@ async def api_list_databases(
         )
         for db in databases
     ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.get("/databases/targets", response_model=DatabaseTargets)
@@ -3312,6 +3392,9 @@ async def api_provision_database(
 async def api_list_database_backups(
     db_uuid: str,
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[BackupConfigSummary]:
@@ -3322,7 +3405,7 @@ async def api_list_database_backups(
     except ProviderAPIError as exc:
         _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
-    return [
+    items = [
         BackupConfigSummary(
             id=str(b.get("uuid") or b.get("id") or ""),
             frequency=str(b.get("frequency") or ""),
@@ -3331,6 +3414,7 @@ async def api_list_database_backups(
         )
         for b in backups
     ]
+    return _paginate(response, items, limit, offset)
 
 
 @router.post("/databases/{db_uuid}/backups", response_model=ActionResponse)
@@ -3379,11 +3463,14 @@ async def api_storage_status(
 @router.get("/storage/buckets", response_model=list[BucketSummary])
 async def api_list_buckets(
     request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[BucketSummary]:
     rows = await StorageService(request).list_buckets_for_tenant(session, current_admin.tenant_id)
-    return [BucketSummary(**r) for r in rows]
+    return _paginate(response, [BucketSummary(**r) for r in rows], limit, offset)
 
 
 @router.post("/storage/buckets", response_model=BucketCreated)
@@ -3435,11 +3522,14 @@ def _job_summary(job) -> ScheduledJobSummary:
 
 @router.get("/jobs", response_model=list[ScheduledJobSummary])
 async def api_list_jobs(
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[ScheduledJobSummary]:
     jobs = await JobsService(session).list_for_tenant(current_admin.tenant_id)
-    return [_job_summary(j) for j in jobs]
+    return _paginate(response, [_job_summary(j) for j in jobs], limit, offset)
 
 
 @router.post("/jobs", response_model=ScheduledJobSummary)
@@ -3491,6 +3581,9 @@ async def api_delete_job(
 @router.get("/jobs/{job_id}/runs", response_model=list[JobRunSummary])
 async def api_job_runs(
     job_id: str,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[JobRunSummary]:
@@ -3498,13 +3591,14 @@ async def api_job_runs(
         runs = await JobsService(session).list_runs(current_admin.tenant_id, job_id)
     except JobError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    return [
+    items = [
         JobRunSummary(
             status=r.status, detail=r.detail, duration_ms=r.duration_ms,
             started_at=r.started_at.isoformat() if r.started_at else "",
         )
         for r in runs
     ]
+    return _paginate(response, items, limit, offset)
 
 
 # ── Team / RBAC ──────────────────────────────────────────────────────────────

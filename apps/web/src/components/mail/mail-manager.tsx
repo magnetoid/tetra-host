@@ -119,7 +119,7 @@ export function MailManager({
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       {/* Add a mail domain — the automated bit */}
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-2">
           <FontAwesomeIcon icon={faWandSparkles} className="h-4 w-4 text-primary" />
           <h2 className="text-lg font-semibold">Add a mail domain</h2>
@@ -166,7 +166,7 @@ export function MailManager({
 
       {/* Add a mailbox */}
       {domains.length > 0 ? (
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Add a mailbox</h2>
           <form onSubmit={addMailbox} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <input
@@ -216,7 +216,7 @@ export function MailManager({
       ) : null}
 
       {/* Domains */}
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Mail domains</h2>
           <span className="text-sm text-muted-foreground">{domains.length} total</span>
@@ -256,7 +256,7 @@ export function MailManager({
 
       {/* Mailboxes */}
       {mailboxes.length > 0 ? (
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Mailboxes</h2>
             <span className="text-sm text-muted-foreground">{mailboxes.length} shown</span>

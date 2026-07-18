@@ -1,11 +1,12 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faArrowsRotate, faPlus } from "@/lib/icons"
 import type { BadgeVariant } from "@/components/ui/badge"
 import type { InviteCreateResult, TeamResponse } from "@/lib/types"
@@ -30,75 +31,62 @@ export function TeamManager({
   currentRole: string
   currentAdminId: string
 }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const canManage = currentRole === "owner" || currentRole === "platform_admin"
 
   const [email, setEmail] = useState("")
   const [role, setRole] = useState("member")
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   // The share link is returned exactly once, at creation — surfaced here to copy.
   const [freshLink, setFreshLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   async function invite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("invite")
-    setError(null)
     setFreshLink(null)
-    try {
-      const response = await fetch("/api/proxy/team/invites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role }),
-      })
-      const payload = (await response.json().catch(() => ({}))) as InviteCreateResult & {
-        detail?: string
-      }
-      if (!response.ok) {
-        setError(payload.detail ?? "Could not create the invite.")
-        return
-      }
-      setFreshLink(`${window.location.origin}${payload.accept_url}`)
-      setEmail("")
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
-  }
-
-  async function act(key: string, url: string, init: RequestInit) {
-    setPending(key)
-    setError(null)
-    try {
-      const response = await fetch(url, init)
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-        setError(payload.detail ?? "Action failed.")
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<InviteCreateResult>("/api/proxy/team/invites", {
+          method: "POST",
+          body: { email, role },
+          errorMessage: "Could not create the invite.",
+        })
+        setFreshLink(`${window.location.origin}${payload.accept_url}`)
+        setEmail("")
+      },
+      { key: "invite", successMessage: "Invite created" },
+    )
   }
 
   const changeRole = (id: string, next: string) =>
-    act(`role:${id}`, `/api/proxy/team/members/${id}/role`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: next }),
-    })
+    run(
+      () =>
+        apiFetch(`/api/proxy/team/members/${id}/role`, {
+          method: "POST",
+          body: { role: next },
+          errorMessage: "Action failed.",
+        }),
+      { key: `role:${id}`, successMessage: "Role updated" },
+    )
 
   const removeMember = (id: string) =>
-    act(`remove:${id}`, `/api/proxy/team/members/${id}`, { method: "DELETE" })
+    run(
+      () =>
+        apiFetch(`/api/proxy/team/members/${id}`, {
+          method: "DELETE",
+          errorMessage: "Action failed.",
+        }),
+      { key: `remove:${id}`, successMessage: "Member removed" },
+    )
 
   const revokeInvite = (id: string) =>
-    act(`revoke:${id}`, `/api/proxy/team/invites/${id}`, { method: "DELETE" })
+    run(
+      () =>
+        apiFetch(`/api/proxy/team/invites/${id}`, {
+          method: "DELETE",
+          errorMessage: "Action failed.",
+        }),
+      { key: `revoke:${id}`, successMessage: "Invite revoked" },
+    )
 
   async function copy(link: string) {
     try {
@@ -115,7 +103,7 @@ export function TeamManager({
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       {canManage ? (
-        <form onSubmit={invite} className="rounded-2xl border border-border bg-muted p-4">
+        <form onSubmit={invite} className="rounded-lg border border-border bg-muted p-4">
           <div className="flex flex-wrap items-end gap-3">
             <label className="block flex-1 text-sm">
               <span className="mb-2 block text-muted-foreground">Invite by email</span>
@@ -169,7 +157,7 @@ export function TeamManager({
       ) : null}
 
       {/* Members */}
-      <div className="overflow-hidden rounded-2xl border border-border">
+      <div className="overflow-hidden rounded-lg border border-border">
         <div className="border-b border-border bg-background px-4 py-3 text-sm font-medium">
           Members
         </div>
@@ -235,7 +223,7 @@ export function TeamManager({
 
       {/* Pending invites */}
       {team.invites.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl border border-border">
+        <div className="overflow-hidden rounded-lg border border-border">
           <div className="border-b border-border bg-background px-4 py-3 text-sm font-medium">
             Pending invites
           </div>

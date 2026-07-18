@@ -14,14 +14,14 @@ function HeaderSkeleton() {
 }
 
 export function CardSkeleton({ className }: { className?: string }) {
-  return <Skeleton className={`h-32 rounded-2xl ${className ?? ""}`} />
+  return <Skeleton className={`h-32 rounded-lg ${className ?? ""}`} />
 }
 
 export function StatRowSkeleton({ count = 5 }: { count?: number }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="rounded-2xl border border-border bg-card p-5">
+        <div key={index} className="rounded-lg border border-border bg-card p-5">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="mt-3 h-8 w-16" />
           <Skeleton className="mt-2 h-3 w-20" />
@@ -33,7 +33,7 @@ export function StatRowSkeleton({ count = 5 }: { count?: number }) {
 
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border">
+    <div className="overflow-hidden rounded-lg border border-border">
       <div className="border-b border-border bg-muted/40 p-4">
         <Skeleton className="h-4 w-40" />
       </div>

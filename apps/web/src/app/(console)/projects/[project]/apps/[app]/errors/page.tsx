@@ -1,29 +1,42 @@
+import { ErrorIssuesTable } from "@/components/projects/error-issues-table"
 import { Card, CardHeader } from "@/components/ui/card"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader } from "@/components/ui/page-header"
-import { StatusBadge } from "@/components/ui/status-badge"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { ProjectErrors } from "@/lib/types"
-import { formatRelativeLabel } from "@/lib/utils"
 
 export default async function ErrorsPage({ params }: { params: Promise<{ app: string }> }) {
   const session = await requireConsoleSession()
   const { app } = await params
 
-  const errors = await fetchBackend<ProjectErrors>(`/projects/${app}/errors`, {
-    token: session.token,
-  }).catch(() => null)
+  const errorsRes = await fetchDegraded<ProjectErrors | null>(
+    `/projects/${app}/errors`,
+    "App errors",
+    null,
+    { token: session.token },
+  )
+  const errors = errorsRes.data
 
   const header = (
-    <PageHeader
-      eyebrow="Observability"
-      title="Errors"
-      description="Unresolved exceptions captured for this app, via GlitchTip."
-    />
+    <>
+      <PageHeader
+        eyebrow="Observability"
+        title="Errors"
+        description="Unresolved exceptions captured for this app, via GlitchTip."
+      />
+      <DegradedBanner sources={degradedSources([errorsRes])} />
+    </>
   )
 
-  if (!errors || !errors.configured) {
+  // A degraded fetch (errors === null) must not read as "not connected" — the
+  // banner above already explains the outage.
+  if (!errors) {
+    return <div className="space-y-6">{header}</div>
+  }
+
+  if (!errors.configured) {
     return (
       <div className="space-y-6">
         {header}
@@ -60,61 +73,7 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader title="Unresolved issues" action={`${errors.issues.length} open`} />
-        <div className="mt-4">
-          {errors.issues.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No unresolved errors. 🎉</p>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-border">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Level</th>
-                    <th className="px-4 py-3 font-medium">Issue</th>
-                    <th className="px-4 py-3 text-right font-medium">Events</th>
-                    <th className="px-4 py-3 text-right font-medium">Users</th>
-                    <th className="px-4 py-3 text-right font-medium">Last seen</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border bg-background">
-                  {errors.issues.map((issue) => (
-                    <tr key={issue.id}>
-                      <td className="px-4 py-3">
-                        <StatusBadge value={issue.level} />
-                      </td>
-                      <td className="px-4 py-3">
-                        {issue.permalink ? (
-                          <a
-                            href={issue.permalink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-medium text-foreground hover:text-foreground"
-                          >
-                            {issue.title}
-                          </a>
-                        ) : (
-                          <span className="font-medium text-foreground">{issue.title}</span>
-                        )}
-                        {issue.culprit ? (
-                          <div className="mt-0.5 font-mono text-xs text-muted-foreground">{issue.culprit}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono tabular-nums text-foreground">{issue.count}</td>
-                      <td className="px-4 py-3 text-right font-mono tabular-nums text-muted-foreground">
-                        {issue.user_count}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-                        {issue.last_seen ? formatRelativeLabel(issue.last_seen) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </Card>
+      <ErrorIssuesTable issues={errors.issues} />
     </div>
   )
 }

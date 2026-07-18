@@ -1,39 +1,32 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCirclePlay, faCircleStop, faTrash } from "@/lib/icons"
 import type { InstalledApp } from "@/lib/types"
 
-export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
-  const router = useRouter()
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+const ACT_DONE: Record<"start" | "stop" | "remove", string> = {
+  start: "App started",
+  stop: "App stopped",
+  remove: "App removed",
+}
 
-  async function act(project: string, verb: "start" | "stop" | "remove") {
-    setPending(`${verb}:${project}`)
-    setError(null)
+export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
+  const { run, pending, error } = useAction()
+
+  function act(project: string, verb: "start" | "stop" | "remove") {
     const method = verb === "remove" ? "DELETE" : "POST"
     const path = verb === "remove" ? `apps/${project}` : `apps/${project}/${verb}`
-    try {
-      const response = await fetch(`/api/proxy/${path}`, { method })
-      const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-      if (!response.ok) {
-        setError(payload.detail ?? "Action failed.")
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    return run(
+      () => apiFetch(`/api/proxy/${path}`, { method, errorMessage: "Action failed." }),
+      { key: `${verb}:${project}`, successMessage: ACT_DONE[verb] },
+    )
   }
 
   if (apps.length === 0) {
@@ -46,7 +39,7 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
       {apps.map((app) => (
         <div
           key={app.project}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted p-4"
         >
           <div className="min-w-0">
             <div className="flex items-center gap-2">

@@ -1,9 +1,10 @@
 import Link from "next/link"
 
 import { ComputePanel } from "@/components/apps/compute-panel"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { ComputeMetrics } from "@/lib/types"
 
 export default async function AppComputePage({
@@ -14,9 +15,13 @@ export default async function AppComputePage({
   const session = await requireConsoleSession()
   const { project } = await params
 
-  const initial = await fetchBackend<ComputeMetrics>(`/apps/${project}/compute`, {
-    token: session.token,
-  }).catch(() => null)
+  const initialRes = await fetchDegraded<ComputeMetrics | null>(
+    `/apps/${project}/compute`,
+    "Compute",
+    null,
+    { token: session.token },
+  )
+  const initial = initialRes.data
 
   return (
     <div className="space-y-6">
@@ -28,6 +33,7 @@ export default async function AppComputePage({
         title={project}
         description="Live CPU, memory, and network usage for this app's containers."
       />
+      <DegradedBanner sources={degradedSources([initialRes])} />
       <ComputePanel project={project} initial={initial} />
     </div>
   )

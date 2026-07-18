@@ -2,11 +2,12 @@ import Link from "next/link"
 
 import { BulkMailboxImport } from "@/components/mail/bulk-mailbox-import"
 import { MailManager } from "@/components/mail/mail-manager"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { MailResponse, ProjectRecord } from "@/lib/types"
 
 type MailPageProps = {
@@ -18,15 +19,20 @@ export default async function MailPage({ searchParams }: MailPageProps) {
   const params = await searchParams
 
   // Mail degrades to a dormant state (never crashes) when Mailcow is unconfigured.
-  const [mail, projects] = await Promise.all([
-    fetchBackend<MailResponse>("/mail", {
-      token: session.token,
-      searchParams: { refresh: params.refresh === "1" ? "1" : undefined },
-    }).catch(() => ({ providers: [], domains: [], mailboxes: [] }) as MailResponse),
-    fetchBackend<ProjectRecord[]>("/projects", { token: session.token }).catch(
-      () => [] as ProjectRecord[],
+  const [mailRes, projectsRes] = await Promise.all([
+    fetchDegraded<MailResponse>(
+      "/mail",
+      "Mail",
+      { providers: [], domains: [], mailboxes: [] },
+      {
+        token: session.token,
+        searchParams: { refresh: params.refresh === "1" ? "1" : undefined },
+      },
     ),
+    fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], { token: session.token }),
   ])
+  const mail = mailRes.data
+  const projects = projectsRes.data
 
   const configured = mail.providers.length > 0
   // Domains you already host on apps → offered as one-click "enable mail" picks.
@@ -44,6 +50,8 @@ export default async function MailPage({ searchParams }: MailPageProps) {
         description="Provision mail domains and mailboxes for the domains you host — DNS is wired automatically."
         action={<RefreshLink href="/mail?refresh=1" label="Refresh" />}
       />
+
+      <DegradedBanner sources={degradedSources([mailRes, projectsRes])} />
 
       {configured ? (
         <>

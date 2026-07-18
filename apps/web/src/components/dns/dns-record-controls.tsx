@@ -1,9 +1,10 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import type { DNSRecord } from "@/lib/types"
 
 const RECORD_TYPES = ["A", "AAAA", "CNAME", "TXT", "MX", "SRV", "NS", "CAA"] as const
@@ -22,7 +23,7 @@ export function RecordForm({
   record?: DNSRecord
   onDone?: () => void
 }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const editing = Boolean(record)
   const [type, setType] = useState<string>(record?.type ?? "A")
   const [name, setName] = useState(record?.name ?? "")
@@ -30,13 +31,9 @@ export function RecordForm({
   const [ttl, setTtl] = useState(record?.ttl ?? 1)
   const [proxied, setProxied] = useState(Boolean(record?.proxied))
   const [priority, setPriority] = useState(record?.priority ?? 10)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending(true)
-    setError(null)
     const body: Record<string, unknown> = { type, name, content, ttl, proxied }
     if (NEEDS_PRIORITY.has(type)) {
       body.priority = priority
@@ -44,32 +41,26 @@ export function RecordForm({
     const url = editing
       ? `/api/proxy/dns/zones/${zoneId}/records/${record!.id}`
       : `/api/proxy/dns/zones/${zoneId}/records`
-    try {
-      const response = await fetch(url, {
-        method: editing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-        setError(payload.detail ?? "Could not save record.")
-        return
-      }
+    const ok = await run(
+      () =>
+        apiFetch(url, {
+          method: editing ? "PUT" : "POST",
+          body,
+          errorMessage: "Could not save record.",
+        }),
+      { key: "save", successMessage: editing ? "DNS record updated" : "DNS record added" },
+    )
+    if (ok) {
       if (!editing) {
         setName("")
         setContent("")
       }
-      router.refresh()
       onDone?.()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-2xl border border-border bg-muted p-4">
+    <form onSubmit={submit} className="space-y-3 rounded-lg border border-border bg-muted p-4">
       <div className="text-sm font-medium text-foreground">{editing ? "Edit DNS record" : "Add DNS record"}</div>
       <div className="grid gap-2 sm:grid-cols-[5rem_1fr_1fr_4rem]">
         <select
@@ -137,10 +128,10 @@ export function RecordForm({
           ) : null}
           <button
             type="submit"
-            disabled={pending}
-            className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:opacity-60"
+            disabled={pending !== null}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
           >
-            {pending ? "Saving…" : editing ? "Save changes" : "Add record"}
+            {pending !== null ? "Saving…" : editing ? "Save changes" : "Add record"}
           </button>
         </div>
       </div>
@@ -154,27 +145,25 @@ export function CreateRecordForm({ zoneId }: { zoneId: string }) {
 }
 
 export function DeleteRecordButton({ zoneId, recordId }: { zoneId: string; recordId: string }) {
-  const router = useRouter()
-  const [pending, setPending] = useState(false)
-
-  async function remove() {
-    setPending(true)
-    try {
-      await fetch(`/api/proxy/dns/zones/${zoneId}/records/${recordId}`, { method: "DELETE" })
-      router.refresh()
-    } finally {
-      setPending(false)
-    }
-  }
+  const { run, pending } = useAction()
 
   return (
     <button
       type="button"
-      disabled={pending}
-      onClick={remove}
+      disabled={pending !== null}
+      onClick={() =>
+        run(
+          () =>
+            apiFetch(`/api/proxy/dns/zones/${zoneId}/records/${recordId}`, {
+              method: "DELETE",
+              errorMessage: "Could not delete record.",
+            }),
+          { key: "delete", successMessage: "DNS record deleted" },
+        )
+      }
       className="rounded-md border border-status-err/25 px-2 py-1 text-xs text-status-err transition-colors hover:bg-status-err/10 disabled:opacity-60"
     >
-      {pending ? "…" : "Delete"}
+      {pending !== null ? "…" : "Delete"}
     </button>
   )
 }

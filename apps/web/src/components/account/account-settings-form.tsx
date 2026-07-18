@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCircleCheck, faKey } from "@/lib/icons"
 
 function fieldClass() {
@@ -17,52 +18,31 @@ function Label({ children }: { children: React.ReactNode }) {
   return <label className="block text-xs font-medium text-muted-foreground">{children}</label>
 }
 
-async function readError(res: Response): Promise<string> {
-  try {
-    const payload = (await res.json()) as { detail?: string }
-    if (payload.detail) return payload.detail
-  } catch {
-    // fall through to statusText
-  }
-  return res.statusText
-}
-
 type ProfileProps = { fullName: string; email: string }
 
 function ProfileForm({ fullName, email }: ProfileProps) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [name, setName] = useState(fullName)
   const [mail, setMail] = useState(email)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError(null)
     setOk(false)
-    setBusy(true)
-    try {
-      const res = await fetch("/api/proxy/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ full_name: name, email: mail }),
-      })
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
-      setOk(true)
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
-    }
+    const saved = await run(
+      () =>
+        apiFetch("/api/proxy/account", {
+          method: "PATCH",
+          body: { full_name: name, email: mail },
+          errorMessage: "Could not update the profile.",
+        }),
+      { key: "profile" },
+    )
+    if (saved) setOk(true)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-muted/40 p-6">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-muted/40 p-6">
       <h2 className="text-lg font-medium">Profile</h2>
       <p className="mt-1 text-sm text-muted-foreground">Update the name and email on your account.</p>
 
@@ -102,7 +82,7 @@ function ProfileForm({ fullName, email }: ProfileProps) {
       ) : null}
 
       <div className="mt-4">
-        <Button type="submit" variant="primary" icon={faCircleCheck} disabled={busy}>
+        <Button type="submit" variant="primary" icon={faCircleCheck} disabled={pending !== null}>
           Save profile
         </Button>
       </div>
@@ -111,45 +91,38 @@ function ProfileForm({ fullName, email }: ProfileProps) {
 }
 
 function PasswordForm() {
+  const { run, pending, error, setError } = useAction()
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
   const [confirm, setConfirm] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError(null)
     setOk(false)
     if (next !== confirm) {
       setError("New passwords do not match.")
       return
     }
-    setBusy(true)
-    try {
-      const res = await fetch("/api/proxy/account/password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: current, new_password: next }),
-      })
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
+    const changed = await run(
+      () =>
+        apiFetch("/api/proxy/account/password", {
+          method: "POST",
+          body: { current_password: current, new_password: next },
+          errorMessage: "Could not change the password.",
+        }),
+      { key: "password", refresh: false },
+    )
+    if (changed) {
       setOk(true)
       setCurrent("")
       setNext("")
       setConfirm("")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-muted/40 p-6">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-muted/40 p-6">
       <h2 className="text-lg font-medium">Change password</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Minimum 10 characters. You&apos;ll need your current password.
@@ -208,7 +181,7 @@ function PasswordForm() {
       ) : null}
 
       <div className="mt-4">
-        <Button type="submit" variant="primary" icon={faKey} disabled={busy}>
+        <Button type="submit" variant="primary" icon={faKey} disabled={pending !== null}>
           Change password
         </Button>
       </div>

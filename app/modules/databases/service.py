@@ -1,5 +1,6 @@
 """Databases service — tenant-scoped wrappers around the Coolify databases API."""
 
+import logging
 from typing import Any
 
 from fastapi import Request
@@ -11,6 +12,8 @@ from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_DATABASE
 from app.services.coolify import CoolifyClient, CoolifyDatabase, DB_TYPE_ALLOWLIST
 from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
+
+logger = logging.getLogger(__name__)
 
 
 class DatabasesService:
@@ -42,14 +45,14 @@ class DatabasesService:
                 if s.is_usable:
                     servers.append({"uuid": s.id, "name": s.name})
         except ProviderAPIError:
-            pass
+            logger.warning("could not list Coolify servers for the provisioning form")
         try:
             for p in await self.client.list_projects():
                 uuid = str(p.get("uuid") or p.get("id") or "")
                 if uuid:
                     projects.append({"uuid": uuid, "name": str(p.get("name") or uuid)})
         except ProviderAPIError:
-            pass
+            logger.warning("could not list Coolify projects for the provisioning form")
         return {"servers": servers, "projects": projects}
 
     async def _ensure_database_access(
@@ -121,6 +124,7 @@ class DatabasesService:
                 f"Supported types: {', '.join(sorted(DB_TYPE_ALLOWLIST))}"
             )
 
+        logger.info("provisioning %s database '%s' for tenant %s", db_type, name, tenant_id)
         result = await self.client.provision_database(
             db_type=db_type,
             server_uuid=server_uuid,
@@ -135,6 +139,7 @@ class DatabasesService:
 
         # Fix 1: fail loud when Coolify returns no uuid — never create a silent orphan.
         if not db_uuid:
+            logger.error("Coolify returned no UUID after provisioning database '%s'", name)
             raise ProviderAPIError(
                 service="Coolify",
                 message="Provision succeeded but Coolify returned no database UUID.",
@@ -151,6 +156,7 @@ class DatabasesService:
         session.add(resource)
         await session.flush()
 
+        logger.info("database '%s' provisioned (uuid %s, tenant %s)", name, db_uuid, tenant_id)
         result.setdefault("ok", True)
         return result
 

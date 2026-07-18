@@ -7,6 +7,10 @@ const toneStyles = {
   info: "border-border bg-muted text-muted-foreground",
 } as const
 
+/**
+ * Inline feedback banner. Announced to assistive tech: errors interrupt
+ * (role="alert"), success/info are polite (role="status").
+ */
 export function AlertBanner({
   tone = "info",
   children,
@@ -17,7 +21,10 @@ export function AlertBanner({
   className?: string
 }) {
   return (
-    <div className={cn("rounded-2xl border p-4 text-sm", toneStyles[tone], className)}>
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className={cn("rounded-lg border p-4 text-sm", toneStyles[tone], className)}
+    >
       {children}
     </div>
   )

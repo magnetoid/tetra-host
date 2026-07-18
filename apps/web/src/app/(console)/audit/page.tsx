@@ -1,20 +1,14 @@
 import Link from "next/link"
 
+import { AuditEventsTable } from "@/components/audit/audit-events-table"
 import { Card } from "@/components/ui/card"
-import { EmptyState } from "@/components/ui/empty-state"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
-import { StatusBadge } from "@/components/ui/status-badge"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { AuditLogResponse } from "@/lib/types"
 
 const PAGE = 50
-
-function formatWhen(iso: string): string {
-  if (!iso) return ""
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
-}
 
 type AuditPageProps = {
   searchParams: Promise<{ action?: string; actor?: string; offset?: string }>
@@ -41,15 +35,21 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
   const actor = params.actor?.trim() ?? ""
   const offset = Math.max(0, Number(params.offset) || 0)
 
-  const log = await fetchBackend<AuditLogResponse>("/audit", {
-    token: session.token,
-    searchParams: {
-      limit: String(PAGE),
-      offset: String(offset),
-      action: action || undefined,
-      actor: actor || undefined,
+  const logRes = await fetchDegraded<AuditLogResponse>(
+    "/audit",
+    "Audit log",
+    { events: [], total: 0, limit: PAGE, offset: 0 },
+    {
+      token: session.token,
+      searchParams: {
+        limit: String(PAGE),
+        offset: String(offset),
+        action: action || undefined,
+        actor: actor || undefined,
+      },
     },
-  }).catch(() => ({ events: [], total: 0, limit: PAGE, offset: 0 }) as AuditLogResponse)
+  )
+  const log = logRes.data
 
   const start = log.total === 0 ? 0 : offset + 1
   const end = Math.min(offset + log.events.length, log.total)
@@ -70,7 +70,9 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
         description="Every audited platform action — approvals, suspensions, provisioning, and more. Platform-admin only."
       />
 
-      <form method="GET" className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4">
+      <DegradedBanner sources={degradedSources([logRes])} />
+
+      <form method="GET" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4">
         <label className="block text-sm">
           <span className="mb-2 block text-muted-foreground">Action</span>
           <input
@@ -91,7 +93,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
         </label>
         <button
           type="submit"
-          className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+          className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
         >
           Filter
         </button>
@@ -102,53 +104,23 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
         ) : null}
       </form>
 
-      <Card>
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-sm font-semibold">
-            {log.total} event{log.total === 1 ? "" : "s"}
-          </h2>
-          {log.total > 0 ? (
-            <span className="font-mono text-xs text-muted-foreground">
-              {start}–{end} of {log.total}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="mt-4">
-          {log.events.length === 0 ? (
-            <EmptyState title="No matching events" description="Audited platform actions appear here." />
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-background/60 text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">When</th>
-                    <th className="px-4 py-3 font-medium">Action</th>
-                    <th className="px-4 py-3 font-medium">Actor</th>
-                    <th className="px-4 py-3 font-medium">Target</th>
-                    <th className="px-4 py-3 font-medium">Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border bg-background">
-                  {log.events.map((e, i) => (
-                    <tr key={`${e.action}-${e.created_at}-${i}`}>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
-                        {formatWhen(e.created_at)}
-                      </td>
-                      <td className="px-4 py-3"><StatusBadge value={e.action} /></td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{e.actor_email}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{e.target}</td>
-                      <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-foreground">{e.details}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      <div className="space-y-4">
+        <AuditEventsTable
+          events={log.events}
+          title={`${log.total} event${log.total === 1 ? "" : "s"}`}
+          action={
+            log.total > 0 ? (
+              <span className="font-mono text-xs text-muted-foreground">
+                {start}–{end} of {log.total}
+              </span>
+            ) : undefined
+          }
+          showDetails
+          emptyMessage="No matching events. Audited platform actions appear here."
+        />
 
         {log.total > PAGE ? (
-          <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center justify-between">
             {offset > 0 ? (
               <Link href={q(Math.max(0, offset - PAGE))} className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent">
                 ← Newer
@@ -161,7 +133,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
             ) : <span />}
           </div>
         ) : null}
-      </Card>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -8,6 +9,8 @@ from pydantic import BaseModel, ConfigDict
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import ProviderAPIError, request_json, request_text
+
+logger = logging.getLogger(__name__)
 
 # GraphQL Analytics endpoint (the REST zone-analytics API is deprecated).
 CLOUDFLARE_GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql"
@@ -207,6 +210,7 @@ class CloudflareClient:
         body: dict[str, Any] = {"type": record_type, "name": name, "content": content, "ttl": ttl, "proxied": proxied}
         if priority is not None:
             body["priority"] = priority
+        logger.info("creating %s record %s in zone %s", record_type, name, zone_id)
         payload = await request_json(
             self.http_client, service="Cloudflare", method="POST",
             url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
@@ -281,6 +285,10 @@ class CloudflareClient:
         self, zone_id: str, rate_plan_id: str, *, frequency: str = "monthly", update: bool = False
     ) -> dict[str, Any]:
         """Activate/upgrade a zone's paid plan. POST creates, PUT updates an existing one."""
+        logger.info(
+            "setting zone %s subscription to rate plan %s (update=%s)",
+            zone_id, rate_plan_id, update,
+        )
         payload = await request_json(
             self.http_client, service="Cloudflare", method="PUT" if update else "POST",
             url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/subscription",
@@ -303,6 +311,7 @@ class CloudflareClient:
         self, name: str, account_id: str, *, jump_start: bool = False, zone_type: str = "full"
     ) -> dict[str, Any]:
         """POST /zones — provision a new zone (to resell) under the given account."""
+        logger.info("creating Cloudflare zone %s (type=%s)", name, zone_type)
         body: dict[str, Any] = {"name": name, "type": zone_type, "jump_start": jump_start}
         if account_id:
             body["account"] = {"id": account_id}
@@ -323,6 +332,7 @@ class CloudflareClient:
         body: dict[str, Any] = {"type": record_type, "name": name, "content": content, "ttl": ttl, "proxied": proxied}
         if priority is not None:
             body["priority"] = priority
+        logger.info("updating %s record %s in zone %s", record_type, name, zone_id)
         payload = await request_json(
             self.http_client, service="Cloudflare", method="PUT",
             url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}",
@@ -334,6 +344,7 @@ class CloudflareClient:
     async def delete_dns_record(self, zone_id: str, record_id: str) -> dict[str, Any]:
         if not self.is_configured():
             return {"ok": False, "message": "Cloudflare is not configured."}
+        logger.info("deleting DNS record %s from zone %s", record_id, zone_id)
         payload = await request_json(
             self.http_client, service="Cloudflare", method="DELETE",
             url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}",
@@ -455,6 +466,9 @@ class CloudflareClient:
         """Import a BIND-format zone file via the multipart import endpoint."""
         if not self.is_configured():
             return {"ok": False, "message": "Cloudflare is not configured."}
+        logger.info(
+            "importing %d BIND record(s) into zone %s", count_bind_records(bind_text), zone_id
+        )
         payload = await request_json(
             self.http_client, service="Cloudflare", method="POST",
             url=f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/import",

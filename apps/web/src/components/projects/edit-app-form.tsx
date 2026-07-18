@@ -1,11 +1,12 @@
 "use client"
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCircleCheck, faGear } from "@/lib/icons"
 import type { ProjectRecord } from "@/lib/types"
 
@@ -43,7 +44,7 @@ function Field({
 
 /** Edit an app's identity + build/run settings (Coolify PATCH via the panel). */
 export function EditAppForm({ app }: { app: ProjectRecord }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [name, setName] = useState(app.name)
   const [fqdn, setFqdn] = useState(app.fqdn || app.primary_domain || "")
   const [installCommand, setInstallCommand] = useState(app.install_command || "")
@@ -53,42 +54,30 @@ export function EditAppForm({ app }: { app: ProjectRecord }) {
   const [publishDir, setPublishDir] = useState(app.publish_directory || "")
   const [ports, setPorts] = useState(app.ports_exposes || "")
 
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
   async function save(event: React.FormEvent) {
     event.preventDefault()
-    setError(null)
     setSaved(false)
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/proxy/projects/${app.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          fqdn,
-          install_command: installCommand,
-          build_command: buildCommand,
-          start_command: startCommand,
-          base_directory: baseDir,
-          publish_directory: publishDir,
-          ports_exposes: ports,
+    const ok = await run(
+      () =>
+        apiFetch(`/api/proxy/projects/${app.id}`, {
+          method: "PATCH",
+          body: {
+            name,
+            fqdn,
+            install_command: installCommand,
+            build_command: buildCommand,
+            start_command: startCommand,
+            base_directory: baseDir,
+            publish_directory: publishDir,
+            ports_exposes: ports,
+          },
+          errorMessage: "Couldn't save app settings.",
         }),
-      })
-      const payload = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(payload.detail ?? "Couldn't save app settings.")
-        return
-      }
-      setSaved(true)
-      router.refresh()
-    } catch {
-      setError("Network error — please retry.")
-    } finally {
-      setSaving(false)
-    }
+      { key: "save" },
+    )
+    if (ok) setSaved(true)
   }
 
   return (
@@ -114,8 +103,8 @@ export function EditAppForm({ app }: { app: ProjectRecord }) {
       </div>
 
       <div className="flex items-center gap-3">
-        <Button type="submit" variant="primary" icon={faGear} disabled={saving}>
-          {saving ? "Saving…" : "Save changes"}
+        <Button type="submit" variant="primary" icon={faGear} disabled={pending !== null}>
+          {pending !== null ? "Saving…" : "Save changes"}
         </Button>
         {saved ? (
           <span className="inline-flex items-center gap-1.5 text-sm text-status-ok">

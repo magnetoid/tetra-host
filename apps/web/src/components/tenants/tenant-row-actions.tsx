@@ -1,44 +1,34 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faBan, faCircleCheck, faCirclePlay, faCircleStop } from "@/lib/icons"
 import type { TenantRecord } from "@/lib/types"
 
 type Action = "approve" | "reject" | "suspend" | "reactivate"
 
+const ACTION_DONE: Record<Action, string> = {
+  approve: "Tenant approved",
+  reject: "Tenant rejected",
+  suspend: "Tenant suspended",
+  reactivate: "Tenant reactivated",
+}
+
 export function TenantRowActions({ tenant }: { tenant: TenantRecord }) {
-  const router = useRouter()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { run, pending, error } = useAction()
+  const busy = pending !== null
   const status = tenant.status ?? "active"
 
-  async function doAction(action: Action) {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/proxy/tenants/${tenant.slug}/${action}`, {
-        method: "POST",
-      })
-      if (!res.ok) {
-        let detail = res.statusText
-        try {
-          const payload = (await res.json()) as { detail?: string }
-          if (payload.detail) detail = payload.detail
-        } catch {
-          // keep statusText
-        }
-        setError(detail)
-        return
-      }
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
-    }
+  function doAction(action: Action) {
+    return run(
+      () =>
+        apiFetch(`/api/proxy/tenants/${tenant.slug}/${action}`, {
+          method: "POST",
+          errorMessage: "Action failed.",
+        }),
+      { key: action, successMessage: ACTION_DONE[action] },
+    )
   }
 
   return (

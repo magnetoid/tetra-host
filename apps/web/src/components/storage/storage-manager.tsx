@@ -2,11 +2,12 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faPlus, faTrash } from "@/lib/icons"
 import type { BucketCreated, BucketRecord, StorageStatus } from "@/lib/types"
 
@@ -20,54 +21,36 @@ export function StorageManager({
   buckets: BucketRecord[]
   status: StorageStatus
 }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [name, setName] = useState("")
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   // Credentials are returned exactly once on create — surface them until dismissed.
   const [created, setCreated] = useState<BucketCreated | null>(null)
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("create")
-    setError(null)
-    try {
-      const res = await fetch("/api/proxy/storage/buckets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      })
-      const payload = (await res.json().catch(() => ({}))) as BucketCreated & { detail?: string }
-      if (!res.ok) {
-        setError(payload.detail ?? "Bucket creation failed.")
-        return
-      }
-      setName("")
-      if (payload.secret_access_key) setCreated(payload)
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<BucketCreated>("/api/proxy/storage/buckets", {
+          method: "POST",
+          body: { name },
+          errorMessage: "Bucket creation failed.",
+        })
+        setName("")
+        if (payload.secret_access_key) setCreated(payload)
+      },
+      { key: "create", successMessage: "Bucket created" },
+    )
   }
 
-  async function remove(bucketName: string) {
-    setPending(`rm:${bucketName}`)
-    setError(null)
-    try {
-      const res = await fetch(`/api/proxy/storage/buckets/${bucketName}`, { method: "DELETE" })
-      if (!res.ok) {
-        const p = (await res.json().catch(() => ({}))) as { detail?: string }
-        setError(p.detail ?? "Delete failed.")
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+  function remove(bucketName: string) {
+    return run(
+      () =>
+        apiFetch(`/api/proxy/storage/buckets/${bucketName}`, {
+          method: "DELETE",
+          errorMessage: "Delete failed.",
+        }),
+      { key: `rm:${bucketName}`, successMessage: "Bucket deleted" },
+    )
   }
 
   if (!status.configured) {
@@ -92,7 +75,7 @@ export function StorageManager({
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       {created ? (
-        <div className="space-y-2 rounded-2xl border border-primary/40 bg-primary/5 p-4">
+        <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-4">
           <div className="text-sm font-medium">
             Bucket <span className="font-mono">{created.name}</span> created — save these credentials now
             (shown once):
@@ -110,7 +93,7 @@ export function StorageManager({
 
       <form
         onSubmit={create}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
       >
         <label className="block flex-1 text-sm">
           <span className="mb-2 block text-muted-foreground">New bucket</span>
@@ -145,7 +128,7 @@ export function StorageManager({
           {buckets.map((b) => (
             <div
               key={b.name}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted p-4"
             >
               <div className="min-w-0">
                 <div className="truncate font-medium">{b.name}</div>

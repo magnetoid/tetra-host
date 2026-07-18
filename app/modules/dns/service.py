@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,6 +7,8 @@ from app.models.tenant_resource import PROVIDER_CLOUDFLARE, RESOURCE_TYPE_DNS_ZO
 from app.services.cloudflare import CloudflareClient, CloudflareDNSRecord, CloudflareZone
 from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
+
+logger = logging.getLogger(__name__)
 
 
 class DnsService:
@@ -179,12 +183,14 @@ class DnsService:
         self, session: AsyncSession, tenant_id: str | None, zone_id: str, setting: str, value: str
     ) -> dict:
         await self._ensure_zone_access(session, tenant_id, zone_id)
+        logger.info("zone %s: setting %s -> %s (tenant %s)", zone_id, setting, value, tenant_id)
         return await self.client.update_zone_setting(zone_id, setting, value)
 
     async def update_dnssec_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, zone_id: str, status: str
     ) -> dict:
         await self._ensure_zone_access(session, tenant_id, zone_id)
+        logger.info("zone %s: DNSSEC -> %s (tenant %s)", zone_id, status, tenant_id)
         return await self.client.update_dnssec(zone_id, status)
 
     async def purge_cache_for_tenant(
@@ -197,6 +203,7 @@ class DnsService:
         files: list[str] | None = None,
     ) -> dict:
         await self._ensure_zone_access(session, tenant_id, zone_id)
+        logger.info("zone %s: purging cache (tenant %s)", zone_id, tenant_id)
         return await self.client.purge_cache(zone_id, everything=everything, files=files)
 
     # ── Analytics + bulk import/export (tenant-guarded) ───────────────────
@@ -217,4 +224,5 @@ class DnsService:
         self, session: AsyncSession, tenant_id: str | None, zone_id: str, bind_text: str
     ) -> dict:
         await self._ensure_zone_access(session, tenant_id, zone_id)
+        logger.info("zone %s: importing BIND records (tenant %s)", zone_id, tenant_id)
         return await self.client.import_dns_records(zone_id, bind_text)

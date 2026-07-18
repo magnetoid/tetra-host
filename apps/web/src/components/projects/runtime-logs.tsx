@@ -106,7 +106,7 @@ export function RuntimeLogs({ projectId }: { projectId: string }) {
 
       <pre
         ref={preRef}
-        className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-2xl border border-border bg-black/60 p-4 font-mono text-xs leading-relaxed text-zinc-300"
+        className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-black/60 p-4 font-mono text-xs leading-relaxed text-zinc-300"
       >
         {loading ? "Loading…" : logs.trim() ? logs : "(no runtime output)"}
       </pre>

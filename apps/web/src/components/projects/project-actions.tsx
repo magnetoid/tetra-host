@@ -1,39 +1,27 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 
 export function ProjectActions({ applicationId }: { applicationId: string }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [pendingAction, setPendingAction] = useState<string | null>(null)
 
   async function runAction(action: "deploy" | "start" | "restart") {
-    setPendingAction(action)
     setMessage(null)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/proxy/projects/${applicationId}/${action}`, {
-        method: "POST",
-      })
-      const payload = (await response.json()) as { message?: string; detail?: string; error?: string }
-
-      if (!response.ok) {
-        setError(payload.detail ?? payload.error ?? "Action failed.")
-        return
-      }
-
-      setMessage(payload.message ?? "Action queued.")
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPendingAction(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<{ message?: string }>(
+          `/api/proxy/projects/${applicationId}/${action}`,
+          { method: "POST", errorMessage: "Action failed." },
+        )
+        setMessage(payload.message ?? "Action queued.")
+      },
+      { key: action },
+    )
   }
 
   return (
@@ -45,11 +33,11 @@ export function ProjectActions({ applicationId }: { applicationId: string }) {
           <button
             key={action}
             type="button"
-            disabled={pendingAction !== null}
+            disabled={pending !== null}
             onClick={() => runAction(action)}
             className="rounded-lg border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {pendingAction === action
+            {pending === action
               ? "Working..."
               : action === "deploy"
                 ? "Trigger deploy"

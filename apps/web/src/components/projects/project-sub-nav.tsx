@@ -26,7 +26,7 @@ export function ProjectSubNav({
   const items = projectNavItems(projectSlug, appId)
 
   return (
-    <aside className="rounded-2xl border border-border bg-muted/40 p-3">
+    <aside className="rounded-lg border border-border bg-muted/40 p-3">
       <div className="mb-2 flex items-center gap-2 px-1">
         <Link
           href={`/projects/${projectSlug}`}

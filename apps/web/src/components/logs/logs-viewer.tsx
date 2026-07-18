@@ -92,7 +92,7 @@ export function LogsViewer({ apps }: { apps: InstalledApp[] }) {
 
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
-      <div className="h-[32rem] overflow-auto rounded-2xl border border-border bg-black/70 p-4 font-mono text-xs leading-relaxed text-zinc-300">
+      <div className="h-[32rem] overflow-auto rounded-lg border border-border bg-black/70 p-4 font-mono text-xs leading-relaxed text-zinc-300">
         {loadedFor === null ? (
           <div className="text-zinc-500">Select an app and load its logs.</div>
         ) : lines.length === 0 || (lines.length === 1 && lines[0] === "") ? (

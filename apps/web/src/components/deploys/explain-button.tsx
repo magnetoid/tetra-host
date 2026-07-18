@@ -47,7 +47,7 @@ export function ExplainButton({ deploymentId }: { deploymentId: string }) {
       {error ? <p className="mt-2 text-sm text-status-err">{error}</p> : null}
 
       {diagnosis ? (
-        <div className="mt-3 w-full rounded-2xl border border-primary/25 bg-primary/10 p-4 text-sm">
+        <div className="mt-3 w-full rounded-lg border border-primary/25 bg-primary/10 p-4 text-sm">
           <div className="flex items-center gap-2">
             <span className="font-medium text-foreground">{diagnosis.summary}</span>
           </div>

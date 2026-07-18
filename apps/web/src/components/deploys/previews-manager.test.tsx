@@ -41,7 +41,10 @@ describe("PreviewsManager", () => {
     const user = userEvent.setup()
     render(<PreviewsManager previews={[PREVIEW]} />)
     await user.click(screen.getByRole("button", { name: /tear down/i }))
-    expect(fetchMock).toHaveBeenCalledWith("/api/proxy/previews/pv1", { method: "DELETE" })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/proxy/previews/pv1",
+      expect.objectContaining({ method: "DELETE" }),
+    )
   })
 
   it("surfaces API errors", async () => {

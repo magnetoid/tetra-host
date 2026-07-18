@@ -8,6 +8,7 @@ tenant-scoped and fail closed.
 """
 
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime
 
@@ -24,6 +25,8 @@ from app.models.team import (
     INVITE_PENDING,
     INVITE_REVOKED,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class TeamError(Exception):
@@ -131,6 +134,10 @@ class TeamService:
         )
         self.session.add(invite)
         await self.session.flush()
+        logger.info(
+            "invite %s created for tenant %s (role %s, by admin %s)",
+            invite.id, tenant_id, role, inviter.id,
+        )
         return invite, raw_token
 
     async def revoke_invite(self, tenant_id: str, invite_id: str) -> None:
@@ -147,6 +154,7 @@ class TeamService:
             raise TeamError("Invite is no longer pending.")
         invite.status = INVITE_REVOKED
         await self.session.flush()
+        logger.info("invite %s revoked (tenant %s)", invite_id, tenant_id)
 
     async def peek_invite(self, raw_token: str) -> TenantInvite | None:
         """Resolve a redeemable invite by raw token (for the accept page's
@@ -199,6 +207,9 @@ class TeamService:
         invite.accepted_admin_id = admin.id
         invite.accepted_at = datetime.now(UTC)
         await self.session.flush()
+        logger.info(
+            "invite %s accepted: admin %s joined tenant %s", invite.id, admin.id, invite.tenant_id
+        )
         return await self.auth.get_admin_by_id(admin.id)
 
     # ── Members ──────────────────────────────────────────────────────────
@@ -213,6 +224,7 @@ class TeamService:
             raise TeamError("A tenant must keep at least one owner.")
         member.role = role
         await self.session.flush()
+        logger.info("member %s role changed to %s (tenant %s)", member_id, role, tenant_id)
         return member
 
     async def remove_member(
@@ -228,4 +240,5 @@ class TeamService:
         # Deactivate rather than delete — preserves audit trail + resource authorship.
         member.is_active = False
         await self.session.flush()
+        logger.info("member %s deactivated (tenant %s)", member_id, tenant_id)
         return member

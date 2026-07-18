@@ -1,13 +1,15 @@
+import logging
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.graphql import build_graphql_router
@@ -25,6 +27,7 @@ from app.observability import (
 )
 from app.plugins import registry
 from app.rate_limit import InMemoryRateLimiter
+from app.services.http import ProviderAPIError
 from app.services.quota import QuotaExceeded
 from app.templating import build_templates
 
@@ -83,6 +86,10 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=402,
             content={
+                # Structured error contract (code/detail/request_id) + legacy keys.
+                "code": "quota_exceeded",
+                "detail": exc.reason,
+                "request_id": getattr(request.state, "request_id", ""),
                 "error": exc.error,
                 "reason": exc.reason,
                 "limit": exc.limit,
@@ -91,6 +98,24 @@ def create_app() -> FastAPI:
         )
 
     app.add_exception_handler(QuotaExceeded, _quota_exceeded_handler)
+
+    async def _provider_error_handler(request: Request, exc: ProviderAPIError) -> JSONResponse:
+        # Safety net for provider failures not translated by a route: a clean 502
+        # instead of a stack-trace 500, with the provider named.
+        logging.getLogger("app.providers").error(
+            "unhandled provider error from %s: %s", exc.service, exc.message
+        )
+        return JSONResponse(
+            status_code=502,
+            content={
+                "code": "provider_error",
+                "detail": f"{exc.service}: {exc.message}",
+                "provider": exc.service,
+                "request_id": getattr(request.state, "request_id", ""),
+            },
+        )
+
+    app.add_exception_handler(ProviderAPIError, _provider_error_handler)
 
     load_plugins()
     registry.register_all(app)
@@ -120,19 +145,26 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {
-            "ok": True,
-            "app": settings.app_name,
-            "plugins": [p.name for p in registry.nav_items()],
-            "theme": settings.theme,
-            "env": settings.app_env,
-        }
+        # Liveness only — keep it minimal and non-leaky (no plugin/theme/env details).
+        return {"ok": True, "app": settings.app_name}
 
     @app.get("/ready")
-    async def ready():
+    async def ready(response: Response):
+        # Readiness = can we serve requests: a real DB round-trip, plus which
+        # providers are configured (config presence, not remote pings — a slow
+        # third party must not flap our readiness).
+        db_ok = True
+        try:
+            async with session_scope() as db:
+                await db.execute(text("SELECT 1"))
+        except Exception:
+            logging.getLogger(__name__).exception("readiness: database probe failed")
+            db_ok = False
+        if not db_ok:
+            response.status_code = 503
         return {
-            "ok": True,
-            "database_url": settings.database_url.split("://", 1)[0],
+            "ok": db_ok,
+            "database": "up" if db_ok else "down",
             "providers": {
                 "coolify": bool(settings.coolify_url and settings.coolify_token),
                 "mailcow": bool(settings.mailcow_url and settings.mailcow_api_key),

@@ -6,11 +6,13 @@ import { ZoneTraffic } from "@/components/dns/zone-traffic"
 import { BarList } from "@/components/tremor/bar-list"
 import { DonutChart, DonutLegend } from "@/components/tremor/donut-chart"
 import { Card } from "@/components/ui/card"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { StatCard } from "@/components/ui/stat-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type {
   DashboardResponse,
   DNSResponse,
@@ -25,28 +27,38 @@ const HEALTH_COLORS = ["var(--status-ok)", "var(--status-warn)", "var(--chart-gr
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
   const dashboard = await fetchBackend<DashboardResponse>("/dashboard", { token: session.token })
-  const [projects, mail, dns] = await Promise.all([
-    fetchBackend<ProjectRecord[]>("/projects", { token: session.token }).catch(() => []),
-    fetchBackend<MailResponse>("/mail", { token: session.token }).catch(() => ({
-      providers: [],
-      domains: [],
-      mailboxes: [],
-    })),
-    fetchBackend<DNSResponse>("/dns", { token: session.token }).catch(() => ({
-      providers: [],
-      selected_zone: "",
-      zones: [],
-      records: [],
-    })),
+  const [projectsRes, mailRes, dnsRes] = await Promise.all([
+    fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], { token: session.token }),
+    fetchDegraded<MailResponse>(
+      "/mail",
+      "Mail",
+      { providers: [], domains: [], mailboxes: [] },
+      { token: session.token },
+    ),
+    fetchDegraded<DNSResponse>(
+      "/dns",
+      "DNS",
+      { providers: [], selected_zone: "", zones: [], records: [] },
+      { token: session.token },
+    ),
   ])
+  const projects = projectsRes.data
+  const mail = mailRes.data
+  const dns = dnsRes.data
 
   const primaryZone = dns.selected_zone || dns.zones[0]?.id || ""
-  const analytics = primaryZone
-    ? await fetchBackend<ZoneAnalytics>(`/dns/zones/${primaryZone}/analytics`, {
-        token: session.token,
-        searchParams: { days: "7" },
-      }).catch(() => null)
+  const analyticsRes = primaryZone
+    ? await fetchDegraded<ZoneAnalytics | null>(
+        `/dns/zones/${primaryZone}/analytics`,
+        "Traffic analytics",
+        null,
+        { token: session.token, searchParams: { days: "7" } },
+      )
     : null
+  const analytics = analyticsRes?.data ?? null
+  const degraded = degradedSources(
+    [projectsRes, mailRes, dnsRes, ...(analyticsRes ? [analyticsRes] : [])],
+  )
   const primaryZoneName = dns.zones.find((zone) => zone.id === primaryZone)?.name ?? primaryZone
 
   const m = dashboard.metrics
@@ -87,6 +99,8 @@ export default async function DashboardPage() {
           </div>
         }
       />
+
+      <DegradedBanner sources={degraded} />
 
       {/* Restraint: icons stay neutral; color is reserved for meaning — the
           Unhealthy tile turns red only when something actually needs attention. */}
@@ -229,7 +243,7 @@ function PreviewPanel({
         {hasItems ? (
           children
         ) : (
-          <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
             {empty}
           </div>
         )}
@@ -248,7 +262,7 @@ function PreviewItem({
   mono?: boolean
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background p-4 transition-colors hover:border-primary/30">
+    <div className="rounded-lg border border-border bg-background p-4 transition-colors hover:border-primary/30">
       <div className="font-medium">{title}</div>
       <div className={`mt-1 text-sm text-muted-foreground ${mono ? "font-mono text-xs" : ""}`}>
         {subtitle || "—"}

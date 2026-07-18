@@ -1,4 +1,6 @@
+import json
 import logging
+from contextvars import ContextVar
 from time import perf_counter
 from uuid import uuid4
 
@@ -10,13 +12,47 @@ from app.config import Settings
 
 SENSITIVE_PATH_PREFIXES = ("/auth", "/dashboard", "/projects", "/mail", "/dns", "/admin")
 
+# Propagates the per-request ID into every log record emitted while handling
+# that request (services, provider clients, background awaits on the same task).
+request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
+
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_var.get()
+        return True
+
+
+class JsonFormatter(logging.Formatter):
+    """Machine-parseable log lines for production aggregation."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", "-"),
+        }
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
 
 def configure_logging(settings: Settings) -> None:
     level = logging.DEBUG if settings.app_env == "development" else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
+    handler = logging.StreamHandler()
+    handler.addFilter(RequestIdFilter())
+    if settings.log_format == "json":
+        handler.setFormatter(JsonFormatter())
+    else:
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s [%(name)s] [%(request_id)s] %(message)s")
+        )
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(level)
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -24,7 +60,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         started_at = perf_counter()
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         request.state.request_id = request_id
-        response = await call_next(request)
+        token = request_id_var.set(request_id)
+        try:
+            response = await call_next(request)
+        finally:
+            request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time"] = f"{perf_counter() - started_at:.4f}"
         return response

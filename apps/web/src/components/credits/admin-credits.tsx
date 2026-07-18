@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import type { ColumnDef } from "@tanstack/react-table"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { DataTable } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
 import type { TenantCreditOverview } from "@/lib/types"
 
@@ -53,6 +55,72 @@ export function AdminCredits({ rows }: { rows: TenantCreditOverview[] }) {
     }
   }
 
+  const columns: ColumnDef<TenantCreditOverview>[] = [
+    {
+      accessorKey: "tenant_name",
+      header: "Tenant",
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.tenant_name || row.original.tenant_id}</div>
+          <div className="font-mono text-xs text-muted-foreground">{row.original.tenant_id}</div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "balance_usd",
+      header: "Balance",
+      cell: ({ row }) => (
+        <div className="text-right font-mono tabular-nums">
+          <span className={row.original.balance_usd <= 0 ? "text-status-err" : "text-status-ok"}>
+            {usd(row.original.balance_usd)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "spend_30d_usd",
+      header: "Spend (30d)",
+      cell: ({ row }) => (
+        <div className="text-right font-mono tabular-nums">{usd(row.original.spend_30d_usd)}</div>
+      ),
+    },
+    {
+      accessorKey: "requests_30d",
+      header: "Requests",
+      cell: ({ row }) => (
+        <div className="text-right font-mono tabular-nums text-muted-foreground">
+          {row.original.requests_30d}
+        </div>
+      ),
+    },
+    {
+      id: "topup",
+      enableSorting: false,
+      header: () => <span className="block text-right">Top up</span>,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-2">
+          <input
+            aria-label={`Top up ${row.original.tenant_name}`}
+            value={amounts[row.original.tenant_id] ?? ""}
+            onChange={(e) =>
+              setAmounts((a) => ({ ...a, [row.original.tenant_id]: e.target.value }))
+            }
+            placeholder="$ USD"
+            inputMode="decimal"
+            className={INPUT}
+          />
+          <Button
+            size="sm"
+            disabled={pending !== null}
+            onClick={() => topup(row.original.tenant_id)}
+          >
+            {pending === row.original.tenant_id ? "…" : "Add"}
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   if (rows.length === 0) {
     return <EmptyState title="No tenants yet" description="Tenants appear here once they exist." />
   }
@@ -62,57 +130,14 @@ export function AdminCredits({ rows }: { rows: TenantCreditOverview[] }) {
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
       {notice ? <AlertBanner tone="success">{notice}</AlertBanner> : null}
 
-      <div className="overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Tenant</th>
-              <th className="px-4 py-3 text-right font-medium">Balance</th>
-              <th className="px-4 py-3 text-right font-medium">Spend (30d)</th>
-              <th className="px-4 py-3 text-right font-medium">Requests</th>
-              <th className="px-4 py-3 text-right font-medium">Top up</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.tenant_id} className="border-b border-border last:border-0">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{r.tenant_name || r.tenant_id}</div>
-                  <div className="font-mono text-xs text-muted-foreground">{r.tenant_id}</div>
-                </td>
-                <td className="px-4 py-3 text-right font-mono tabular-nums">
-                  <span className={r.balance_usd <= 0 ? "text-status-err" : "text-status-ok"}>
-                    {usd(r.balance_usd)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right font-mono tabular-nums">{usd(r.spend_30d_usd)}</td>
-                <td className="px-4 py-3 text-right font-mono tabular-nums text-muted-foreground">
-                  {r.requests_30d}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    <input
-                      aria-label={`Top up ${r.tenant_name}`}
-                      value={amounts[r.tenant_id] ?? ""}
-                      onChange={(e) => setAmounts((a) => ({ ...a, [r.tenant_id]: e.target.value }))}
-                      placeholder="$ USD"
-                      inputMode="decimal"
-                      className={INPUT}
-                    />
-                    <Button
-                      size="sm"
-                      disabled={pending !== null}
-                      onClick={() => topup(r.tenant_id)}
-                    >
-                      {pending === r.tenant_id ? "…" : "Add"}
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(row) => row.tenant_id}
+        searchPlaceholder="Search tenants…"
+        searchLabel="Search tenants"
+        emptyMessage="No tenants match your search."
+      />
     </div>
   )
 }

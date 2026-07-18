@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import httpx
@@ -6,6 +7,8 @@ from pydantic import BaseModel, ConfigDict
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import ProviderAPIError, request_json
+
+logger = logging.getLogger(__name__)
 
 # Write-op envelope: mailcow answers HTTP 200 with [{type: success|danger|error, msg, log}]
 # (occasionally a bare object) — a 200 "danger"/"error" is a FAILED operation.
@@ -230,6 +233,7 @@ class MailcowClient:
         )
         failure = _failure_message(payload)
         if failure:
+            logger.warning("mailcow write %s rejected", path)
             raise ProviderAPIError(service="Mailcow", message=failure, status_code=422)
         for key in _CACHE_KEYS:
             await self.cache.delete(key)
@@ -246,6 +250,7 @@ class MailcowClient:
         max_mailboxes: int = 10,
         max_aliases: int = 400,
     ) -> Any:
+        logger.info("creating mailcow domain %s (quota %d MB)", domain, quota_mb)
         return await self._write(
             "add/domain",
             {
@@ -262,6 +267,7 @@ class MailcowClient:
         )
 
     async def delete_domain(self, domain: str) -> Any:
+        logger.info("deleting mailcow domain %s", domain)
         return await self._write("delete/domain", [domain])
 
     async def create_mailbox(
@@ -274,6 +280,7 @@ class MailcowClient:
         quota_mb: int = 3072,
         force_pw_update: bool = False,
     ) -> Any:
+        logger.info("creating mailbox on domain %s", domain)
         return await self._write(
             "add/mailbox",
             {
@@ -289,6 +296,8 @@ class MailcowClient:
         )
 
     async def delete_mailbox(self, username: str) -> Any:
+        # Log only the domain part — mailbox usernames are tenant email addresses.
+        logger.info("deleting mailbox on domain %s", username.split("@", 1)[-1])
         return await self._write("delete/mailbox", [username])
 
     async def create_alias(self, address: str, goto: str) -> Any:
@@ -311,6 +320,7 @@ class MailcowClient:
     async def generate_dkim(
         self, domain: str, *, selector: str = "dkim", key_size: int = 2048
     ) -> Any:
+        logger.info("generating DKIM key for domain %s", domain)
         return await self._write(
             "add/dkim",
             {"domains": domain, "dkim_selector": selector, "key_size": str(key_size)},
