@@ -47,6 +47,18 @@ logger = logging.getLogger(__name__)
 
 _TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
 
+# Fire-and-forget background builds must outlive the (per-request) service that
+# spawned them. asyncio keeps only a *weak* reference to a task, so without a
+# strong ref here a queued deploy/rollback can be garbage-collected mid-build.
+# Hold the ref until the task finishes, then drop it.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 # Sentinel so explain_deployment can distinguish "use the default AI diagnoser" from an
 # explicit diagnoser=None (heuristic-only).
 _UNSET = object()
@@ -200,7 +212,7 @@ class DeploysService:
         logger.info(
             "deployment %s queued for project '%s' (tenant %s)", deployment_id, project, tenant_id
         )
-        asyncio.create_task(
+        _spawn_background(
             self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
         )
         return deployment_id
@@ -557,7 +569,7 @@ class DeploysService:
             session.add(deployment)
             await session.flush()
             deployment_id = deployment.id
-        asyncio.create_task(
+        _spawn_background(
             self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
         )
         return deployment_id
@@ -602,7 +614,7 @@ class DeploysService:
             new_id = new_deployment.id
             project, image, port = target.project, target.image, target.port
         logger.info("rollback %s queued for project '%s' -> image %s", new_id, project, image)
-        asyncio.create_task(
+        _spawn_background(
             self._run_rollback(new_id, tenant_id, project=project, image=image, port=port)
         )
         return new_id
@@ -709,7 +721,7 @@ class DeploysService:
             await session.flush()
             preview.last_deployment_id = deployment.id
             deployment_id = deployment.id
-        asyncio.create_task(
+        _spawn_background(
             self._run_deploy(
                 deployment_id, tenant_id, git_url=git_url, ref=branch, project=stack,
                 port=port, env_project=project,
