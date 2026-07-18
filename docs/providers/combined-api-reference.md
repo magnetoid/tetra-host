@@ -402,3 +402,48 @@ declares a bare object — real instances return an array; handle both). A 200 w
   `edit/domain {attr: {relayhost: <id>}}` — outbound for that domain routes via the ESP.
 - DKIM: generate at domain creation; publish `dkim_txt` at
   `{selector}._domainkey.{domain}` TXT. mailcow does NOT publish DNS itself.
+
+## Mailcow API — mailbox management, app passwords, quarantine (verified 2026-07-18)
+
+**Source:** same shipped `openapi.yaml` (re-fetched 2026-07-18). Same `X-API-Key`
+auth and same array envelope for add/edit/delete.
+
+| Operation | Method + path | Body / notes |
+|---|---|---|
+| Edit mailbox | `POST /api/v1/edit/mailbox` | `{items: ["user@domain.tld",...], attr: {quota?, name?, active?, password?, password2?, force_pw_update?, sender_acl?, tls_enforce_in?, tls_enforce_out?}}` — partial attrs OK; `quota` in **MiB**. Send `password`+`password2` only to reset (omit to leave unchanged). |
+| Get mailbox usage | `GET /api/v1/get/mailbox/all` | Each item already carries **`quota`** (bytes, the limit) and **`quota_used`** (bytes, consumed) plus `messages`, `percent_in_use`. No per-mailbox call needed for usage bars. |
+| Add app password | `POST /api/v1/add/app-passwd` | `{active:"1", username:"user@domain.tld", app_name, app_passwd, app_passwd2, protocols: ["imap_access","smtp_access","dav_access","eas_access","pop3_access","sieve_access"]}`. mailcow stores it hashed — the plaintext is only what the caller supplies, so we **generate** it and reveal once. |
+| List app passwords | `GET /api/v1/get/app-passwd/all/{mailbox}` | → array of `{id, name (app_name), active, created, modified, ...}`. The stored secret is **never returned** (hashed). |
+| Delete app password | `POST /api/v1/delete/app-passwd` | JSON array of ids as strings: `["12"]` |
+| List quarantine | `GET /api/v1/get/quarantine/all` | → array of `{id, qid, subject, sender, rcpt, score, created (epoch), ...}` |
+| Act on quarantine | `POST /api/v1/edit/qitem` | `{items: [id,...], attr: {action: "release"|"learnham"|"learnspam"}}` |
+| Delete quarantine | `POST /api/v1/delete/qitem` | JSON array of ids: `["7"]` |
+
+### Gotchas (this batch)
+- **App-password plaintext is write-only.** mailcow never echoes the secret back
+  (only a hash). Generate it server-side, return it to the UI **once**, never store it.
+- `add/app-passwd` needs `app_passwd` AND `app_passwd2` (confirmation), like mailboxes.
+- `quota_used`/`quota` on `get/mailbox/all` are **bytes**; `edit/mailbox attr.quota`
+  is **MiB** — don't mix units.
+- Quarantine actions go through `edit/qitem` (NOT `edit/quarantine`); delete via
+  `delete/qitem`.
+
+## Mailcow OIDC / passwordless SOGo (verified 2026-07-18)
+
+**Source:** `https://docs.mailcow.email/manual-guides/mailcow-UI/u_e-mailcow_ui-generic-oidc/`
++ `https://mailcow.email/posts/2023/mailcow-idp/`.
+
+- There is **no** API to mint a single-use SOGo login link (mailcow issue #6067).
+  True passwordless requires **OIDC**, configured in the mailcow UI at
+  **System → Configuration → Access → Identity Provider → Generic-OIDC**
+  (Authorization / Token / UserInfo endpoints + Client ID/Secret + Redirect URL).
+- **Proxy Auth:** once OIDC is set up, a user already authenticated at the IdP is
+  **redirected into SOGo without re-entering credentials** — this is the real
+  "open my mailbox" button. Gotcha: IdP-backed users can reach SOGo **only through
+  the mailcow UI** (`/user` → SOGo); a direct SOGo login will not work for them.
+- Therefore the Tetra design is: **Tetra is the OIDC IdP** (expose
+  `/.well-known/openid-configuration`, `/oidc/authorize`, `/oidc/token`,
+  `/oidc/userinfo`, JWKS; sign id_tokens with `cryptography` — already a dep),
+  mailcow is the OIDC **client**, and the console's "Open webmail" button sends the
+  tenant through mailcow's proxy-auth redirect. Keycloak-only "Mailpassword Flow"
+  is not applicable (that's Keycloak's Admin API).

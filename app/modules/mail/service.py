@@ -8,10 +8,11 @@ report instead of failing the whole operation on a DNS hiccup.
 """
 
 import logging
+import secrets
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import delete, or_, and_
+from sqlalchemy import delete, or_, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -27,13 +28,25 @@ from app.modules.dns.service import DnsService
 from app.services.http import ProviderAPIError
 from app.services.mailcow import (
     MailcowAlias,
+    MailcowAppPassword,
     MailcowClient,
     MailcowDomain,
     MailcowMailbox,
+    MailcowQuarantineItem,
 )
 from app.services.tenant_resources import TenantResourceFilter
 
 logger = logging.getLogger(__name__)
+
+# App-password plaintext is write-only in mailcow (stored hashed, never echoed),
+# so we generate a strong secret here and reveal it to the caller exactly once.
+_APP_PW_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"  # no ambiguous 0/o/1/l
+
+
+def _generate_app_password() -> str:
+    """5 groups of 4 unambiguous chars (e.g. xf29-kd81-…) — ~100 bits, readable."""
+    groups = ["".join(secrets.choice(_APP_PW_ALPHABET) for _ in range(4)) for _ in range(5)]
+    return "-".join(groups)
 
 
 class MailService:
@@ -112,6 +125,31 @@ class MailService:
             # 404, not 403 — do not leak which mail domains exist on the platform.
             raise ProviderAPIError(
                 service="Mailcow", message="Mail domain not found.", status_code=404
+            )
+
+    async def _mailbox_accessible(
+        self, session: AsyncSession, tenant_id: str | None, username: str
+    ) -> bool:
+        """A mailbox is accessible if it's directly owned OR its domain is owned
+        (domain owners implicitly own every mailbox under the domain)."""
+        allowed = await TenantResourceFilter(session, tenant_id).is_resource_accessible(
+            provider=PROVIDER_MAILCOW,
+            resource_type=RESOURCE_TYPE_MAILBOX,
+            external_id=username,
+        )
+        if not allowed and "@" in username:
+            allowed = await self._domain_accessible(
+                session, tenant_id, username.split("@", 1)[-1]
+            )
+        return allowed
+
+    async def _ensure_mailbox_access(
+        self, session: AsyncSession, tenant_id: str | None, username: str
+    ) -> None:
+        if not await self._mailbox_accessible(session, tenant_id, username):
+            # 404, not 403 — don't leak which mailboxes exist on the platform.
+            raise ProviderAPIError(
+                service="Mailcow", message="Mailbox not found.", status_code=404
             )
 
     # ── Domain lifecycle ────────────────────────────────────────────────────
@@ -256,24 +294,28 @@ class MailService:
             await session.flush()
         return username
 
+    async def edit_mailbox_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        username: str,
+        *,
+        quota_mb: int | None = None,
+        name: str | None = None,
+        active: bool | None = None,
+        password: str | None = None,
+    ) -> None:
+        self._require_actions()
+        await self._ensure_mailbox_access(session, tenant_id, username)
+        await self.client.edit_mailbox(
+            username, quota_mb=quota_mb, name=name, active=active, password=password
+        )
+
     async def delete_mailbox_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, username: str
     ) -> None:
         self._require_actions()
-        tenant_filter = TenantResourceFilter(session, tenant_id)
-        allowed = await tenant_filter.is_resource_accessible(
-            provider=PROVIDER_MAILCOW,
-            resource_type=RESOURCE_TYPE_MAILBOX,
-            external_id=username,
-        )
-        if not allowed and "@" in username:
-            allowed = await self._domain_accessible(
-                session, tenant_id, username.split("@", 1)[-1]
-            )
-        if not allowed:
-            raise ProviderAPIError(
-                service="Mailcow", message="Mailbox not found.", status_code=404
-            )
+        await self._ensure_mailbox_access(session, tenant_id, username)
         await self.client.delete_mailbox(username)
         # Cross-tenant cleanup: the provider mailbox is gone for everyone.
         await session.execute(
@@ -315,6 +357,126 @@ class MailService:
                 service="Mailcow", message="Alias not found.", status_code=404
             )
         await self.client.delete_alias(alias_id)
+
+    # ── App passwords (per-mailbox IMAP/SMTP credentials) ────────────────────
+
+    async def list_app_passwords_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, username: str
+    ) -> list[MailcowAppPassword]:
+        await self._ensure_mailbox_access(session, tenant_id, username)
+        return await self.client.list_app_passwords(username)
+
+    async def create_app_password_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, username: str, *, app_name: str
+    ) -> dict[str, str]:
+        """Create a purpose-scoped credential and return its plaintext ONCE.
+        mailcow never echoes the secret back, so this response is the only place
+        it's visible — the caller must show-and-forget it."""
+        self._require_actions()
+        await self._ensure_mailbox_access(session, tenant_id, username)
+        name = app_name.strip() or "Tetra app password"
+        password = _generate_app_password()
+        await self.client.create_app_password(username, app_name=name, password=password)
+        return {"app_name": name, "password": password}
+
+    async def delete_app_password_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, username: str, app_passwd_id: int
+    ) -> None:
+        self._require_actions()
+        await self._ensure_mailbox_access(session, tenant_id, username)
+        # Confirm the id actually belongs to THIS mailbox before deleting — the id
+        # space is global, so scoping by mailbox is what prevents cross-mailbox deletes.
+        existing = await self.client.list_app_passwords(username)
+        if not any(item.id == app_passwd_id for item in existing):
+            raise ProviderAPIError(
+                service="Mailcow", message="App password not found.", status_code=404
+            )
+        await self.client.delete_app_password(app_passwd_id)
+
+    # ── Quarantine (held spam/rejected mail) ─────────────────────────────────
+
+    async def _accessible_mail_scope(
+        self, session: AsyncSession, tenant_id: str | None
+    ) -> tuple[set[str], set[str]] | None:
+        """(owned domains, owned mailboxes) for `tenant_id`, or None when
+        unrestricted (platform scope). Used to scope quarantine by recipient.
+
+        Derived from the authoritative TenantResource ownership rows — NOT from
+        the live mailcow inventory (which could be stale/unconfigured and would
+        wrongly narrow scope)."""
+        if tenant_id is None:
+            return None
+        result = await session.execute(
+            select(TenantResource.resource_type, TenantResource.external_id).where(
+                TenantResource.tenant_id == tenant_id,
+                TenantResource.provider == PROVIDER_MAILCOW,
+                TenantResource.resource_type.in_(
+                    [RESOURCE_TYPE_MAIL_DOMAIN, RESOURCE_TYPE_MAILBOX]
+                ),
+            )
+        )
+        domains: set[str] = set()
+        mailboxes: set[str] = set()
+        for rtype, external_id in result.all():
+            if rtype == RESOURCE_TYPE_MAIL_DOMAIN:
+                domains.add(external_id.strip().lower())
+            else:
+                mailboxes.add(external_id.strip().lower())
+        return domains, mailboxes
+
+    def _rcpt_in_scope(
+        self, rcpt: str, scope: tuple[set[str], set[str]] | None
+    ) -> bool:
+        if scope is None:
+            return True
+        domains, mailboxes = scope
+        rcpt = rcpt.strip().lower()
+        if rcpt in mailboxes:
+            return True
+        return "@" in rcpt and rcpt.split("@", 1)[-1] in domains
+
+    async def list_quarantine_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None
+    ) -> list[MailcowQuarantineItem]:
+        scope = await self._accessible_mail_scope(session, tenant_id)
+        items = await self.client.list_quarantine()
+        return [item for item in items if self._rcpt_in_scope(item.rcpt, scope)]
+
+    async def _authorize_quarantine_ids(
+        self, session: AsyncSession, tenant_id: str | None, ids: list[int]
+    ) -> None:
+        """Every targeted id must resolve to an in-scope recipient — otherwise a
+        tenant could release/delete another tenant's held mail by guessing ids."""
+        scope = await self._accessible_mail_scope(session, tenant_id)
+        by_id = {item.id: item for item in await self.client.list_quarantine()}
+        for qid in ids:
+            item = by_id.get(qid)
+            if item is None or not self._rcpt_in_scope(item.rcpt, scope):
+                raise ProviderAPIError(
+                    service="Mailcow", message="Quarantine item not found.", status_code=404
+                )
+
+    async def act_on_quarantine_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, *, ids: list[int], action: str
+    ) -> None:
+        self._require_actions()
+        if not ids:
+            raise ProviderAPIError(
+                service="Mailcow", message="No quarantine items selected.", status_code=422
+            )
+        await self._authorize_quarantine_ids(session, tenant_id, ids)
+        await self.client.act_on_quarantine(list(ids), action)
+
+    async def delete_quarantine_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, *, ids: list[int]
+    ) -> None:
+        self._require_actions()
+        if not ids:
+            raise ProviderAPIError(
+                service="Mailcow", message="No quarantine items selected.", status_code=422
+            )
+        await self._authorize_quarantine_ids(session, tenant_id, ids)
+        await self.client.delete_quarantine(list(ids))
 
     # ── Relayhosts (platform-level ESP credentials) ─────────────────────────
 

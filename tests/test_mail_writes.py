@@ -516,3 +516,159 @@ def test_domain_quota_must_be_positive(client, monkeypatch):
         "/api/v1/mail/domains", headers=headers, json={"domain": "acme.test", "quota_mb": 0}
     )
     assert r.status_code == 422
+
+
+# ── mailbox edit ────────────────────────────────────────────────────────────
+
+
+def test_edit_mailbox_scoped_to_owner(client, monkeypatch):
+    _enable(monkeypatch)
+    calls: list = []
+    _patch_mailcow_write(monkeypatch, "edit_mailbox", calls)
+
+    asyncio.run(_seed(slug="me1", email="o@me1.test", mail_domains=("acme.test",)))
+    headers = _login(client, "o@me1.test")
+
+    # foreign mailbox → 404, no provider call
+    assert (
+        client.patch(
+            "/api/v1/mail/mailboxes/x@foreign.test", headers=headers, json={"quota_mb": 2048}
+        ).status_code
+        == 404
+    )
+    assert not calls
+
+    r = client.patch(
+        "/api/v1/mail/mailboxes/info@acme.test", headers=headers,
+        json={"quota_mb": 2048, "active": False},
+    )
+    assert r.status_code == 200
+    assert calls and calls[0][0] == "edit_mailbox"
+    assert calls[0][2] == {"quota_mb": 2048, "name": None, "active": False, "password": None}
+
+
+# ── app passwords ───────────────────────────────────────────────────────────
+
+
+def test_app_password_create_scoped_and_reveals_once(client, monkeypatch):
+    _enable(monkeypatch)
+    calls: list = []
+
+    async def fake_create(self, mailbox, *, app_name, password, protocols=None):
+        calls.append((mailbox, app_name, password))
+        return [{"type": "success", "msg": ["ok"]}]
+
+    monkeypatch.setattr(MailcowClient, "create_app_password", fake_create)
+
+    asyncio.run(_seed(slug="ap1", email="o@ap1.test", mail_domains=("acme.test",)))
+    headers = _login(client, "o@ap1.test")
+
+    # foreign mailbox denied
+    assert (
+        client.post(
+            "/api/v1/mail/mailboxes/x@foreign.test/app-passwords",
+            headers=headers, json={"app_name": "TB"},
+        ).status_code
+        == 404
+    )
+    assert not calls
+
+    r = client.post(
+        "/api/v1/mail/mailboxes/info@acme.test/app-passwords",
+        headers=headers, json={"app_name": "Thunderbird"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    # secret is generated server-side, returned once, and is what mailcow received
+    assert body["app_name"] == "Thunderbird"
+    assert body["password"] and calls[0][2] == body["password"]
+
+
+def test_app_password_delete_requires_membership(client, monkeypatch):
+    _enable(monkeypatch)
+    deleted: list = []
+
+    async def fake_list(self, mailbox):
+        from app.services.mailcow import MailcowAppPassword
+        return [MailcowAppPassword(id=9, name="TB", active=True)]
+
+    async def fake_delete(self, app_passwd_id):
+        deleted.append(app_passwd_id)
+        return [{"type": "success", "msg": ["ok"]}]
+
+    monkeypatch.setattr(MailcowClient, "list_app_passwords", fake_list)
+    monkeypatch.setattr(MailcowClient, "delete_app_password", fake_delete)
+
+    asyncio.run(_seed(slug="ap2", email="o@ap2.test", mail_domains=("acme.test",)))
+    headers = _login(client, "o@ap2.test")
+
+    # id not belonging to this mailbox → 404, no delete
+    assert (
+        client.delete(
+            "/api/v1/mail/mailboxes/info@acme.test/app-passwords/99", headers=headers
+        ).status_code
+        == 404
+    )
+    assert not deleted
+
+    r = client.delete(
+        "/api/v1/mail/mailboxes/info@acme.test/app-passwords/9", headers=headers
+    )
+    assert r.status_code == 200
+    assert deleted == [9]
+
+
+# ── quarantine ──────────────────────────────────────────────────────────────
+
+
+def _patch_quarantine(monkeypatch):
+    from app.services.mailcow import MailcowQuarantineItem
+
+    async def fake_list(self):
+        return [
+            MailcowQuarantineItem(id=1, rcpt="info@acme.test", subject="mine", score=9.0),
+            MailcowQuarantineItem(id=2, rcpt="x@foreign.test", subject="theirs", score=9.0),
+        ]
+
+    monkeypatch.setattr(MailcowClient, "list_quarantine", fake_list)
+
+
+def test_quarantine_list_scoped_to_owned_recipients(client, monkeypatch):
+    _patch_quarantine(monkeypatch)
+    asyncio.run(_seed(slug="q1", email="o@q1.test", mail_domains=("acme.test",)))
+    headers = _login(client, "o@q1.test")
+    r = client.get("/api/v1/mail/quarantine", headers=headers)
+    assert r.status_code == 200
+    assert [item["id"] for item in r.json()] == [1]
+
+
+def test_quarantine_action_rejects_foreign_ids(client, monkeypatch):
+    _enable(monkeypatch)
+    _patch_quarantine(monkeypatch)
+    acted: list = []
+
+    async def fake_act(self, ids, action):
+        acted.append((ids, action))
+        return [{"type": "success", "msg": ["ok"]}]
+
+    monkeypatch.setattr(MailcowClient, "act_on_quarantine", fake_act)
+
+    asyncio.run(_seed(slug="q2", email="o@q2.test", mail_domains=("acme.test",)))
+    headers = _login(client, "o@q2.test")
+
+    # id 2 belongs to another tenant's recipient → 404, nothing released
+    assert (
+        client.post(
+            "/api/v1/mail/quarantine/actions", headers=headers,
+            json={"ids": [2], "action": "release"},
+        ).status_code
+        == 404
+    )
+    assert not acted
+
+    r = client.post(
+        "/api/v1/mail/quarantine/actions", headers=headers,
+        json={"ids": [1], "action": "release"},
+    )
+    assert r.status_code == 200
+    assert acted == [([1], "release")]

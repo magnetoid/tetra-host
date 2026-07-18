@@ -101,13 +101,20 @@ from app.api.contracts import (
     InstalledAppSummary,
     MailAliasCreateRequest,
     MailAliasSummary,
+    MailAppPasswordCreateRequest,
+    MailAppPasswordCreateResponse,
+    MailAppPasswordSummary,
     MailboxCreateRequest,
+    MailboxEditRequest,
     MailboxSummary,
     MailDkimResponse,
     MailDnsRecordReport,
     MailDomainCreateRequest,
     MailDomainCreateResponse,
     MailDomainSummary,
+    MailQuarantineActionRequest,
+    MailQuarantineDeleteRequest,
+    MailQuarantineItem,
     MailRelayhostCreateRequest,
     MailRelayhostCreateResponse,
     MailRelayhostSummary,
@@ -1043,7 +1050,10 @@ async def api_mail(
     return MailResponse(
         providers=providers,
         domains=[MailDomainSummary(**domain.model_dump()) for domain in domains],
-        mailboxes=[MailboxSummary(**mailbox.model_dump()) for mailbox in mailboxes],
+        mailboxes=[
+            MailboxSummary(**mailbox.model_dump(), percent_used=mailbox.percent_used)
+            for mailbox in mailboxes
+        ],
     )
 
 
@@ -1115,6 +1125,28 @@ async def api_create_mailbox(
     return ActionResponse(message=f"Mailbox {username} created.")
 
 
+@router.patch("/mail/mailboxes/{username}", response_model=ActionResponse)
+async def api_edit_mailbox(
+    username: str,
+    payload: MailboxEditRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.edit_mailbox_for_tenant(
+            session, current_admin.tenant_id, username,
+            quota_mb=payload.quota_mb, name=payload.name,
+            active=payload.active, password=payload.password,
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Mailbox {username} updated.")
+
+
 @router.delete("/mail/mailboxes/{username}", response_model=ActionResponse)
 async def api_delete_mailbox(
     username: str,
@@ -1130,6 +1162,136 @@ async def api_delete_mailbox(
             status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
     return ActionResponse(message=f"Mailbox {username} deleted.")
+
+
+# ── App passwords (per-mailbox IMAP/SMTP credentials) ────────────────────────
+
+@router.get(
+    "/mail/mailboxes/{username}/app-passwords",
+    response_model=list[MailAppPasswordSummary],
+)
+async def api_list_app_passwords(
+    username: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[MailAppPasswordSummary]:
+    service = MailService(request)
+    try:
+        items = await service.list_app_passwords_for_tenant(
+            session, current_admin.tenant_id, username
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return [MailAppPasswordSummary(**item.model_dump()) for item in items]
+
+
+@router.post(
+    "/mail/mailboxes/{username}/app-passwords",
+    response_model=MailAppPasswordCreateResponse,
+)
+async def api_create_app_password(
+    username: str,
+    payload: MailAppPasswordCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> MailAppPasswordCreateResponse:
+    service = MailService(request)
+    try:
+        result = await service.create_app_password_for_tenant(
+            session, current_admin.tenant_id, username, app_name=payload.app_name
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return MailAppPasswordCreateResponse(**result)
+
+
+@router.delete(
+    "/mail/mailboxes/{username}/app-passwords/{app_passwd_id}",
+    response_model=ActionResponse,
+)
+async def api_delete_app_password(
+    username: str,
+    app_passwd_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.delete_app_password_for_tenant(
+            session, current_admin.tenant_id, username, app_passwd_id
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message="App password deleted.")
+
+
+# ── Quarantine (held spam / rejected mail) ───────────────────────────────────
+
+@router.get("/mail/quarantine", response_model=list[MailQuarantineItem])
+async def api_list_quarantine(
+    request: Request,
+    response: Response,
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[MailQuarantineItem]:
+    service = MailService(request)
+    try:
+        items = await service.list_quarantine_for_tenant(session, current_admin.tenant_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    payload = [MailQuarantineItem(**item.model_dump()) for item in items]
+    return _paginate(response, payload, limit, offset)
+
+
+@router.post("/mail/quarantine/actions", response_model=ActionResponse)
+async def api_quarantine_action(
+    payload: MailQuarantineActionRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.act_on_quarantine_for_tenant(
+            session, current_admin.tenant_id, ids=payload.ids, action=payload.action
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Quarantine: {payload.action} applied to {len(payload.ids)} item(s).")
+
+
+@router.post("/mail/quarantine/delete", response_model=ActionResponse)
+async def api_quarantine_delete(
+    payload: MailQuarantineDeleteRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ActionResponse:
+    service = MailService(request)
+    try:
+        await service.delete_quarantine_for_tenant(
+            session, current_admin.tenant_id, ids=payload.ids
+        )
+    except ProviderAPIError as exc:
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return ActionResponse(message=f"Quarantine: deleted {len(payload.ids)} item(s).")
 
 
 @router.get("/mail/aliases", response_model=list[MailAliasSummary])

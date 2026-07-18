@@ -56,8 +56,34 @@ class MailcowMailbox(BaseModel):
     name: str = ""
     domain: str
     quota_bytes: int = 0
+    quota_used_bytes: int = 0
     messages: int = 0
     active: bool = True
+
+    @property
+    def percent_used(self) -> int:
+        if self.quota_bytes <= 0:
+            return 0
+        return min(100, round(self.quota_used_bytes * 100 / self.quota_bytes))
+
+
+class MailcowAppPassword(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: int
+    name: str = ""
+    active: bool = True
+
+
+class MailcowQuarantineItem(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: int
+    subject: str = ""
+    sender: str = ""
+    rcpt: str = ""
+    score: float = 0.0
+    created: int = 0
 
 
 def normalize_domain(raw: dict[str, Any]) -> MailcowDomain:
@@ -99,8 +125,32 @@ def normalize_mailbox(raw: dict[str, Any]) -> MailcowMailbox:
         name=str(raw.get("name") or raw.get("full_name") or ""),
         domain=domain,
         quota_bytes=int(raw.get("quota") or raw.get("quota_bytes") or 0),
+        quota_used_bytes=int(raw.get("quota_used") or 0),
         messages=int(raw.get("messages") or 0),
         active=str(raw.get("active", "1")) in {"1", "true", "True"},
+    )
+
+
+def normalize_app_password(raw: dict[str, Any]) -> MailcowAppPassword:
+    return MailcowAppPassword(
+        id=int(raw.get("id") or 0),
+        name=str(raw.get("name") or raw.get("app_name") or ""),
+        active=str(raw.get("active", "1")) in {"1", "true", "True"},
+    )
+
+
+def normalize_quarantine_item(raw: dict[str, Any]) -> MailcowQuarantineItem:
+    try:
+        score = float(raw.get("score") or 0)
+    except (TypeError, ValueError):
+        score = 0.0
+    return MailcowQuarantineItem(
+        id=int(raw.get("id") or 0),
+        subject=str(raw.get("subject") or ""),
+        sender=str(raw.get("sender") or ""),
+        rcpt=str(raw.get("rcpt") or ""),
+        score=score,
+        created=int(raw.get("created") or 0),
     )
 
 
@@ -348,3 +398,104 @@ class MailcowClient:
             "edit/domain",
             {"items": [domain], "attr": {"relayhost": str(relayhost_id)}},
         )
+
+    # ── Mailbox management ───────────────────────────────────────────────────
+
+    async def edit_mailbox(
+        self,
+        username: str,
+        *,
+        quota_mb: int | None = None,
+        name: str | None = None,
+        active: bool | None = None,
+        password: str | None = None,
+    ) -> Any:
+        """Partial mailbox update. Only the provided attrs are sent; a password
+        is sent as password+password2 (confirmation) and omitted when unchanged."""
+        attr: dict[str, Any] = {}
+        if quota_mb is not None:
+            attr["quota"] = str(quota_mb)
+        if name is not None:
+            attr["name"] = name
+        if active is not None:
+            attr["active"] = "1" if active else "0"
+        if password:
+            attr["password"] = password
+            attr["password2"] = password
+        if not attr:
+            raise ProviderAPIError(
+                service="Mailcow", message="No mailbox changes supplied.", status_code=422
+            )
+        # Log only the domain part — usernames are tenant email addresses.
+        logger.info("editing mailbox on domain %s (%s)", username.split("@", 1)[-1], ",".join(attr))
+        return await self._write("edit/mailbox", {"items": [username], "attr": attr})
+
+    # ── App passwords (purpose-scoped IMAP/SMTP credentials) ─────────────────
+
+    async def list_app_passwords(self, mailbox: str) -> list[MailcowAppPassword]:
+        self._require_configured()
+        payload = await request_json(
+            self.http_client,
+            service="Mailcow",
+            method="GET",
+            url=f"{self.base_url}/api/v1/get/app-passwd/all/{mailbox}",
+            headers=self.headers(),
+        )
+        if not isinstance(payload, list):
+            return []
+        return [normalize_app_password(item) for item in payload if isinstance(item, dict)]
+
+    async def create_app_password(
+        self,
+        mailbox: str,
+        *,
+        app_name: str,
+        password: str,
+        protocols: list[str] | None = None,
+    ) -> Any:
+        """mailcow stores the secret hashed and never returns it, so the caller
+        supplies (and reveals once) the plaintext."""
+        protos = protocols or ["imap_access", "smtp_access"]
+        logger.info("creating app password on domain %s", mailbox.split("@", 1)[-1])
+        return await self._write(
+            "add/app-passwd",
+            {
+                "active": "1",
+                "username": mailbox,
+                "app_name": app_name,
+                "app_passwd": password,
+                "app_passwd2": password,
+                "protocols": protos,
+            },
+        )
+
+    async def delete_app_password(self, app_passwd_id: int | str) -> Any:
+        return await self._write("delete/app-passwd", [str(app_passwd_id)])
+
+    # ── Quarantine (held spam/rejected mail) ─────────────────────────────────
+
+    async def list_quarantine(self) -> list[MailcowQuarantineItem]:
+        self._require_configured()
+        payload = await request_json(
+            self.http_client,
+            service="Mailcow",
+            method="GET",
+            url=f"{self.base_url}/api/v1/get/quarantine/all",
+            headers=self.headers(),
+        )
+        if not isinstance(payload, list):
+            return []
+        return [normalize_quarantine_item(item) for item in payload if isinstance(item, dict)]
+
+    async def act_on_quarantine(self, ids: list[int | str], action: str) -> Any:
+        """action ∈ {release, learnham, learnspam}."""
+        if action not in {"release", "learnham", "learnspam"}:
+            raise ProviderAPIError(
+                service="Mailcow", message=f"Unsupported quarantine action: {action}", status_code=422
+            )
+        return await self._write(
+            "edit/qitem", {"items": [str(i) for i in ids], "attr": {"action": action}}
+        )
+
+    async def delete_quarantine(self, ids: list[int | str]) -> Any:
+        return await self._write("delete/qitem", [str(i) for i in ids])

@@ -260,3 +260,153 @@ def test_list_relayhosts_returns_raw_entries():
 
     hosts = asyncio.run(_client(handler).list_relayhosts())
     assert hosts[0]["id"] == 2
+
+
+# ── mailbox usage + edit ────────────────────────────────────────────────────
+
+
+def test_list_mailboxes_captures_quota_used_and_percent():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://mail.test/api/v1/get/mailbox/all"
+        return httpx.Response(
+            200,
+            json=[
+                {"username": "a@acme.test", "quota": 1000, "quota_used": 250, "messages": 3},
+                {"username": "b@acme.test", "quota": 0, "quota_used": 0},
+            ],
+        )
+
+    boxes = asyncio.run(_client(handler).list_mailboxes())
+    assert boxes[0].quota_used_bytes == 250 and boxes[0].percent_used == 25
+    # divide-by-zero guard: an unlimited (quota 0) mailbox reports 0%, not a crash
+    assert boxes[1].percent_used == 0
+
+
+def test_edit_mailbox_sends_only_supplied_attrs():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.content)
+        return _ok("mailbox_modified")
+
+    asyncio.run(
+        _client(handler).edit_mailbox("info@acme.test", quota_mb=2048, active=False)
+    )
+    assert seen["url"] == "https://mail.test/api/v1/edit/mailbox"
+    assert seen["body"] == {
+        "items": ["info@acme.test"],
+        "attr": {"quota": "2048", "active": "0"},
+    }
+
+
+def test_edit_mailbox_password_is_paired():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return _ok()
+
+    asyncio.run(_client(handler).edit_mailbox("info@acme.test", password="newpass12"))
+    assert seen["body"]["attr"] == {"password": "newpass12", "password2": "newpass12"}
+
+
+def test_edit_mailbox_rejects_empty_change():
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("must not call mailcow with no attrs")
+
+    with pytest.raises(ProviderAPIError):
+        asyncio.run(_client(handler).edit_mailbox("info@acme.test"))
+
+
+# ── app passwords ───────────────────────────────────────────────────────────
+
+
+def test_create_app_password_shape():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.content)
+        return _ok("app_passwd_added")
+
+    asyncio.run(
+        _client(handler).create_app_password(
+            "info@acme.test", app_name="Thunderbird", password="abcd-efgh"
+        )
+    )
+    assert seen["url"] == "https://mail.test/api/v1/add/app-passwd"
+    body = seen["body"]
+    assert body["username"] == "info@acme.test" and body["app_name"] == "Thunderbird"
+    assert body["app_passwd"] == "abcd-efgh" and body["app_passwd2"] == "abcd-efgh"
+    assert body["protocols"] == ["imap_access", "smtp_access"]
+
+
+def test_list_and_delete_app_passwords():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            assert str(request.url).endswith("/get/app-passwd/all/info@acme.test")
+            return httpx.Response(200, json=[{"id": 9, "name": "Thunderbird", "active": "1"}])
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.content)
+        return _ok()
+
+    async def go():
+        client = _client(handler)
+        items = await client.list_app_passwords("info@acme.test")
+        await client.delete_app_password(9)
+        return items
+
+    items = asyncio.run(go())
+    assert items[0].id == 9 and items[0].name == "Thunderbird"
+    assert seen["url"] == "https://mail.test/api/v1/delete/app-passwd"
+    assert seen["body"] == ["9"]
+
+
+# ── quarantine ──────────────────────────────────────────────────────────────
+
+
+def test_list_quarantine_normalizes():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://mail.test/api/v1/get/quarantine/all"
+        return httpx.Response(
+            200,
+            json=[
+                {"id": 4, "subject": "Win a prize", "sender": "spam@x.tld",
+                 "rcpt": "info@acme.test", "score": "12.5", "created": 1700000000},
+            ],
+        )
+
+    items = asyncio.run(_client(handler).list_quarantine())
+    assert items[0].id == 4 and items[0].rcpt == "info@acme.test"
+    assert items[0].score == 12.5
+
+
+def test_quarantine_action_and_delete_shapes():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((str(request.url), json.loads(request.content)))
+        return _ok()
+
+    async def go():
+        client = _client(handler)
+        await client.act_on_quarantine([4, 5], "release")
+        await client.delete_quarantine([7])
+
+    asyncio.run(go())
+    assert seen[0] == (
+        "https://mail.test/api/v1/edit/qitem",
+        {"items": ["4", "5"], "attr": {"action": "release"}},
+    )
+    assert seen[1] == ("https://mail.test/api/v1/delete/qitem", ["7"])
+
+
+def test_quarantine_action_rejects_unknown_action():
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("must not call mailcow with a bad action")
+
+    with pytest.raises(ProviderAPIError):
+        asyncio.run(_client(handler).act_on_quarantine([1], "nuke"))

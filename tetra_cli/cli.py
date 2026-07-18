@@ -1299,8 +1299,23 @@ def cmd_mail(args: argparse.Namespace) -> int:
     if mailboxes:
         print(c("\nMailboxes", "1"))
         for mailbox in mailboxes:
-            print(f"  {mailbox.get('username')}  {mailbox.get('name', '')}")
+            pct = int(mailbox.get("percent_used") or 0)
+            used = _fmt_bytes(mailbox.get("quota_used_bytes"))
+            total = _fmt_bytes(mailbox.get("quota_bytes"))
+            colour = "31" if pct >= 90 else "33" if pct >= 75 else "90"
+            usage = c(f"{used}/{total} ({pct}%)", colour)
+            state = "" if mailbox.get("active") else c(" (inactive)", "90")
+            print(f"  {mailbox.get('username')}  {mailbox.get('name', '')}{state}  {usage}")
     return 0
+
+
+def _fmt_bytes(value: Any) -> str:
+    n = float(value or 0)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.0f}{unit}" if unit == "B" else f"{n:.1f}{unit}"
+        n /= 1024
+    return f"{n:.1f}TB"
 
 
 def _print_mail_dns_report(body: dict) -> None:
@@ -1357,6 +1372,80 @@ def cmd_mail_mailbox_rm(args: argparse.Namespace) -> int:
         return 1
     client_from_config().delete_mailbox(args.username)
     print(c("✓", "32") + f" mailbox {args.username} deleted")
+    return 0
+
+
+def cmd_mail_mailbox_edit(args: argparse.Namespace) -> int:
+    active = None
+    if args.activate:
+        active = True
+    elif args.deactivate:
+        active = False
+    password = None
+    if args.reset_password:
+        password = getpass.getpass("New mailbox password: ")
+    result = client_from_config().edit_mailbox(
+        args.username, quota_mb=args.quota_mb, name=args.name, active=active, password=password
+    )
+    print(c("✓", "32") + f" {result.get('message', 'mailbox updated')}")
+    return 0
+
+
+def cmd_mail_apppw_list(args: argparse.Namespace) -> int:
+    items = client_from_config().list_app_passwords(args.username)
+    if not items:
+        print("No app passwords.")
+        return 0
+    for item in items:
+        state = "" if item.get("active") else c(" (inactive)", "90")
+        print(f"  [{item.get('id')}] {item.get('name')}{state}")
+    return 0
+
+
+def cmd_mail_apppw_add(args: argparse.Namespace) -> int:
+    body = client_from_config().create_app_password(args.username, app_name=args.name)
+    print(c("✓", "32") + f" app password '{body.get('app_name')}' created")
+    print(c("  Shown once — store it now:", "1"))
+    print(c(f"  {body.get('password')}", "36"))
+    return 0
+
+
+def cmd_mail_apppw_rm(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("Refusing to delete without --yes.")
+        return 1
+    client_from_config().delete_app_password(args.username, args.app_passwd_id)
+    print(c("✓", "32") + f" app password {args.app_passwd_id} deleted")
+    return 0
+
+
+def cmd_mail_quarantine(args: argparse.Namespace) -> int:
+    items = client_from_config().mail_quarantine()
+    if not items:
+        print("Quarantine is empty.")
+        return 0
+    for item in items:
+        subject = item.get("subject", "")
+        score = item.get("score", 0)
+        print(
+            f"  [{item.get('id')}] {item.get('sender')} → {item.get('rcpt')}"
+            f"  {c(subject, '1')}  {c(f'score {score}', '90')}"
+        )
+    return 0
+
+
+def cmd_mail_quarantine_release(args: argparse.Namespace) -> int:
+    client_from_config().quarantine_action(args.ids, action="release")
+    print(c("✓", "32") + f" released {len(args.ids)} item(s)")
+    return 0
+
+
+def cmd_mail_quarantine_rm(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("Refusing to delete without --yes.")
+        return 1
+    client_from_config().quarantine_delete(args.ids)
+    print(c("✓", "32") + f" deleted {len(args.ids)} item(s)")
     return 0
 
 
@@ -1605,10 +1694,44 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--name", default="")
     sp.add_argument("--quota-mb", type=int, default=3072)
     sp.set_defaults(func=cmd_mail_mailbox_add)
+    sp = mailbox.add_parser("edit", help="edit a mailbox (quota, name, active, reset password)")
+    sp.add_argument("username")
+    sp.add_argument("--quota-mb", type=int, default=None, dest="quota_mb")
+    sp.add_argument("--name", default=None)
+    sp.add_argument("--activate", action="store_true")
+    sp.add_argument("--deactivate", action="store_true")
+    sp.add_argument("--reset-password", action="store_true", dest="reset_password",
+                    help="prompt for a new password (never echoed)")
+    sp.set_defaults(func=cmd_mail_mailbox_edit)
     sp = mailbox.add_parser("rm", help="delete a mailbox")
     sp.add_argument("username")
     sp.add_argument("--yes", action="store_true")
     sp.set_defaults(func=cmd_mail_mailbox_rm)
+    apppw = mailbox.add_parser(
+        "app-password", help="manage per-mailbox app passwords (IMAP/SMTP)"
+    ).add_subparsers(dest="mail_apppw_cmd", required=True)
+    sp = apppw.add_parser("list", help="list a mailbox's app passwords")
+    sp.add_argument("username")
+    sp.set_defaults(func=cmd_mail_apppw_list)
+    sp = apppw.add_parser("add", help="create an app password (secret shown once)")
+    sp.add_argument("username")
+    sp.add_argument("--name", default="Tetra app password")
+    sp.set_defaults(func=cmd_mail_apppw_add)
+    sp = apppw.add_parser("rm", help="delete an app password by id")
+    sp.add_argument("username")
+    sp.add_argument("app_passwd_id", type=int)
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_mail_apppw_rm)
+    quarantine = mail.add_parser("quarantine", help="held spam / rejected mail")
+    quarantine.set_defaults(func=cmd_mail_quarantine)
+    qsub = quarantine.add_subparsers(dest="mail_quarantine_cmd", required=False)
+    sp = qsub.add_parser("release", help="release held item(s) to the inbox")
+    sp.add_argument("ids", type=int, nargs="+")
+    sp.set_defaults(func=cmd_mail_quarantine_release)
+    sp = qsub.add_parser("rm", help="delete held item(s)")
+    sp.add_argument("ids", type=int, nargs="+")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_mail_quarantine_rm)
     sp = mail.add_parser("aliases", help="list aliases")
     sp.add_argument("--refresh", action="store_true")
     sp.set_defaults(func=cmd_mail_aliases)

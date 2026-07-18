@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { BulkMailboxImport } from "@/components/mail/bulk-mailbox-import"
 import { MailManager } from "@/components/mail/mail-manager"
+import { QuarantinePanel } from "@/components/mail/quarantine-panel"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
@@ -62,6 +63,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
           </section>
           <MailManager domains={mail.domains} mailboxes={mail.mailboxes} appDomains={appDomains} />
           {mail.domains.length > 0 ? <BulkMailboxImport domains={mail.domains} /> : null}
+          {mail.domains.length > 0 ? <QuarantinePanel /> : null}
         </>
       ) : (
         <EmptyState

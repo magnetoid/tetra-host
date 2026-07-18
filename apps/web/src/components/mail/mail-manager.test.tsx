@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }))
@@ -20,6 +20,8 @@ const mailboxes = [
     name: "You",
     domain: "example.com",
     quota_bytes: 1024,
+    quota_used_bytes: 256,
+    percent_used: 25,
     messages: 0,
     active: true,
   },
@@ -40,6 +42,18 @@ describe("MailManager", () => {
     render(<MailManager domains={domains} mailboxes={mailboxes} appDomains={[]} />)
     expect(screen.getByRole("button", { name: /add mailbox/i })).toBeInTheDocument()
     expect(screen.getByText("you@example.com")).toBeInTheDocument()
+  })
+
+  it("shows the mailbox quota usage and opens the management panel on Manage", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("[]", { status: 200 })))
+    render(<MailManager domains={domains} mailboxes={mailboxes} appDomains={[]} />)
+    // quota usage percentage from the record is surfaced
+    expect(screen.getByText("25%")).toBeInTheDocument()
+    // no management panel until Manage is clicked
+    expect(screen.queryByRole("heading", { name: /manage mailbox/i })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: /manage you@example.com/i }))
+    expect(screen.getByRole("heading", { name: /manage mailbox/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /app passwords/i })).toBeInTheDocument()
   })
 
   it("provisions a domain and shows the DNS report on success", async () => {

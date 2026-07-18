@@ -603,8 +603,54 @@ class TetraClient:
             },
         )
 
+    def edit_mailbox(
+        self,
+        username: str,
+        *,
+        quota_mb: int | None = None,
+        name: str | None = None,
+        active: bool | None = None,
+        password: str | None = None,
+    ) -> Any:
+        body: dict[str, Any] = {}
+        if quota_mb is not None:
+            body["quota_mb"] = quota_mb
+        if name is not None:
+            body["name"] = name
+        if active is not None:
+            body["active"] = active
+        if password is not None:
+            body["password"] = password
+        return self._request("PATCH", f"/mail/mailboxes/{username}", json_body=body)
+
     def delete_mailbox(self, username: str) -> Any:
         return self._request("DELETE", f"/mail/mailboxes/{username}")
+
+    def list_app_passwords(self, username: str) -> Any:
+        return self._request("GET", f"/mail/mailboxes/{username}/app-passwords")
+
+    def create_app_password(self, username: str, app_name: str = "Tetra app password") -> Any:
+        return self._request(
+            "POST",
+            f"/mail/mailboxes/{username}/app-passwords",
+            json_body={"app_name": app_name},
+        )
+
+    def delete_app_password(self, username: str, app_passwd_id: int | str) -> Any:
+        return self._request(
+            "DELETE", f"/mail/mailboxes/{username}/app-passwords/{app_passwd_id}"
+        )
+
+    def mail_quarantine(self) -> Any:
+        return self._request("GET", "/mail/quarantine")
+
+    def quarantine_action(self, ids: list[int], action: str = "release") -> Any:
+        return self._request(
+            "POST", "/mail/quarantine/actions", json_body={"ids": ids, "action": action}
+        )
+
+    def quarantine_delete(self, ids: list[int]) -> Any:
+        return self._request("POST", "/mail/quarantine/delete", json_body={"ids": ids})
 
     def mail_aliases(self, refresh: bool = False) -> Any:
         return self._request("GET", "/mail/aliases", params={"refresh": "1"} if refresh else None)

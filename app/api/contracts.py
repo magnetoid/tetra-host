@@ -162,6 +162,8 @@ class MailboxSummary(BaseModel):
     name: str
     domain: str
     quota_bytes: int
+    quota_used_bytes: int = 0
+    percent_used: int = 0
     messages: int
     active: bool
 
@@ -200,6 +202,52 @@ class MailboxCreateRequest(BaseModel):
     name: str = ""
     password: str
     quota_mb: int = 3072
+
+
+class MailboxEditRequest(BaseModel):
+    """Partial mailbox update — only supplied fields change. `password` resets the
+    mailbox password when present; omit it to leave the password untouched."""
+
+    quota_mb: int | None = Field(default=None, ge=1, le=1048576)
+    name: str | None = None
+    active: bool | None = None
+    password: str | None = Field(default=None, min_length=8)
+
+
+class MailAppPasswordSummary(BaseModel):
+    id: int
+    name: str
+    active: bool = True
+
+
+class MailAppPasswordCreateRequest(BaseModel):
+    app_name: str = Field(default="Tetra app password", max_length=100)
+
+
+class MailAppPasswordCreateResponse(BaseModel):
+    """The generated secret is returned ONCE — mailcow stores it hashed and never
+    echoes it again."""
+
+    app_name: str
+    password: str
+
+
+class MailQuarantineItem(BaseModel):
+    id: int
+    subject: str = ""
+    sender: str = ""
+    rcpt: str = ""
+    score: float = 0.0
+    created: int = 0
+
+
+class MailQuarantineActionRequest(BaseModel):
+    ids: list[int] = Field(min_length=1)
+    action: str = Field(default="release")  # release | learnham | learnspam
+
+
+class MailQuarantineDeleteRequest(BaseModel):
+    ids: list[int] = Field(min_length=1)
 
 
 class MailAliasCreateRequest(BaseModel):

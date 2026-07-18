@@ -5,6 +5,7 @@ import { useState } from "react"
 import { AddDomainForm } from "@/components/mail/add-domain-form"
 import { AddMailboxForm, type MailboxDraft } from "@/components/mail/add-mailbox-form"
 import { MailboxesTable, MailDomainsList } from "@/components/mail/mail-lists"
+import { MailboxPanel } from "@/components/mail/mailbox-panel"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { useAction } from "@/hooks/use-action"
 import { apiFetch } from "@/lib/client-api"
@@ -27,10 +28,14 @@ export function MailManager({
 }) {
   const { run, pending, error } = useAction()
   const [report, setReport] = useState<MailDomainCreateResult | null>(null)
+  const [managed, setManaged] = useState<string | null>(null)
 
   const mailedDomains = new Set(domains.map((d) => d.domain_name))
   const quickPicks = appDomains.filter((d) => !mailedDomains.has(d))
   const busy = pending !== null
+  // Re-resolve the managed mailbox from the latest server data so its panel
+  // reflects edits after router.refresh(); drop it if the mailbox is gone.
+  const managedMailbox = managed ? (mailboxes.find((m) => m.username === managed) ?? null) : null
 
   async function addDomain(domain: string) {
     if (!domain) return false
@@ -85,7 +90,17 @@ export function MailManager({
       ) : null}
 
       <MailDomainsList domains={domains} busy={busy} onRemove={remove} />
-      <MailboxesTable mailboxes={mailboxes} busy={busy} onRemove={remove} />
+      <MailboxesTable
+        mailboxes={mailboxes}
+        busy={busy}
+        onRemove={remove}
+        onManage={(box) => setManaged(box.username)}
+        activeUsername={managedMailbox?.username ?? null}
+      />
+
+      {managedMailbox ? (
+        <MailboxPanel mailbox={managedMailbox} onClose={() => setManaged(null)} />
+      ) : null}
     </div>
   )
 }

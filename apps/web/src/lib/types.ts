@@ -82,8 +82,30 @@ export interface MailboxRecord {
   name: string
   domain: string
   quota_bytes: number
+  quota_used_bytes: number
+  percent_used: number
   messages: number
   active: boolean
+}
+
+export interface MailAppPassword {
+  id: number
+  name: string
+  active: boolean
+}
+
+export interface MailAppPasswordCreateResult {
+  app_name: string
+  password: string
+}
+
+export interface MailQuarantineItem {
+  id: number
+  subject: string
+  sender: string
+  rcpt: string
+  score: number
+  created: number
 }
 
 export interface MailResponse {
