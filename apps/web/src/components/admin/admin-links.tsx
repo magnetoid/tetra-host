@@ -1,27 +1,10 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 
-import {
-  faBuilding,
-  faClockRotateLeft,
-  faCoins,
-  faGaugeHigh,
-  faLayerGroup,
-  faUserShield,
-} from "@/lib/icons"
+import { superAdminNavItems } from "@/lib/navigation"
 
-/** The platform-admin destinations that used to live in the left sidebar —
- *  they now live here, on the Super Admin hub. */
-const ADMIN_LINKS = [
-  { href: "/tenants", label: "Tenants", icon: faBuilding, desc: "Approve, suspend, and manage tenant organizations." },
-  { href: "/admin", label: "Administrators", icon: faUserShield, desc: "Platform administrators and provider readiness." },
-  { href: "/plans", label: "Plans", icon: faLayerGroup, desc: "Subscription plans available to tenants." },
-  { href: "/credits", label: "AI credits", icon: faCoins, desc: "Fund tenants' prepaid AI credit and track spend." },
-  { href: "/audit", label: "Audit log", icon: faClockRotateLeft, desc: "Every audited platform action." },
-  { href: "/status", label: "Status page", icon: faGaugeHigh, desc: "Public component-by-component health." },
-] as const
-
-/** The Super Admin "Platform administration" menu — every operator surface. */
+/** The Super Admin "Platform administration" menu — every operator surface.
+ *  Same source of truth as the dedicated admin sidebar (see ConsoleNav). */
 export function AdminLinks() {
   return (
     <section className="space-y-3">
@@ -29,7 +12,7 @@ export function AdminLinks() {
         Platform administration
       </h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {ADMIN_LINKS.map((a) => (
+        {superAdminNavItems.map((a) => (
           <Link
             key={a.href}
             href={a.href}

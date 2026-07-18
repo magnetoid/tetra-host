@@ -77,4 +77,25 @@ describe("ConsoleNav context switch", () => {
     render(<ConsoleNav adminRole="owner" projects={projects} />)
     expect(screen.queryByRole("link", { name: /tenants/i })).toBeNull()
   })
+
+  it("swaps to the dedicated Super Admin menu + back link inside the admin section", () => {
+    vi.mocked(usePathname).mockReturnValue("/tenants")
+    render(<ConsoleNav adminRole="platform_admin" projects={projects} />)
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Super Admin")
+    expect(screen.getByRole("link", { name: /tenants/i })).toHaveAttribute("href", "/tenants")
+    expect(screen.getByRole("link", { name: /plans/i })).toHaveAttribute("href", "/plans")
+    // back link exits to the console; global items are not mounted here
+    expect(screen.getByRole("link", { name: /back to console/i })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    )
+    expect(screen.queryByRole("link", { name: /^mail$/i })).toBeNull()
+  })
+
+  it("does NOT swap to the admin menu for non-platform admins on the same path", () => {
+    vi.mocked(usePathname).mockReturnValue("/status")
+    render(<ConsoleNav adminRole="owner" projects={projects} />)
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull()
+    expect(screen.getByRole("link", { name: /mail/i })).toHaveAttribute("href", "/mail")
+  })
 })

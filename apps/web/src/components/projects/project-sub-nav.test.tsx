@@ -38,11 +38,11 @@ describe("ProjectSubNav", () => {
     )
   }
 
-  it("renders all 7 nav links (plus a back link)", () => {
+  it("renders all 8 nav links (plus a back link)", () => {
     setup(`${base}/deployments`)
-    // The 7 menu items live in the <nav>; a back link sits in the header.
+    // The 8 menu items (Overview + 7 tabs) live in the <nav>; a back link sits in the header.
     const nav = screen.getByRole("navigation")
-    expect(within(nav).getAllByRole("link")).toHaveLength(7)
+    expect(within(nav).getAllByRole("link")).toHaveLength(8)
     expect(screen.getByRole("link", { name: new RegExp(`back to ${projectName}`, "i") })).toHaveAttribute(
       "href",
       `/projects/${projectSlug}`,

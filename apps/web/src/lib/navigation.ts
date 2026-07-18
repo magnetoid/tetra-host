@@ -3,9 +3,13 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 import {
   faBox,
   faBug,
+  faBuilding,
   faChartBar,
   faChartLine,
+  faCircleInfo,
+  faClockRotateLeft,
   faCloud,
+  faCoins,
   faCrown,
   faDatabase,
   faEarthAmericas,
@@ -14,10 +18,12 @@ import {
   faGear,
   faGlobe,
   faKey,
+  faLayerGroup,
   faListCheck,
   faServer,
   faStore,
   faTerminal,
+  faUserShield,
   faUsers,
   faWandSparkles,
 } from "@/lib/icons"
@@ -68,6 +74,7 @@ export type ProjectNavItem = {
 export function projectNavItems(projectSlug: string, appId: string): ProjectNavItem[] {
   const base = `/projects/${projectSlug}/apps/${appId}`
   return [
+    { href: base, label: "Overview", icon: faCircleInfo, exact: true },
     { href: `${base}/deployments`, label: "Deployments", icon: faListCheck },
     { href: `${base}/logs`, label: "Logs", icon: faTerminal },
     { href: `${base}/env`, label: "Env", icon: faKey },
@@ -117,6 +124,29 @@ export const consoleNavItems: NavItem[] = [
     platformAdminOnly: true,
   },
 ]
+
+/** A platform-admin operator destination. Rendered both as cards on the Super
+ *  Admin hub and as the dedicated left-nav when inside the admin section. */
+export type SuperAdminNavItem = {
+  href: string
+  label: string
+  icon: IconDefinition
+  desc: string
+}
+
+export const superAdminNavItems: SuperAdminNavItem[] = [
+  { href: "/tenants", label: "Tenants", icon: faBuilding, desc: "Approve, suspend, and manage tenant organizations." },
+  { href: "/admin", label: "Administrators", icon: faUserShield, desc: "Platform administrators and provider readiness." },
+  { href: "/plans", label: "Plans", icon: faLayerGroup, desc: "Subscription plans available to tenants." },
+  { href: "/credits", label: "AI credits", icon: faCoins, desc: "Fund tenants' prepaid AI credit and track spend." },
+  { href: "/audit", label: "Audit log", icon: faClockRotateLeft, desc: "Every audited platform action." },
+  { href: "/status", label: "Status page", icon: faGaugeHigh, desc: "Public component-by-component health." },
+]
+
+/** Route prefixes that make up the Super Admin section — inside any of them the
+ *  console sidebar swaps to the dedicated admin menu (platform admins only). */
+export const SUPER_ADMIN_ROOT = "/super-admin"
+export const superAdminPaths = [SUPER_ADMIN_ROOT, ...superAdminNavItems.map((i) => i.href)]
 
 export const publicNavItems: NavItem[] = [
   { href: "/docs", label: "Docs" },

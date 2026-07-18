@@ -5,8 +5,16 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { consoleNavItems, NAV_SECTIONS, projectNavItems } from "@/lib/navigation"
+import {
+  consoleNavItems,
+  NAV_SECTIONS,
+  projectNavItems,
+  SUPER_ADMIN_ROOT,
+  superAdminNavItems,
+  superAdminPaths,
+} from "@/lib/navigation"
 import { activeGroup, type ProjectGroup } from "@/lib/projects"
+import { faCrown } from "@/lib/icons"
 import { cn } from "@/lib/utils"
 
 type ProjectMeta = ProjectGroup
@@ -93,6 +101,48 @@ export function ConsoleNav({
               label={item.label}
               icon={item.icon}
               active={item.exact ? pathname === item.href : pathname.startsWith(item.href)}
+            />
+          ))}
+        </nav>
+      </div>
+    )
+  }
+
+  // ── Inside the Super Admin section: ONLY the admin menu ──────────────────
+  // Platform admins get a dedicated left nav across every operator surface
+  // (tenants, plans, credits, audit, …) plus a back link out to the console.
+  const inSuperAdmin =
+    adminRole === "platform_admin" &&
+    superAdminPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  if (inSuperAdmin) {
+    return (
+      <div className="mt-8 text-sm">
+        <Link
+          href="/dashboard"
+          className="mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground transition hover:bg-accent hover:text-foreground"
+        >
+          <span aria-hidden>←</span> Back to console
+        </Link>
+        <div className="mb-3 px-3">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            Platform admin
+          </p>
+          <h2 className="mt-1 text-sm font-semibold text-foreground">Super Admin</h2>
+        </div>
+        <nav className="space-y-1">
+          <NavRow
+            href={SUPER_ADMIN_ROOT}
+            label="Overview"
+            icon={faCrown}
+            active={pathname === SUPER_ADMIN_ROOT}
+          />
+          {superAdminNavItems.map((item) => (
+            <NavRow
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
             />
           ))}
         </nav>
