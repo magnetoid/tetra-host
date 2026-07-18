@@ -8,6 +8,7 @@ keys (DSN), and list a project's issues. All calls go through the shared retryin
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
@@ -15,6 +16,8 @@ import httpx
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import request_json
+
+logger = logging.getLogger(__name__)
 
 
 class GlitchtipClient:
@@ -70,6 +73,7 @@ class GlitchtipClient:
         return payload if isinstance(payload, list) else []
 
     async def create_project(self, *, name: str, team_slug: str) -> dict[str, Any]:
+        logger.info("creating GlitchTip project '%s' in team %s", name, team_slug)
         payload = await request_json(
             self.http_client,
             service="GlitchTip",
@@ -86,9 +90,11 @@ class GlitchtipClient:
                 return project
         teams = await self.list_teams()
         if not teams:
+            logger.warning("no GlitchTip team available to create project '%s'", slug)
             return None  # nowhere to create it; caller surfaces a "not ready" reason
         team_slug = str(teams[0].get("slug") or "")
         if not team_slug:
+            logger.warning("GlitchTip team has no slug; cannot create project '%s'", slug)
             return None
         return await self.create_project(name=name, team_slug=team_slug)
 

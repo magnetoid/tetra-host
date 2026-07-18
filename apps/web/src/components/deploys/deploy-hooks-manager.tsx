@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faPlus, faTrash } from "@/lib/icons"
 import type { DeployHook, DeployHookCreated } from "@/lib/types"
 
@@ -12,59 +13,40 @@ const INPUT_CLASS =
   "rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
 
 export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [project, setProject] = useState("")
   const [gitUrl, setGitUrl] = useState("")
   const [ref, setRef] = useState("main")
   const [created, setCreated] = useState<DeployHookCreated | null>(null)
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   async function createHook(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("create")
-    setError(null)
-    try {
-      const response = await fetch("/api/proxy/deploy-hooks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, git_url: gitUrl, ref }),
-      })
-      const payload = (await response.json().catch(() => ({}))) as DeployHookCreated & {
-        detail?: string
-      }
-      if (!response.ok) {
-        setError(payload.detail ?? "Could not create webhook.")
-        return
-      }
-      setCreated(payload)
-      setProject("")
-      setGitUrl("")
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<DeployHookCreated>("/api/proxy/deploy-hooks", {
+          method: "POST",
+          body: { project, git_url: gitUrl, ref },
+          errorMessage: "Could not create webhook.",
+        })
+        setCreated(payload)
+        setProject("")
+        setGitUrl("")
+      },
+      { key: "create" },
+    )
   }
 
-  async function removeHook(hookId: string) {
-    setPending(`rm:${hookId}`)
-    setError(null)
-    try {
-      const response = await fetch(`/api/proxy/deploy-hooks/${hookId}`, { method: "DELETE" })
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-        setError(payload.detail ?? "Could not remove webhook.")
-        return
-      }
-      if (created?.id === hookId) setCreated(null)
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+  function removeHook(hookId: string) {
+    return run(
+      async () => {
+        await apiFetch(`/api/proxy/deploy-hooks/${hookId}`, {
+          method: "DELETE",
+          errorMessage: "Could not remove webhook.",
+        })
+        if (created?.id === hookId) setCreated(null)
+      },
+      { key: `rm:${hookId}`, successMessage: "Webhook removed" },
+    )
   }
 
   return (
@@ -73,7 +55,7 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
 
       <form
         onSubmit={createHook}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
       >
         <label className="block text-sm">
           <span className="mb-2 block text-muted-foreground">App</span>
@@ -112,7 +94,7 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
       </form>
 
       {created ? (
-        <div className="rounded-2xl border border-status-ok/25 bg-status-ok/10 p-4 text-sm">
+        <div className="rounded-lg border border-status-ok/25 bg-status-ok/10 p-4 text-sm">
           <div className="font-medium text-status-ok">
             Webhook created — add it to GitHub now. The secret is shown only once.
           </div>
@@ -140,7 +122,7 @@ export function DeployHooksManager({ hooks }: { hooks: DeployHook[] }) {
           {hooks.map((hook) => (
             <div
               key={hook.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted px-4 py-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted px-4 py-3"
             >
               <div className="flex min-w-0 items-center gap-3 text-sm">
                 <span className="font-medium">{hook.project}</span>

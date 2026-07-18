@@ -4,6 +4,8 @@ import { config } from "@fortawesome/fontawesome-svg-core"
 import "@fortawesome/fontawesome-svg-core/styles.css"
 import { cookies } from "next/headers"
 
+import { Toaster } from "@/components/ui/toaster"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { APP_NAME } from "@/lib/env"
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme"
 
@@ -45,7 +47,10 @@ export default async function RootLayout({
       data-theme={theme}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <TooltipProvider>{children}</TooltipProvider>
+        <Toaster theme={theme} />
+      </body>
     </html>
   )
 }

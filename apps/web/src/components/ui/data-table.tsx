@@ -61,7 +61,7 @@ export function DataTable<TData>({
   const rows = table.getRowModel().rows
 
   return (
-    <div className="rounded-2xl border border-border bg-muted p-6">
+    <div className="rounded-lg border border-border bg-muted p-6">
       {(title || action || searchPlaceholder) && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           {title ? <h2 className="font-display text-lg font-semibold">{title}</h2> : <span />}
@@ -80,7 +80,7 @@ export function DataTable<TData>({
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-border">
+      <div className="mt-4 overflow-hidden rounded-lg border border-border">
         <div className="max-h-[34rem] overflow-auto">
           <table className="min-w-full divide-y divide-border text-sm">
             <thead className="sticky top-0 z-10 bg-background text-left text-muted-foreground">

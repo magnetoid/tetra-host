@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 from urllib.parse import urlparse
 
@@ -8,6 +9,8 @@ from pydantic import BaseModel, ConfigDict
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import request_json
+
+logger = logging.getLogger(__name__)
 
 # Coolify v4 supported database types — validated before interpolating into URL path.
 # Source: POST /api/v1/databases/{type} endpoints confirmed in openapi.json.
@@ -487,6 +490,7 @@ class CoolifyClient:
     async def update_application(self, application_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
         if not self.is_configured():
             return {"ok": False, "message": "Coolify is not configured."}
+        logger.info("updating Coolify application %s (%d field(s))", application_uuid, len(data))
         payload = await request_json(
             self.http_client,
             service="Coolify",
@@ -501,6 +505,7 @@ class CoolifyClient:
     async def delete_application(self, application_uuid: str) -> dict[str, Any]:
         if not self.is_configured():
             return {"ok": False, "message": "Coolify is not configured."}
+        logger.info("deleting Coolify application %s", application_uuid)
         payload = await request_json(
             self.http_client,
             service="Coolify",
@@ -519,6 +524,7 @@ class CoolifyClient:
         params: dict[str, str] = {"uuid": application_uuid, "force": str(force).lower()}
         if tag:
             params["tag"] = tag
+        logger.info("deploying Coolify application %s (force=%s)", application_uuid, force)
         payload = await request_json(
             self.http_client,
             service="Coolify",
@@ -613,6 +619,7 @@ class CoolifyClient:
                 return str(payload.get("output", payload.get("result", str(payload))))
             return str(payload)
         except Exception as exc:
+            logger.exception("command execution failed in application %s", application_uuid)
             return f"Command execution failed: {exc}"
 
     # ── Environment Variables ─────────────────────────────────────
@@ -807,6 +814,7 @@ class CoolifyClient:
     async def cancel_deployment(self, deployment_uuid: str) -> dict[str, Any]:
         if not self.is_configured():
             return {"ok": False, "message": "Coolify is not configured."}
+        logger.info("cancelling Coolify deployment %s", deployment_uuid)
         payload = await request_json(
             self.http_client,
             service="Coolify",
@@ -955,6 +963,7 @@ class CoolifyClient:
             "name": name,
             **opts,
         }
+        logger.info("provisioning %s database '%s' on server %s", db_type, name, server_uuid)
         payload = await request_json(
             self.http_client,
             service="Coolify",

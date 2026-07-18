@@ -107,7 +107,7 @@ export function AppMarketplace({
               type="button"
               onClick={() => setSelected(template)}
               aria-label={`View details for ${template.name}`}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-muted p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent focus:border-primary focus:outline-none"
+              className="flex flex-col gap-3 rounded-lg border border-border bg-muted p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent focus:border-primary focus:outline-none"
             >
               <div className="flex items-start gap-3">
                 <AppLogo template={template} />

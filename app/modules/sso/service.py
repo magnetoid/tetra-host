@@ -17,6 +17,7 @@ discovered IdP endpoints over TLS, so the returned email is authentic. Full
 id_token JWKS signature validation is a planned hardening follow-up.
 """
 
+import logging
 import secrets as secretslib
 
 import httpx
@@ -30,6 +31,8 @@ from app.models.tenant import TENANT_ACTIVE
 from app.modules.auth.service import AuthService
 from app.services import secrets as secret_box
 from app.services.http import ProviderAPIError, request_json
+
+logger = logging.getLogger(__name__)
 
 SSO_STATE_SALT = "tetra-sso-state"
 STATE_MAX_AGE_SECONDS = 600  # 10 minutes to complete the round-trip.
@@ -92,6 +95,10 @@ class SSOService:
         config.provider_label = (provider_label or "OpenID Connect").strip()
         config.enabled = enabled
         await self.session.flush()
+        logger.info(
+            "SSO config saved for tenant %s (issuer %s, enabled=%s)",
+            tenant_id, issuer or "unset", enabled,
+        )
         return config
 
     async def delete_config(self, tenant_id: str) -> None:
@@ -99,6 +106,7 @@ class SSOService:
         if config is not None:
             await self.session.delete(config)
             await self.session.flush()
+            logger.info("SSO config deleted for tenant %s", tenant_id)
 
     # ── OIDC flow ────────────────────────────────────────────────────────
     def _serializer(self, settings: Settings) -> URLSafeTimedSerializer:
@@ -112,6 +120,7 @@ class SSOService:
             try:
                 doc = await request_json(client, service="OIDC", method="GET", url=url)
             except ProviderAPIError as exc:
+                logger.warning("OIDC discovery failed for issuer %s", issuer)
                 raise SSOError("Could not reach the identity provider.", status_code=502) from exc
         if not isinstance(doc, dict) or "authorization_endpoint" not in doc:
             raise SSOError("Identity provider returned an invalid discovery document.", status_code=502)
@@ -196,6 +205,7 @@ class SSOService:
                     max_attempts=1,
                 )
             except ProviderAPIError as exc:
+                logger.warning("OIDC token exchange failed (tenant %s)", tenant_id)
                 raise SSOError("The identity provider rejected the sign-in.", status_code=401) from exc
 
             access_token = (tokens or {}).get("access_token")
@@ -250,4 +260,8 @@ class SSOService:
         )
         self.session.add(admin)
         await self.session.flush()
+        logger.info(
+            "SSO member %s provisioned in tenant %s (role %s)",
+            admin.id, tenant.id, config.default_role,
+        )
         return await self.auth.get_admin_by_id(admin.id)

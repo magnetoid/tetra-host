@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { apiFetch } from "@/lib/client-api"
 import { faWandSparkles } from "@/lib/icons"
 import type { AiModel, AiStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -45,27 +46,21 @@ export function AiPlayground({
     setPending(true)
     setError(null)
     try {
-      const res = await fetch("/api/proxy/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages: next }),
-      })
-      const payload = (await res.json().catch(() => ({}))) as {
-        detail?: string
+      const payload = await apiFetch<{
         completion?: { choices?: { message?: { content?: string } }[] }
         usage?: { billed_usd?: number }
         balance_usd?: number
-      }
-      if (!res.ok) {
-        setError(payload.detail ?? "Request failed.")
-        return
-      }
+      }>("/api/proxy/ai/chat", {
+        method: "POST",
+        body: { model, messages: next },
+        errorMessage: "Request failed.",
+      })
       const reply = payload.completion?.choices?.[0]?.message?.content ?? "(no content)"
       setMessages((m) => [...m, { role: "assistant", content: reply }])
       if (typeof payload.balance_usd === "number") setBalance(payload.balance_usd)
       if (typeof payload.usage?.billed_usd === "number") setLastCost(payload.usage.billed_usd)
-    } catch {
-      setError("Unable to reach the control plane.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed.")
     } finally {
       setPending(false)
     }
@@ -125,7 +120,7 @@ export function AiPlayground({
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       {messages.length > 0 ? (
-        <div className="max-h-[28rem] space-y-3 overflow-y-auto rounded-2xl border border-border bg-muted p-4">
+        <div className="max-h-[28rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-muted p-4">
           {messages.map((m, i) => (
             <div
               key={i}

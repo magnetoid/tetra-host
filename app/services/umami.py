@@ -10,6 +10,7 @@ GET /api/websites, POST /api/websites, GET /api/websites/{id}/{stats,pageviews,m
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
@@ -17,6 +18,8 @@ import httpx
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import ProviderAPIError, request_json
+
+logger = logging.getLogger(__name__)
 
 _TOKEN_CACHE_KEY = "umami:token"
 _TOKEN_TTL_SECONDS = 60 * 60 * 6
@@ -67,6 +70,7 @@ class UmamiClient:
                 service="Umami", message="Login did not return a token.", status_code=502
             )
         await self.cache.set(_TOKEN_CACHE_KEY, str(token), _TOKEN_TTL_SECONDS)
+        logger.info("authenticated with Umami at %s", self.base_url)
         return str(token)
 
     async def _token(self, *, refresh: bool = False) -> str:
@@ -90,6 +94,7 @@ class UmamiClient:
         except ProviderAPIError as exc:
             if exc.status_code != 401:
                 raise
+            logger.info("Umami token expired — re-authenticating")
             token = await self._token(refresh=True)  # expired → re-login once
             return await request_json(
                 self.http_client,
@@ -109,6 +114,7 @@ class UmamiClient:
         return payload if isinstance(payload, list) else []
 
     async def create_website(self, name: str, domain: str) -> dict[str, Any]:
+        logger.info("creating Umami website for domain %s", domain)
         token = await self._token()
         payload = await request_json(
             self.http_client,

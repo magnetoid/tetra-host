@@ -1,13 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faChevronDown, faDatabase, faPlus } from "@/lib/icons"
 import type { BackupConfig, DatabaseRecord, DatabaseTargets } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -27,9 +28,7 @@ export function DatabasesManager({
   databases: DatabaseRecord[]
   targets: DatabaseTargets
 }) {
-  const router = useRouter()
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { run, pending, error } = useAction()
   const [notice, setNotice] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [backups, setBackups] = useState<Record<string, BackupConfig[]>>({})
@@ -42,31 +41,22 @@ export function DatabasesManager({
 
   async function provision(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("provision")
-    setError(null)
     setNotice(null)
-    try {
-      const res = await fetch("/api/proxy/databases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          db_type: dbType, name, server_uuid: server,
-          project_uuid: project, environment_name: "production",
-        }),
-      })
-      const payload = (await res.json().catch(() => ({}))) as { detail?: string; message?: string }
-      if (!res.ok) {
-        setError(payload.detail ?? "Provisioning failed.")
-        return
-      }
-      setNotice(payload.message ?? "Database provisioned.")
-      setName("")
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<{ message?: string }>("/api/proxy/databases", {
+          method: "POST",
+          body: {
+            db_type: dbType, name, server_uuid: server,
+            project_uuid: project, environment_name: "production",
+          },
+          errorMessage: "Provisioning failed.",
+        })
+        setNotice(payload.message ?? "Database provisioned.")
+        setName("")
+      },
+      { key: "provision" },
+    )
   }
 
   async function toggle(dbId: string) {
@@ -85,34 +75,30 @@ export function DatabasesManager({
 
   async function scheduleBackup(dbId: string, form: HTMLFormElement) {
     const data = new FormData(form)
-    setPending(`backup:${dbId}`)
-    setError(null)
     setNotice(null)
-    try {
-      const res = await fetch(`/api/proxy/databases/${dbId}/backups`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          frequency: String(data.get("frequency") || "0 2 * * *"),
-          retention_days: Number(data.get("retention_days") || 7),
-          s3_storage_id: String(data.get("s3_storage_id") || ""),
-        }),
-      })
-      const payload = (await res.json().catch(() => ({}))) as { detail?: string; message?: string }
-      if (!res.ok) {
-        setError(payload.detail ?? "Could not schedule backup.")
-        return
-      }
-      setNotice(payload.message ?? "Backup scheduled.")
-      // Refresh this db's backup list.
-      const list = await fetch(`/api/proxy/databases/${dbId}/backups`)
-      const rows = list.ok ? ((await list.json()) as BackupConfig[]) : null
-      if (rows) setBackups((b) => ({ ...b, [dbId]: rows }))
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<{ message?: string }>(`/api/proxy/databases/${dbId}/backups`, {
+          method: "POST",
+          body: {
+            frequency: String(data.get("frequency") || "0 2 * * *"),
+            retention_days: Number(data.get("retention_days") || 7),
+            s3_storage_id: String(data.get("s3_storage_id") || ""),
+          },
+          errorMessage: "Could not schedule backup.",
+        })
+        setNotice(payload.message ?? "Backup scheduled.")
+        // Best-effort refresh of this db's backup list — a reload failure must
+        // not undo the confirmed "scheduled" outcome, so swallow it here.
+        try {
+          const rows = await apiFetch<BackupConfig[]>(`/api/proxy/databases/${dbId}/backups`)
+          setBackups((b) => ({ ...b, [dbId]: rows }))
+        } catch {
+          // keep the existing list; the schedule succeeded regardless
+        }
+      },
+      { key: `backup:${dbId}`, refresh: false },
+    )
   }
 
   const canProvision = Boolean(name && server && project)
@@ -124,7 +110,7 @@ export function DatabasesManager({
 
       <form
         onSubmit={provision}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
       >
         <label className="block text-sm">
           <span className="mb-2 block text-muted-foreground">Engine</span>
@@ -197,7 +183,7 @@ export function DatabasesManager({
               <div
                 key={db.id}
                 className={cn(
-                  "overflow-hidden rounded-2xl border bg-muted transition-colors",
+                  "overflow-hidden rounded-lg border bg-muted transition-colors",
                   expanded ? "border-primary/40" : "border-border hover:border-primary/30",
                 )}
               >

@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faPlus, faTrash } from "@/lib/icons"
 import type { JobRunRecord, ScheduledJobRecord } from "@/lib/types"
 import { cn, formatRelativeLabel } from "@/lib/utils"
@@ -19,79 +20,48 @@ const STATUS_TONE: Record<string, string> = {
 }
 
 export function JobsManager({ jobs }: { jobs: ScheduledJobRecord[] }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [name, setName] = useState("")
   const [cron, setCron] = useState("*/5 * * * *")
   const [url, setUrl] = useState("")
   const [method, setMethod] = useState("GET")
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [runs, setRuns] = useState<Record<string, JobRunRecord[]>>({})
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("create")
-    setError(null)
-    try {
-      const res = await fetch("/api/proxy/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, cron, url, method }),
-      })
-      const payload = (await res.json().catch(() => ({}))) as { detail?: string }
-      if (!res.ok) {
-        setError(payload.detail ?? "Could not create job.")
-        return
-      }
+    const ok = await run(
+      () =>
+        apiFetch("/api/proxy/jobs", {
+          method: "POST",
+          body: { name, cron, url, method },
+          errorMessage: "Could not create job.",
+        }),
+      { key: "create", successMessage: "Job created" },
+    )
+    if (ok) {
       setName("")
       setUrl("")
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
     }
   }
 
-  async function toggle(job: ScheduledJobRecord) {
-    setPending(`toggle:${job.id}`)
-    setError(null)
-    try {
-      const res = await fetch(`/api/proxy/jobs/${job.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !job.enabled }),
-      })
-      if (!res.ok) {
-        const p = (await res.json().catch(() => ({}))) as { detail?: string }
-        setError(p.detail ?? "Update failed.")
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+  function toggle(job: ScheduledJobRecord) {
+    return run(
+      () =>
+        apiFetch(`/api/proxy/jobs/${job.id}`, {
+          method: "PATCH",
+          body: { enabled: !job.enabled },
+          errorMessage: "Update failed.",
+        }),
+      { key: `toggle:${job.id}`, successMessage: job.enabled ? "Job paused" : "Job resumed" },
+    )
   }
 
-  async function remove(id: string) {
-    setPending(`rm:${id}`)
-    setError(null)
-    try {
-      const res = await fetch(`/api/proxy/jobs/${id}`, { method: "DELETE" })
-      if (!res.ok) {
-        const p = (await res.json().catch(() => ({}))) as { detail?: string }
-        setError(p.detail ?? "Delete failed.")
-        return
-      }
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+  function remove(id: string) {
+    return run(
+      () => apiFetch(`/api/proxy/jobs/${id}`, { method: "DELETE", errorMessage: "Delete failed." }),
+      { key: `rm:${id}`, successMessage: "Job deleted" },
+    )
   }
 
   async function toggleRuns(id: string) {
@@ -114,7 +84,7 @@ export function JobsManager({ jobs }: { jobs: ScheduledJobRecord[] }) {
 
       <form
         onSubmit={create}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
       >
         <label className="block text-sm">
           <span className="mb-2 block text-muted-foreground">Name</span>
@@ -150,7 +120,7 @@ export function JobsManager({ jobs }: { jobs: ScheduledJobRecord[] }) {
             const expanded = expandedId === job.id
             const list = runs[job.id]
             return (
-              <div key={job.id} className="overflow-hidden rounded-2xl border border-border bg-muted">
+              <div key={job.id} className="overflow-hidden rounded-lg border border-border bg-muted">
                 <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <button type="button" onClick={() => toggleRuns(job.id)} className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
                     <div className="flex items-center gap-2">

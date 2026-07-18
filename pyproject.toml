@@ -36,3 +36,11 @@ include = ["app*", "tetra_cli*"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# Extend ruff's defaults (E/F) with two high-signal bug rules the codebase is
+# clean of, so they can't regress:
+#   B006   — mutable default arguments
+#   RUF006 — asyncio.create_task() whose result is discarded (GC-mid-run risk;
+#            see app/modules/deploys/service.py::_spawn_background)
+extend-select = ["B006", "RUF006"]

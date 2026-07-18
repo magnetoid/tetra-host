@@ -47,6 +47,18 @@ logger = logging.getLogger(__name__)
 
 _TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
 
+# Fire-and-forget background builds must outlive the (per-request) service that
+# spawned them. asyncio keeps only a *weak* reference to a task, so without a
+# strong ref here a queued deploy/rollback can be garbage-collected mid-build.
+# Hold the ref until the task finishes, then drop it.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 # Sentinel so explain_deployment can distinguish "use the default AI diagnoser" from an
 # explicit diagnoser=None (heuristic-only).
 _UNSET = object()
@@ -197,7 +209,10 @@ class DeploysService:
             session.add(deployment)
             await session.flush()
             deployment_id = deployment.id
-        asyncio.create_task(
+        logger.info(
+            "deployment %s queued for project '%s' (tenant %s)", deployment_id, project, tenant_id
+        )
+        _spawn_background(
             self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
         )
         return deployment_id
@@ -280,9 +295,13 @@ class DeploysService:
                 image=image_ref, builder=build.builder, commit=build.commit,
                 port=effective_port, domain=domain,
             )
+            logger.info(
+                "deployment %s ready: project '%s' image %s", deployment_id, project, image_ref
+            )
             if env_project is None:
                 await self._prune_old_images(tenant_id, project)
         except (BuildError, DockerEngineError) as exc:
+            logger.warning("deployment %s failed for project '%s': %s", deployment_id, project, exc)
             log.append(f"✗ {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             # Release the pre-build reservation so no orphan slot is left.
@@ -290,6 +309,9 @@ class DeploysService:
             async with session_scope() as release_session:
                 await QuotaService(release_session, tenant_id or "").release(project)
         except Exception as exc:  # never leave a deployment stuck in "building"
+            logger.exception(
+                "deployment %s crashed unexpectedly (project '%s')", deployment_id, project
+            )
             log.append(f"✗ unexpected: {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             async with session_scope() as release_session:
@@ -393,6 +415,7 @@ class DeploysService:
                     for row in error_rows:
                         row.image = ""
         except Exception:  # noqa: BLE001 — retention is best-effort by contract
+            logger.exception("image retention pass failed for project '%s'", project)
             return
 
     def stream_logs(
@@ -546,7 +569,7 @@ class DeploysService:
             session.add(deployment)
             await session.flush()
             deployment_id = deployment.id
-        asyncio.create_task(
+        _spawn_background(
             self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
         )
         return deployment_id
@@ -590,7 +613,8 @@ class DeploysService:
             await session.flush()
             new_id = new_deployment.id
             project, image, port = target.project, target.image, target.port
-        asyncio.create_task(
+        logger.info("rollback %s queued for project '%s' -> image %s", new_id, project, image)
+        _spawn_background(
             self._run_rollback(new_id, tenant_id, project=project, image=image, port=port)
         )
         return new_id
@@ -697,7 +721,7 @@ class DeploysService:
             await session.flush()
             preview.last_deployment_id = deployment.id
             deployment_id = deployment.id
-        asyncio.create_task(
+        _spawn_background(
             self._run_deploy(
                 deployment_id, tenant_id, git_url=git_url, ref=branch, project=stack,
                 port=port, env_project=project,

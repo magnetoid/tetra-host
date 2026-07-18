@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 
 from passlib.context import CryptContext
@@ -11,6 +12,7 @@ from app.models import AdminUser, Tenant
 from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING
 
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -184,8 +186,10 @@ class AuthService:
             # so no orphan tenant is left behind, then return the same None sentinel
             # as the pre-check duplicate path.
             await self.session.rollback()
+            logger.warning("signup rolled back: concurrent duplicate email")
             return None
 
+        logger.info("tenant '%s' signed up (admin %s, plan %s)", slug, admin.id, plan_id or "none")
         # Reload with relationships populated.
         return await self.get_admin_by_id(admin.id)
 
@@ -211,4 +215,5 @@ class AuthService:
         )
         self.session.add(admin)
         await self.session.flush()
+        logger.info("bootstrap admin created (tenant %s)", tenant.id)
         return await self.get_admin_by_id(admin.id)

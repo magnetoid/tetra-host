@@ -1,9 +1,10 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import type { ZoneSettings } from "@/lib/types"
 
 const SSL_MODES = ["off", "flexible", "full", "strict"]
@@ -13,39 +14,27 @@ const selectClass =
   "rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-60"
 
 export function ZoneTools({ zoneId, settings }: { zoneId: string; settings: ZoneSettings }) {
-  const router = useRouter()
-  const [pending, setPending] = useState<string | null>(null)
+  const { run, pending, error } = useAction()
   const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  async function call(path: string, body: unknown, label: string, method = "PATCH") {
-    setPending(label)
+  async function call(path: string, body: unknown, label: string, method: "PATCH" | "POST" = "PATCH") {
     setMessage(null)
-    setError(null)
-    try {
-      const response = await fetch(`/api/proxy/dns/zones/${zoneId}/${path}`, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const payload = (await response.json().catch(() => ({}))) as { message?: string; detail?: string }
-      if (!response.ok) {
-        setError(payload.detail ?? "Update failed.")
-        return
-      }
-      setMessage(payload.message ?? "Updated.")
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<{ message?: string }>(
+          `/api/proxy/dns/zones/${zoneId}/${path}`,
+          { method, body, errorMessage: "Update failed." },
+        )
+        setMessage(payload.message ?? "Updated.")
+      },
+      { key: label },
+    )
   }
 
   const setSetting = (setting: string, value: string) => call("settings", { setting, value }, setting)
 
   return (
-    <div className="space-y-4 rounded-2xl border border-border bg-muted p-6">
+    <div className="space-y-4 rounded-lg border border-border bg-muted p-6">
       <h2 className="text-lg font-semibold">Zone tools</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="SSL/TLS mode">

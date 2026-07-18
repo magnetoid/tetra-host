@@ -1,11 +1,12 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import type { SSOConfig } from "@/lib/types"
 
 const INPUT_CLASS =
@@ -34,7 +35,7 @@ export function SSOSettings({
   tenantSlug: string
   origin: string
 }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [providerLabel, setProviderLabel] = useState(config.provider_label || "OpenID Connect")
   const [issuer, setIssuer] = useState(config.issuer)
   const [clientId, setClientId] = useState(config.client_id)
@@ -42,8 +43,6 @@ export function SSOSettings({
   const [allowedDomains, setAllowedDomains] = useState(config.allowed_domains)
   const [defaultRole, setDefaultRole] = useState(config.default_role || "member")
   const [enabled, setEnabled] = useState(config.enabled)
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
   const callbackUrl = `${origin}/auth/sso/callback`
@@ -51,51 +50,43 @@ export function SSOSettings({
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("save")
-    setError(null)
     setSaved(false)
-    try {
-      const response = await fetch("/api/proxy/sso", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider_label: providerLabel,
-          issuer,
-          client_id: clientId,
-          client_secret: clientSecret, // blank keeps the stored secret
-          allowed_domains: allowedDomains,
-          default_role: defaultRole,
-          enabled,
+    const ok = await run(
+      () =>
+        apiFetch("/api/proxy/sso", {
+          method: "PUT",
+          body: {
+            provider_label: providerLabel,
+            issuer,
+            client_id: clientId,
+            client_secret: clientSecret, // blank keeps the stored secret
+            allowed_domains: allowedDomains,
+            default_role: defaultRole,
+            enabled,
+          },
+          errorMessage: "Could not save SSO settings.",
         }),
-      })
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-        setError(payload.detail ?? "Could not save SSO settings.")
-        return
-      }
+      { key: "save" },
+    )
+    if (ok) {
       setClientSecret("")
       setSaved(true)
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
     }
   }
 
-  async function disable() {
-    setPending("disable")
-    setError(null)
-    try {
-      await fetch("/api/proxy/sso", { method: "DELETE" })
-      router.refresh()
-    } finally {
-      setPending(null)
-    }
+  function disable() {
+    return run(
+      () =>
+        apiFetch("/api/proxy/sso", {
+          method: "DELETE",
+          errorMessage: "Could not remove the SSO configuration.",
+        }),
+      { key: "disable", successMessage: "SSO configuration removed" },
+    )
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-muted p-5">
+    <div className="rounded-lg border border-border bg-muted p-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold">Single sign-on</h2>

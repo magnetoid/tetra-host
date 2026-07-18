@@ -1,8 +1,9 @@
 import { AdminCredits } from "@/components/credits/admin-credits"
 import { Card } from "@/components/ui/card"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { TenantCreditOverview } from "@/lib/types"
 
 export default async function CreditsPage() {
@@ -25,9 +26,13 @@ export default async function CreditsPage() {
     )
   }
 
-  const rows = await fetchBackend<TenantCreditOverview[]>("/billing/credits/overview", {
-    token: session.token,
-  }).catch(() => [] as TenantCreditOverview[])
+  const rowsRes = await fetchDegraded<TenantCreditOverview[]>(
+    "/billing/credits/overview",
+    "Credits",
+    [],
+    { token: session.token },
+  )
+  const rows = rowsRes.data
 
   return (
     <div className="space-y-6">
@@ -36,6 +41,7 @@ export default async function CreditsPage() {
         title="AI credits"
         description="Every tenant's prepaid AI credit balance and 30-day metered spend. Top up after payment."
       />
+      <DegradedBanner sources={degradedSources([rowsRes])} />
       <AdminCredits rows={rows} />
     </div>
   )

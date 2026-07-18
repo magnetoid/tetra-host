@@ -7,6 +7,8 @@ import { DeploymentCard } from "@/components/deploys/deployment-card"
 import { LogStream } from "@/components/projects/log-stream"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { unifyCoolify } from "@/lib/deployments"
 import { faArrowsRotate, faRocket } from "@/lib/icons"
 import type { ProjectActionResponse, ProjectDeploymentRecord } from "@/lib/types"
@@ -25,48 +27,41 @@ export function DeployConsole({
   initialDeployments: ProjectDeploymentRecord[]
 }) {
   const router = useRouter()
+  const { run, pending, error } = useAction()
   const [expandedId, setExpandedId] = useState<string | null>(initialDeployments[0]?.id ?? null)
-  const [pending, setPending] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  async function postAction(path: string, label: string): Promise<ProjectActionResponse | null> {
-    setPending(label)
+  function postAction(path: string, label: string, onPayload?: (payload: ProjectActionResponse) => void) {
     setMessage(null)
-    setError(null)
-    try {
-      const response = await fetch(`/api/proxy/${path}`, { method: "POST" })
-      const payload = (await response.json()) as ProjectActionResponse & { detail?: string }
-      if (!response.ok) {
-        setError(payload.detail ?? "Action failed.")
-        return null
-      }
-      setMessage(payload.message ?? "Action queued.")
-      return payload
-    } catch {
-      setError("Unable to reach the control plane.")
-      return null
-    } finally {
-      setPending(null)
-    }
+    return run(
+      async () => {
+        const payload = await apiFetch<ProjectActionResponse>(`/api/proxy/${path}`, {
+          method: "POST",
+          errorMessage: "Action failed.",
+        })
+        setMessage(payload.message ?? "Action queued.")
+        onPayload?.(payload)
+      },
+      { key: label },
+    )
   }
 
-  async function triggerDeploy(force: boolean) {
+  function triggerDeploy(force: boolean) {
     const query = force ? "?force=1" : ""
-    const result = await postAction(
+    return postAction(
       `projects/${applicationId}/deploy${query}`,
       force ? "redeploy" : "deploy",
+      (payload) => {
+        if (payload.deployment_id) setExpandedId(payload.deployment_id)
+      },
     )
-    if (result?.deployment_id) setExpandedId(result.deployment_id)
-    router.refresh()
   }
 
-  async function cancelDeployment(deploymentId: string) {
-    await postAction(
+  function cancelDeployment(deploymentId: string) {
+    return postAction(
       `projects/${applicationId}/deployments/${deploymentId}/cancel`,
       `cancel:${deploymentId}`,
     )
-    router.refresh()
   }
 
   return (

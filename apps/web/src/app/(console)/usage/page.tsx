@@ -1,8 +1,9 @@
 import { SpendOverview } from "@/components/usage/spend-overview"
 import { UsageMeters } from "@/components/usage/usage-meters"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { AiUsageReport, CreditBalance, Usage } from "@/lib/types"
 
 const EMPTY_USAGE: Usage = {
@@ -31,13 +32,16 @@ const EMPTY_AI: AiUsageReport = {
 export default async function UsagePage() {
   const session = await requireConsoleSession()
 
-  const [usage, credit, ai] = await Promise.all([
-    fetchBackend<Usage>("/usage", { token: session.token }).catch(() => EMPTY_USAGE),
-    fetchBackend<CreditBalance>("/billing/credits", { token: session.token }).catch(
-      () => EMPTY_CREDIT,
-    ),
-    fetchBackend<AiUsageReport>("/ai/usage", { token: session.token }).catch(() => EMPTY_AI),
+  const [usageRes, creditRes, aiRes] = await Promise.all([
+    fetchDegraded<Usage>("/usage", "Usage", EMPTY_USAGE, { token: session.token }),
+    fetchDegraded<CreditBalance>("/billing/credits", "AI credit", EMPTY_CREDIT, {
+      token: session.token,
+    }),
+    fetchDegraded<AiUsageReport>("/ai/usage", "AI usage", EMPTY_AI, { token: session.token }),
   ])
+  const usage = usageRes.data
+  const credit = creditRes.data
+  const ai = aiRes.data
 
   return (
     <div className="space-y-8">
@@ -46,6 +50,8 @@ export default async function UsagePage() {
         title="Usage & spend"
         description="Prepaid AI credit, metered AI spend, and quota consumption against your plan limits."
       />
+
+      <DegradedBanner sources={degradedSources([usageRes, creditRes, aiRes])} />
 
       <section className="space-y-4">
         <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-muted-foreground">

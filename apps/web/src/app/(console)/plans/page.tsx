@@ -45,15 +45,9 @@ export default async function PlansPage() {
         </div>
       </Card>
 
-      <Card>
-        <CardHeader
-          title="All plans"
-          action={`${plans.length} plan${plans.length === 1 ? "" : "s"}`}
-        />
-        <div className="mt-4">
-          <PlansTable plans={plans} />
-        </div>
-      </Card>
+      {/* PlansTable renders its own DataTable panel — no Card wrapper (avoids
+          a double border). */}
+      <PlansTable plans={plans} />
     </div>
   )
 }

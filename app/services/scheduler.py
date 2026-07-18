@@ -42,6 +42,8 @@ async def run_due_jobs(http_client: httpx.AsyncClient, now: datetime) -> int:
         due = [job for job in jobs if cron_matches(job.cron, now)]
         for job in due:
             status, detail, duration = await _execute(http_client, job)
+            if status == JOB_STATUS_ERROR:
+                logger.warning("scheduled job %s (%s) failed: %s", job.id, job.name, detail)
             session.add(
                 JobRun(
                     job_id=job.id, tenant_id=job.tenant_id, status=status,

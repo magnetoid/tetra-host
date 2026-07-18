@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { DeployLogStream } from "@/components/deploys/deploy-log-stream"
 import { DeploymentCard } from "@/components/deploys/deployment-card"
@@ -9,6 +8,8 @@ import { ExplainButton } from "@/components/deploys/explain-button"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { capabilitiesFor, unifyNative } from "@/lib/deployments"
 import { faArrowsRotate, faRocket } from "@/lib/icons"
 import type { DeploymentRecord } from "@/lib/types"
@@ -18,65 +19,42 @@ const INPUT_CLASS =
   "rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
 
 export function DeploysManager({ deployments }: { deployments: DeploymentRecord[] }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [gitUrl, setGitUrl] = useState("")
   const [name, setName] = useState("")
   const [ref, setRef] = useState("main")
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   // Which deployment card is expanded (accordion). Its info + live logs render inline.
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   async function deploy(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending("deploy")
-    setError(null)
-    try {
-      const response = await fetch("/api/proxy/deploys/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ git_url: gitUrl, name, ref }),
-      })
-      const payload = (await response.json().catch(() => ({}))) as {
-        detail?: string
-        deployment_id?: string
-      }
-      if (!response.ok) {
-        setError(payload.detail ?? "Deploy failed to start.")
-        return
-      }
-      setGitUrl("")
-      setName("")
-      // Open the new deployment's card so its build log streams inline once it lands.
-      if (payload.deployment_id) setExpandedId(payload.deployment_id)
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<{ deployment_id?: string }>("/api/proxy/deploys/git", {
+          method: "POST",
+          body: { git_url: gitUrl, name, ref },
+          errorMessage: "Deploy failed to start.",
+        })
+        setGitUrl("")
+        setName("")
+        // Open the new deployment's card so its build log streams inline once it lands.
+        if (payload.deployment_id) setExpandedId(payload.deployment_id)
+      },
+      { key: "deploy", successMessage: "Deploy started" },
+    )
   }
 
-  async function rollback(deploymentId: string) {
-    setPending(`rollback:${deploymentId}`)
-    setError(null)
-    try {
-      const response = await fetch(`/api/proxy/deploys/${deploymentId}/rollback`, { method: "POST" })
-      const payload = (await response.json().catch(() => ({}))) as {
-        detail?: string
-        deployment_id?: string
-      }
-      if (!response.ok) {
-        setError(payload.detail ?? "Rollback failed to start.")
-        return
-      }
-      if (payload.deployment_id) setExpandedId(payload.deployment_id)
-      router.refresh()
-    } catch {
-      setError("Unable to reach the control plane.")
-    } finally {
-      setPending(null)
-    }
+  function rollback(deploymentId: string) {
+    return run(
+      async () => {
+        const payload = await apiFetch<{ deployment_id?: string }>(
+          `/api/proxy/deploys/${deploymentId}/rollback`,
+          { method: "POST", errorMessage: "Rollback failed to start." },
+        )
+        if (payload.deployment_id) setExpandedId(payload.deployment_id)
+      },
+      { key: `rollback:${deploymentId}`, successMessage: "Rollback started" },
+    )
   }
 
   return (
@@ -85,7 +63,7 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
 
       <form
         onSubmit={deploy}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
       >
         <label className="block flex-1 text-sm">
           <span className="mb-2 block text-muted-foreground">Git repository</span>

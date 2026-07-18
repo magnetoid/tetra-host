@@ -2,11 +2,15 @@
 the API handlers and the background scheduler share it. Ownership is fail-closed (a tenant only
 sees/edits its own jobs → 404 otherwise)."""
 
+import logging
+
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import JobRun, ScheduledJob
 from app.services.cron import is_valid_cron
+
+logger = logging.getLogger(__name__)
 
 
 class JobError(Exception):
@@ -56,6 +60,9 @@ class JobsService:
         )
         self.session.add(job)
         await self.session.flush()
+        logger.info(
+            "scheduled job '%s' created (tenant %s, cron '%s')", job.name, tenant_id, job.cron
+        )
         return job
 
     async def update(
@@ -80,6 +87,7 @@ class JobsService:
         if enabled is not None:
             job.enabled = enabled
         await self.session.flush()
+        logger.info("scheduled job %s updated (tenant %s)", job_id, tenant_id)
         return job
 
     async def delete(self, tenant_id: str | None, job_id: str) -> None:
@@ -87,6 +95,7 @@ class JobsService:
         await self.session.execute(delete(JobRun).where(JobRun.job_id == job.id))
         await self.session.delete(job)
         await self.session.flush()
+        logger.info("scheduled job %s deleted (tenant %s)", job_id, tenant_id)
 
     async def list_runs(self, tenant_id: str | None, job_id: str, *, limit: int = 20) -> list[JobRun]:
         await self._owned(tenant_id, job_id)

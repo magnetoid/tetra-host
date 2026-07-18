@@ -48,7 +48,7 @@ export function RefreshLink({
   return (
     <Link
       href={href}
-      className="inline-flex rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:bg-foreground/90"
+      className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
     >
       {label}
     </Link>

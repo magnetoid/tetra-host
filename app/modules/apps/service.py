@@ -5,6 +5,8 @@ catalog (``app/services/app_catalog.py``). No Coolify in the data path. Installe
 ``TenantResource`` rows (provider=docker, resource_type=app) so visibility/control is tenant-isolated.
 """
 
+import logging
+
 from fastapi import Request
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +28,8 @@ from app.services.quota import Allocation, QuotaService
 from app.services.compute import ComputeSample, parse_compute_samples
 from app.services.limits import apply_resource_limits
 from app.services.tenant_resources import TenantResourceFilter
+
+logger = logging.getLogger(__name__)
 
 
 class InstalledApp(BaseModel):
@@ -165,12 +169,14 @@ class AppsService:
         quota = QuotaService(session, tenant_id or "")
         await quota.check_and_reserve(project, allocation, template.name)
 
+        logger.info("installing app '%s' from template '%s' (tenant %s)", project, slug, tenant_id)
         try:
             await self.engine.deploy_stack(project, compose, env)
         except Exception:
             # Release the reservation so a failed install leaves no orphan slot.
             # Catch ALL exceptions (not just DockerEngineError) to prevent quota leaks
             # from network errors, TimeoutError, OSError, etc.
+            logger.exception("app install failed for '%s' — releasing quota reservation", project)
             await quota.release(project)
             raise
 
@@ -193,6 +199,7 @@ class AppsService:
         )
         await session.flush()
 
+        logger.info("app '%s' installed (domain %s)", project, resolved_domain or "none")
         return {"ok": True, "project": project, "domain": resolved_domain}
 
     async def control_for_tenant(
@@ -200,6 +207,7 @@ class AppsService:
     ) -> dict:
         self._require_actions()
         await self._ensure_app_access(session, tenant_id, project)
+        logger.info("'%s' requested for app stack '%s' (tenant %s)", action, project, tenant_id)
         if action == "start":
             return await self.engine.start_stack(project)
         if action == "stop":
@@ -211,6 +219,7 @@ class AppsService:
     ) -> dict:
         self._require_actions()
         await self._ensure_app_access(session, tenant_id, project)
+        logger.info("removing app stack '%s' (volumes=%s, tenant %s)", project, volumes, tenant_id)
         result = await self.engine.remove_stack(project, volumes=volumes)
         clean_project = sanitize_project_name(project)
         await session.execute(

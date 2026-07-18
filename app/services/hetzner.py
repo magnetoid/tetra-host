@@ -9,6 +9,7 @@ helper so 429s back off centrally. Shapes verified against the official OpenAPI 
 """
 
 import asyncio
+import logging
 from typing import Any
 
 import httpx
@@ -17,6 +18,8 @@ from pydantic import BaseModel, ConfigDict
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import ProviderAPIError, request_json
+
+logger = logging.getLogger(__name__)
 
 HETZNER_API = "https://api.hetzner.cloud/v1"
 
@@ -157,6 +160,10 @@ class HetznerClient:
     ) -> dict[str, Any]:
         """POST /servers — returns {server, action, root_password} (password only when
         no SSH key is attached; surface it once, never store it)."""
+        logger.info(
+            "creating Hetzner server %s (type=%s, image=%s, location=%s)",
+            name, server_type, image, location or "default",
+        )
         body: dict[str, Any] = {"name": name, "server_type": server_type, "image": image}
         if location:
             body["location"] = location
@@ -172,6 +179,7 @@ class HetznerClient:
         return payload if isinstance(payload, dict) else {}
 
     async def delete_server(self, server_id: int) -> dict[str, Any]:
+        logger.info("deleting Hetzner server %d", server_id)
         payload = await request_json(
             self.http_client, service="Hetzner", method="DELETE",
             url=f"{HETZNER_API}/servers/{server_id}", headers=self.headers(),
@@ -196,9 +204,12 @@ class HetznerClient:
             action = await self.get_action(action_id)
             status = str(action.get("status") or "")
             if status in {"success", "error"}:
+                if status == "error":
+                    logger.warning("Hetzner action %d finished with status error", action_id)
                 return status
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
+        logger.warning("Hetzner action %d still running after %.0fs", action_id, max_seconds)
         return "running"
 
 

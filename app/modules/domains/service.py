@@ -9,6 +9,7 @@ without network access.
 """
 
 import asyncio
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from secrets import token_hex
@@ -22,6 +23,8 @@ from app.models.domain import DOMAIN_PENDING, DOMAIN_VERIFIED
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.services.docker_engine import DockerEngineError
 from app.services.edge import app_hostname
+
+logger = logging.getLogger(__name__)
 
 # hostname -> TXT record strings
 TxtResolver = Callable[[str], Awaitable[list[str]]]
@@ -93,6 +96,7 @@ class DomainsService:
         )
         session.add(domain)
         await session.flush()
+        logger.info("domain %s claimed for project '%s' (tenant %s)", host, project, tenant_id)
         return domain
 
     async def list_for_tenant(
@@ -130,6 +134,7 @@ class DomainsService:
                 code=409,
             )
         domain.status = DOMAIN_VERIFIED
+        logger.info("domain %s verified for project '%s'", domain.hostname, domain.project)
         # ADR 0009: register the hostname with Cloudflare for SaaS so CF mints + renews
         # the cert. Best-effort — routing works over HTTP even if registration fails,
         # and a re-verify retries it.
@@ -139,7 +144,10 @@ class DomainsService:
                 result = await self._cf.create_custom_hostname(zone_id, domain.hostname)
                 domain.cf_hostname_id = str(result.get("id") or "")
             except Exception:  # noqa: BLE001 — provider hiccups must not fail the verify
-                pass
+                logger.warning(
+                    "Cloudflare SaaS registration failed for %s (retried on next verify)",
+                    domain.hostname,
+                )
         return domain
 
     async def delete_for_tenant(
@@ -153,7 +161,13 @@ class DomainsService:
             try:
                 await self._cf.delete_custom_hostname(zone_id, domain.cf_hostname_id)
             except Exception:  # noqa: BLE001 — never block removal on provider errors
-                pass
+                logger.warning(
+                    "could not remove Cloudflare SaaS hostname %s", domain.hostname
+                )
+        logger.info(
+            "domain %s removed (project '%s', tenant %s)",
+            domain.hostname, domain.project, tenant_id,
+        )
         await session.delete(domain)
         return True
 

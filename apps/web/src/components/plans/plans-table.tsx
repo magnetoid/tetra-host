@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
+import type { ColumnDef } from "@tanstack/react-table"
 
 import { PlanForm } from "@/components/plans/plan-form"
 import { Button } from "@/components/ui/button"
+import { DataTable } from "@/components/ui/data-table"
 import { faSliders } from "@/lib/icons"
 import type { Plan } from "@/lib/types"
 
@@ -22,86 +24,132 @@ function ResourceBadge({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** Archived plans render dimmed, cell by cell (rows are styled per-cell in the DataTable). */
+function dim(plan: Plan, content: ReactNode): ReactNode {
+  return plan.is_archived ? <div className="opacity-50">{content}</div> : content
+}
+
 export function PlansTable({ plans }: { plans: Plan[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  const columns: ColumnDef<Plan>[] = [
+    {
+      accessorKey: "key",
+      header: "Key",
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <span className="font-mono text-xs text-muted-foreground">{row.original.key}</span>,
+        ),
+    },
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <div>
+            <div className="font-medium">{row.original.name}</div>
+            {row.original.description ? (
+              <div className="text-xs text-muted-foreground">{row.original.description}</div>
+            ) : null}
+          </div>,
+        ),
+    },
+    {
+      accessorKey: "price_cents",
+      header: "Price",
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <span className="font-mono tabular-nums text-foreground">
+            {formatPrice(row.original.price_cents, row.original.currency)}
+          </span>,
+        ),
+    },
+    {
+      id: "limits",
+      accessorFn: (plan) => plan.max_apps,
+      header: "Apps / Domains",
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <span className="font-mono tabular-nums text-muted-foreground">
+            {row.original.max_apps} / {row.original.max_domains}
+          </span>,
+        ),
+    },
+    {
+      id: "resources",
+      enableSorting: false,
+      header: "Resources",
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <div className="flex flex-wrap gap-1">
+            <ResourceBadge label="CPU" value={`${row.original.cpu_millicores}m`} />
+            <ResourceBadge label="Mem" value={`${row.original.mem_mb}MB`} />
+            <ResourceBadge label="Disk" value={`${row.original.disk_mb}MB`} />
+          </div>,
+        ),
+    },
+    {
+      accessorKey: "is_archived",
+      header: "Status",
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <span
+            className={
+              row.original.is_archived
+                ? "text-xs text-muted-foreground"
+                : "text-xs font-medium text-status-ok"
+            }
+          >
+            {row.original.is_archived ? "Archived" : "Active"}
+          </span>,
+        ),
+    },
+    {
+      id: "actions",
+      enableSorting: false,
+      header: () => <span className="block text-right">Actions</span>,
+      cell: ({ row }) =>
+        dim(
+          row.original,
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={faSliders}
+              onClick={() => setEditingId(row.original.id)}
+            >
+              Edit
+            </Button>
+          </div>,
+        ),
+    },
+  ]
 
   if (plans.length === 0) {
     return <p className="text-sm text-muted-foreground">No plans yet. Create one above.</p>
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border">
-      <table className="min-w-full divide-y divide-border text-sm">
-        <thead className="bg-background/60 text-left text-muted-foreground">
-          <tr>
-            <th className="px-4 py-3 font-medium">Key</th>
-            <th className="px-4 py-3 font-medium">Name</th>
-            <th className="px-4 py-3 font-medium">Price</th>
-            <th className="px-4 py-3 font-medium">Apps / Domains</th>
-            <th className="px-4 py-3 font-medium">Resources</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 text-right font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border bg-background">
-          {plans.map((plan) =>
-            editingId === plan.id ? (
-              <tr key={plan.id}>
-                <td colSpan={7} className="p-4">
-                  <div className="mb-2 text-sm font-medium text-foreground">
-                    Editing: {plan.name}
-                  </div>
-                  <PlanForm plan={plan} onDone={() => setEditingId(null)} />
-                </td>
-              </tr>
-            ) : (
-              <tr key={plan.id} className={plan.is_archived ? "opacity-50" : undefined}>
-                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{plan.key}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{plan.name}</div>
-                  {plan.description ? (
-                    <div className="text-xs text-muted-foreground">{plan.description}</div>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3 font-mono tabular-nums text-foreground">
-                  {formatPrice(plan.price_cents, plan.currency)}
-                </td>
-                <td className="px-4 py-3 font-mono tabular-nums text-muted-foreground">
-                  {plan.max_apps} / {plan.max_domains}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    <ResourceBadge label="CPU" value={`${plan.cpu_millicores}m`} />
-                    <ResourceBadge label="Mem" value={`${plan.mem_mb}MB`} />
-                    <ResourceBadge label="Disk" value={`${plan.disk_mb}MB`} />
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={
-                      plan.is_archived
-                        ? "text-xs text-muted-foreground"
-                        : "text-xs font-medium text-status-ok"
-                    }
-                  >
-                    {plan.is_archived ? "Archived" : "Active"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={faSliders}
-                    onClick={() => setEditingId(plan.id)}
-                  >
-                    Edit
-                  </Button>
-                </td>
-              </tr>
-            ),
-          )}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={columns}
+      data={plans}
+      getRowId={(plan) => plan.id}
+      searchPlaceholder="Search plans…"
+      searchLabel="Search plans"
+      emptyMessage="No plans match your search."
+      editingRowId={editingId}
+      renderEditRow={(plan) => (
+        <div className="p-1">
+          <div className="mb-2 text-sm font-medium text-foreground">Editing: {plan.name}</div>
+          <PlanForm plan={plan} onDone={() => setEditingId(null)} />
+        </div>
+      )}
+    />
   )
 }

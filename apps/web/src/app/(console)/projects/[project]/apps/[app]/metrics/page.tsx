@@ -3,12 +3,13 @@ import { BarChart } from "@/components/tremor/bar-chart"
 import { BarList } from "@/components/tremor/bar-list"
 import { DonutChart } from "@/components/tremor/donut-chart"
 import { Card, CardHeader } from "@/components/ui/card"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader } from "@/components/ui/page-header"
 import { StatCard } from "@/components/ui/stat-card"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { computeDeployStats } from "@/lib/deploy-stats"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import {
   faChartBar,
   faCircleCheck,
@@ -32,14 +33,19 @@ export default async function MetricsPage({ params }: { params: Promise<{ app: s
   const session = await requireConsoleSession()
   const { app } = await params
 
-  const [analytics, deployments] = await Promise.all([
-    fetchBackend<ProjectAnalytics>(`/projects/${app}/analytics?period=7d`, {
+  const [analyticsRes, deploymentsRes] = await Promise.all([
+    fetchDegraded<ProjectAnalytics | null>(
+      `/projects/${app}/analytics?period=7d`,
+      "Metrics",
+      null,
+      { token: session.token },
+    ),
+    fetchDegraded<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, "Deployments", [], {
       token: session.token,
-    }).catch(() => null),
-    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, {
-      token: session.token,
-    }).catch(() => [] as ProjectDeploymentRecord[]),
+    }),
   ])
+  const analytics = analyticsRes.data
+  const deployments = deploymentsRes.data
 
   const stats = computeDeployStats(deployments)
 
@@ -50,6 +56,7 @@ export default async function MetricsPage({ params }: { params: Promise<{ app: s
         title="Metrics"
         description="Deployment health and reliability for this app, plus privacy-first web analytics."
       />
+      <DegradedBanner sources={degradedSources([analyticsRes, deploymentsRes])} />
 
       {/* ── Deployment statistics — always available, derived from deploy history ── */}
       <section className="space-y-4">

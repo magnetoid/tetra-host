@@ -7,6 +7,7 @@ go through the shared retrying ``request_json`` helper.
 """
 
 import hashlib
+import logging
 from typing import Any
 
 import httpx
@@ -14,6 +15,8 @@ import httpx
 from app.cache import TTLCache
 from app.config import get_settings
 from app.services.http import ProviderAPIError, request_json
+
+logger = logging.getLogger(__name__)
 
 CLOUDFLARE_API = "https://api.cloudflare.com/client/v4"
 
@@ -74,6 +77,7 @@ class R2Client:
         return buckets if isinstance(buckets, list) else []
 
     async def create_bucket(self, name: str) -> dict[str, Any]:
+        logger.info("creating R2 bucket %s (jurisdiction=%s)", name, self.jurisdiction)
         body: dict[str, Any] = {"name": name}
         if self.jurisdiction and self.jurisdiction != "default":
             body["jurisdiction"] = self.jurisdiction
@@ -84,6 +88,7 @@ class R2Client:
         return payload.get("result", {}) if isinstance(payload, dict) else {}
 
     async def delete_bucket(self, name: str) -> None:
+        logger.info("deleting R2 bucket %s", name)
         await request_json(
             self.http_client, service="Cloudflare R2", method="DELETE",
             url=f"{self._base()}/r2/buckets/{name}", headers=self.headers(),
@@ -98,6 +103,7 @@ class R2Client:
                 message="R2 credential issuance is not configured (permission group id missing).",
                 status_code=400,
             )
+        logger.info("minting scoped S3 credentials for R2 bucket %s", bucket_name)
         resource = (
             f"com.cloudflare.edge.r2.bucket."
             f"{self.account_id}_{self.jurisdiction}_{bucket_name}"

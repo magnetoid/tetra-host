@@ -2,7 +2,8 @@ import Link from "next/link"
 
 import { AcceptInviteForm } from "@/components/auth/accept-invite-form"
 import { TetraWordmark } from "@/components/brand/tetra-wordmark"
-import { fetchBackend } from "@/lib/api"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { InvitePreview } from "@/lib/types"
 
 type AcceptInvitePageProps = {
@@ -12,11 +13,12 @@ type AcceptInvitePageProps = {
 export default async function AcceptInvitePage({ searchParams }: AcceptInvitePageProps) {
   const { token } = await searchParams
 
-  const preview = token
-    ? await fetchBackend<InvitePreview>("/auth/invite", {
+  const previewRes = token
+    ? await fetchDegraded<InvitePreview | null>("/auth/invite", "Invite", null, {
         searchParams: { token },
-      }).catch(() => null)
+      })
     : null
+  const preview = previewRes?.data ?? null
 
   return (
     <div className="grid min-h-screen place-items-center bg-background p-6">
@@ -24,6 +26,12 @@ export default async function AcceptInvitePage({ searchParams }: AcceptInvitePag
         <Link href="/" className="inline-block">
           <TetraWordmark />
         </Link>
+
+        {previewRes?.degraded ? (
+          <div className="mt-6">
+            <DegradedBanner sources={degradedSources([previewRes])} />
+          </div>
+        ) : null}
 
         {preview ? (
           <div className="mt-8">
@@ -38,7 +46,7 @@ export default async function AcceptInvitePage({ searchParams }: AcceptInvitePag
             <AcceptInviteForm token={token as string} email={preview.email} />
           </div>
         ) : (
-          <div className="mt-8 rounded-2xl border border-border bg-muted p-6">
+          <div className="mt-8 rounded-lg border border-border bg-muted p-6">
             <h1 className="font-display text-xl font-semibold">This invite isn&apos;t valid</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               The link may have expired, already been used, or been revoked. Ask your team owner to

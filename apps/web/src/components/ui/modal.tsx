@@ -36,7 +36,7 @@ export function Modal({
         <Dialog.Content
           className={[
             "fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2",
-            "overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl",
+            "overflow-hidden rounded-lg border border-border bg-popover shadow-2xl",
             className ?? "",
           ]
             .filter(Boolean)

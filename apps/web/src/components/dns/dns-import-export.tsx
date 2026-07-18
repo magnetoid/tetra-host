@@ -69,7 +69,7 @@ export function DnsImportExport({ zoneId, zoneName }: { zoneId: string; zoneName
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-border bg-muted p-6">
+    <div className="space-y-4 rounded-lg border border-border bg-muted p-6">
       <div>
         <h2 className="text-lg font-semibold">Bulk records</h2>
         <p className="mt-1 text-sm text-muted-foreground">Import or export this zone as a BIND zone file.</p>

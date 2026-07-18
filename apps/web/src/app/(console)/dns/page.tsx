@@ -4,11 +4,13 @@ import { DnsRecordsTable } from "@/components/dns/dns-records-table"
 import { ZoneSelector } from "@/components/dns/zone-selector"
 import { ZoneTools } from "@/components/dns/zone-tools"
 import { ZoneTraffic } from "@/components/dns/zone-traffic"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { ProviderCard } from "@/components/ui/provider-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { DNSResponse, ZoneAnalytics, ZoneSettings } from "@/lib/types"
 
 type DnsPageProps = {
@@ -26,17 +28,28 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
     },
   })
 
-  const [settings, analytics] = dns.selected_zone
+  const [settingsRes, analyticsRes] = dns.selected_zone
     ? await Promise.all([
-        fetchBackend<ZoneSettings>(`/dns/zones/${dns.selected_zone}/settings`, {
-          token: session.token,
-        }).catch(() => null),
-        fetchBackend<ZoneAnalytics>(`/dns/zones/${dns.selected_zone}/analytics`, {
-          token: session.token,
-          searchParams: { days: "7" },
-        }).catch(() => null),
+        fetchDegraded<ZoneSettings | null>(
+          `/dns/zones/${dns.selected_zone}/settings`,
+          "Zone settings",
+          null,
+          { token: session.token },
+        ),
+        fetchDegraded<ZoneAnalytics | null>(
+          `/dns/zones/${dns.selected_zone}/analytics`,
+          "Traffic analytics",
+          null,
+          { token: session.token, searchParams: { days: "7" } },
+        ),
       ])
     : [null, null]
+  const settings = settingsRes?.data ?? null
+  const analytics = analyticsRes?.data ?? null
+  const degraded = degradedSources([
+    ...(settingsRes ? [settingsRes] : []),
+    ...(analyticsRes ? [analyticsRes] : []),
+  ])
 
   const selectedZoneName =
     dns.zones.find((zone) => zone.id === dns.selected_zone)?.name ?? dns.selected_zone
@@ -52,6 +65,8 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
         action={<RefreshLink href={refreshHref} label="Refresh DNS" />}
       />
 
+      <DegradedBanner sources={degraded} />
+
       {dns.providers.length > 0 ? (
         <section className="grid gap-3 md:grid-cols-3">
           {dns.providers.map((provider) => (
@@ -60,7 +75,7 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
         </section>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted p-4">
         <ZoneSelector zones={dns.zones} selected={dns.selected_zone} />
         <span className="text-sm text-muted-foreground">{dns.zones.length} zones</span>
       </div>
@@ -68,7 +83,7 @@ export default async function DnsPage({ searchParams }: DnsPageProps) {
       {dns.selected_zone ? (
         <section className="space-y-4">
           {analytics ? (
-            <div className="rounded-2xl border border-border bg-muted p-6">
+            <div className="rounded-lg border border-border bg-muted p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Traffic</h2>
                 <span className="font-mono text-sm text-muted-foreground">{selectedZoneName} · last 7 days</span>

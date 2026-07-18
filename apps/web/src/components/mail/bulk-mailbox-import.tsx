@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { apiFetch, ClientApiError } from "@/lib/client-api"
 import { faUpload } from "@/lib/icons"
 import type { MailDomainRecord } from "@/lib/types"
 
@@ -53,19 +54,16 @@ export function BulkMailboxImport({ domains }: { domains: MailDomainRecord[] }) 
       const address = `${entry.local}@${domain}`
       const password = generatePassword()
       try {
-        const res = await fetch("/api/proxy/mail/mailboxes", {
+        await apiFetch("/api/proxy/mail/mailboxes", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ local_part: entry.local, domain, password, name: entry.name }),
+          body: { local_part: entry.local, domain, password, name: entry.name },
+          errorMessage: "Failed",
         })
-        if (res.ok) {
-          out.push({ address, password, ok: true })
-        } else {
-          const payload = await res.json().catch(() => ({}))
-          out.push({ address, password: "", ok: false, error: payload.detail ?? "Failed" })
-        }
-      } catch {
-        out.push({ address, password: "", ok: false, error: "Network error" })
+        out.push({ address, password, ok: true })
+      } catch (err) {
+        // ClientApiError carries the backend detail; anything else is a network fault.
+        const error = err instanceof ClientApiError ? err.message : "Network error"
+        out.push({ address, password: "", ok: false, error })
       }
       setProgress(i + 1)
     }
@@ -80,7 +78,7 @@ export function BulkMailboxImport({ domains }: { domains: MailDomainRecord[] }) 
     "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+    <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
       <h2 className="text-lg font-semibold">Bulk import mailboxes</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         One per line — <span className="font-mono text-xs">local</span> or{" "}

@@ -1,6 +1,7 @@
 import Link from "next/link"
 
-import { fetchBackend } from "@/lib/api"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { StatusResponse } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -26,7 +27,10 @@ function fmt(iso: string): string {
 }
 
 export default async function StatusPage() {
-  const status = await fetchBackend<StatusResponse>("/status").catch(() => null)
+  // A failed status fetch is itself an outage signal: the fallback renders the
+  // "down" state and the banner names the unreachable source.
+  const statusRes = await fetchDegraded<StatusResponse | null>("/status", "Status", null)
+  const status = statusRes.data
   const overall = OVERALL[status?.overall ?? "down"] ?? OVERALL.down
 
   return (
@@ -38,7 +42,13 @@ export default async function StatusPage() {
         </Link>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-6">
+      {statusRes.degraded ? (
+        <div className="mb-4">
+          <DegradedBanner sources={degradedSources([statusRes])} />
+        </div>
+      ) : null}
+
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center gap-3">
           <span className={cn("size-3 rounded-full", overall.dot)} />
           <h1 className={cn("font-display text-xl font-semibold", overall.text)}>{overall.label}</h1>

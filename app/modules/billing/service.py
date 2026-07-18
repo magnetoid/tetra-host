@@ -5,6 +5,8 @@ Pure money math + records; no payment rails yet. Resolve a resale price for any 
 event to the ResellerCharge ledger for invoicing + margin reporting.
 """
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +19,8 @@ from app.models.billing import (
     PricingRule,
     ResellerCharge,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BillingError(Exception):
@@ -92,6 +96,10 @@ class BillingService:
         existing.rule = rule
         existing.rule_value = rule_value
         await self.session.flush()
+        logger.info(
+            "pricing rule set for '%s': %s=%s (wholesale %d cents)",
+            offering_key, rule, rule_value, wholesale_cost_cents,
+        )
         return existing
 
     async def record_charge(
@@ -105,6 +113,10 @@ class BillingService:
         )
         self.session.add(charge)
         await self.session.flush()
+        logger.info(
+            "charge recorded for tenant %s: %s wholesale=%d resale=%d (%s)",
+            tenant_id, offering_key, wholesale_cost_cents, resale_price_cents, status,
+        )
         return charge
 
     async def list_charges(self, *, tenant_id: str | None = None, limit: int = 100) -> list[ResellerCharge]:

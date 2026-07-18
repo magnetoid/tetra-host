@@ -7,6 +7,7 @@ DKIM generation → optional ESP relayhost assignment → best-effort DNS automa
 report instead of failing the whole operation on a DNS hiccup.
 """
 
+import logging
 from typing import Any
 
 from fastapi import Request
@@ -31,6 +32,8 @@ from app.services.mailcow import (
     MailcowMailbox,
 )
 from app.services.tenant_resources import TenantResourceFilter
+
+logger = logging.getLogger(__name__)
 
 
 class MailService:
@@ -123,6 +126,7 @@ class MailService:
         quota_mb: int = 10240,
     ) -> dict[str, Any]:
         self._require_actions()
+        logger.info("provisioning mail domain %s (tenant %s)", domain, tenant_id)
         await self.client.create_domain(
             domain,
             description=description,
@@ -160,7 +164,7 @@ class MailService:
                 selector = str(dkim.get("dkim_selector") or "dkim")
                 dkim_name = f"{selector}._domainkey.{domain}"
         except Exception:  # noqa: BLE001
-            pass
+            logger.warning("could not read DKIM key for mail domain %s", domain)
 
         # ESP relay: platform default sender-dependent transport, best-effort.
         relay_assigned = False
@@ -169,13 +173,14 @@ class MailService:
                 await self.client.assign_relayhost(domain, self.default_relayhost_id)
                 relay_assigned = True
             except Exception:  # noqa: BLE001
-                pass
+                logger.warning("relayhost assignment failed for mail domain %s", domain)
 
         try:
             dns_zone, dns_records = await self._provision_mail_dns(
                 session, tenant_id, domain, dkim_name=dkim_name, dkim_txt=dkim_txt
             )
         except Exception:  # noqa: BLE001
+            logger.warning("mail DNS automation unavailable for %s", domain)
             dns_zone, dns_records = "", [
                 {
                     "name": domain, "record_type": "*", "status": "skipped",
@@ -196,6 +201,7 @@ class MailService:
     ) -> None:
         self._require_actions()
         await self._ensure_domain_access(session, tenant_id, domain)
+        logger.info("deleting mail domain %s (tenant %s)", domain, tenant_id)
         await self.client.delete_domain(domain)
         # Unregister the domain and its mailboxes ACROSS ALL TENANTS — the provider
         # object is gone globally (a platform-scope admin can delete another
@@ -234,6 +240,7 @@ class MailService:
     ) -> str:
         self._require_actions()
         await self._ensure_domain_access(session, tenant_id, domain)
+        logger.info("creating mailbox on domain %s (tenant %s)", domain, tenant_id)
         await self.client.create_mailbox(
             local_part, domain, password=password, name=name, quota_mb=quota_mb
         )

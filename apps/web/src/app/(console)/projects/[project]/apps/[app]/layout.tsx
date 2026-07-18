@@ -4,9 +4,9 @@ import { notFound } from "next/navigation"
 
 import { ProjectSubNav } from "@/components/projects/project-sub-nav"
 import { LiveStatus } from "@/components/ui/live-status"
-import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { isDeploymentActive } from "@/lib/deploy-stats"
+import { fetchDegraded } from "@/lib/fetch-degraded"
 import { faEnvelope } from "@/lib/icons"
 import type { MailResponse, ProjectDeploymentRecord, ProjectRecord } from "@/lib/types"
 
@@ -19,21 +19,32 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   const session = await requireConsoleSession()
   const { project, app } = await params
 
-  const [projects, mail, deployments] = await Promise.all([
-    fetchBackend<ProjectRecord[]>("/projects", { token: session.token }).catch(
-      () => [] as ProjectRecord[],
+  const [projectsRes, mailRes, deploymentsRes] = await Promise.all([
+    fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], { token: session.token }),
+    fetchDegraded<MailResponse>(
+      "/mail",
+      "Mail",
+      { providers: [], domains: [], mailboxes: [] },
+      { token: session.token },
     ),
-    fetchBackend<MailResponse>("/mail", { token: session.token }).catch(
-      () => ({ providers: [], domains: [], mailboxes: [] }) as MailResponse,
-    ),
-    fetchBackend<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, {
+    fetchDegraded<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, "Deployments", [], {
       token: session.token,
-    }).catch(() => [] as ProjectDeploymentRecord[]),
+    }),
   ])
+  // degraded label intentionally unused — pages surface their own banners
+  const projects = projectsRes.data
+  const mail = mailRes.data
+  const deployments = deploymentsRes.data
 
   const record = projects.find((p) => p.id === app)
   if (!record) {
-    notFound()
+    // Only a successful fetch can prove the app doesn't exist — an outage must
+    // not read as a 404. When degraded, render the bare page; each tab surfaces
+    // its own banner.
+    if (!projectsRes.degraded) {
+      notFound()
+    }
+    return <main className="min-w-0">{children}</main>
   }
 
   const projectName = record.project_name || record.name

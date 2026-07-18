@@ -30,6 +30,12 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <aside className="hidden w-72 shrink-0 border-r border-border bg-muted/40 p-6 lg:block">
         <Link href="/dashboard" className="block">
           <TetraWordmark />
@@ -73,7 +79,7 @@ export function AppShell({
           </div>
         </header>
         <StatusSpine />
-        <section className="p-6 lg:p-10">
+        <section id="main-content" className="p-6 lg:p-10">
           {/* Crossfades page content on every console route change (project-tab
               switches included — they're sub-routes). The sidebar + header live
               outside this boundary, so they stay anchored while content fades. */}

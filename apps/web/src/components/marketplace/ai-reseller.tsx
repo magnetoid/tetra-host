@@ -1,35 +1,24 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCircleCheck, faKey, faPlus, faTrash } from "@/lib/icons"
 import type { AiKey, AiKeyCreated, AiModel } from "@/lib/types"
 
 const FIELD =
   "w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
 
-async function readError(res: Response): Promise<string> {
-  try {
-    const p = (await res.json()) as { detail?: string }
-    if (p.detail) return p.detail
-  } catch {
-    /* keep statusText */
-  }
-  return res.statusText
-}
-
 export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [query, setQuery] = useState("")
   const [label, setLabel] = useState("")
   const [limit, setLimit] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<AiKeyCreated | null>(null)
 
   const shown = useMemo(() => {
@@ -40,48 +29,31 @@ export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] 
 
   async function provision(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/proxy/ai/keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, limit: limit ? Number(limit) : null, limit_reset: "monthly" }),
-      })
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
-      setCreated((await res.json()) as AiKeyCreated)
-      setLabel("")
-      setLimit("")
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
-    }
+    await run(
+      async () => {
+        const payload = await apiFetch<AiKeyCreated>("/api/proxy/ai/keys", {
+          method: "POST",
+          body: { label, limit: limit ? Number(limit) : null, limit_reset: "monthly" },
+          errorMessage: "Could not provision the key.",
+        })
+        setCreated(payload)
+        setLabel("")
+        setLimit("")
+      },
+      { key: "provision" },
+    )
   }
 
-  async function keyAction(hash: string, method: "DELETE" | "PATCH", body?: object) {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/proxy/ai/keys/${hash}`, {
-        method,
-        headers: body ? { "Content-Type": "application/json" } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-      })
-      if (!res.ok) {
-        setError(await readError(res))
-        return
-      }
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error")
-    } finally {
-      setBusy(false)
-    }
+  function keyAction(hash: string, method: "DELETE" | "PATCH", body?: object, done?: string) {
+    return run(
+      () =>
+        apiFetch(`/api/proxy/ai/keys/${hash}`, {
+          method,
+          body,
+          errorMessage: "Key action failed.",
+        }),
+      { key: `${method}:${hash}`, successMessage: done },
+    )
   }
 
   return (
@@ -89,7 +61,7 @@ export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] 
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       {/* Provision */}
-      <form onSubmit={provision} className="rounded-2xl border border-border bg-muted/40 p-5">
+      <form onSubmit={provision} className="rounded-lg border border-border bg-muted/40 p-5">
         <h3 className="text-base font-medium">Provision an AI key</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Mint a per-tenant OpenRouter key with a monthly spend cap. The secret is shown once.
@@ -119,7 +91,7 @@ export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] 
               className={`${FIELD} mt-1 w-40`}
             />
           </label>
-          <Button type="submit" variant="primary" icon={faKey} disabled={busy}>
+          <Button type="submit" variant="primary" icon={faKey} disabled={pending !== null}>
             Provision
           </Button>
         </div>
@@ -155,8 +127,15 @@ export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] 
                   <Button
                     size="sm"
                     variant="secondary"
-                    disabled={busy}
-                    onClick={() => keyAction(k.hash, "PATCH", { disabled: !k.disabled })}
+                    disabled={pending !== null}
+                    onClick={() =>
+                      keyAction(
+                        k.hash,
+                        "PATCH",
+                        { disabled: !k.disabled },
+                        k.disabled ? "Key enabled" : "Key disabled",
+                      )
+                    }
                   >
                     {k.disabled ? "Enable" : "Disable"}
                   </Button>
@@ -164,8 +143,8 @@ export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] 
                     size="sm"
                     variant="danger"
                     icon={faTrash}
-                    disabled={busy}
-                    onClick={() => keyAction(k.hash, "DELETE")}
+                    disabled={pending !== null}
+                    onClick={() => keyAction(k.hash, "DELETE", undefined, "Key revoked")}
                   >
                     Revoke
                   </Button>

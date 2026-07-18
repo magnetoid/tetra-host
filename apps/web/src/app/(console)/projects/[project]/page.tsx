@@ -2,10 +2,11 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { ProjectActions } from "@/components/projects/project-actions"
-import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { AppStatus } from "@/components/ui/app-status"
-import { fetchBackend } from "@/lib/api"
+import { DegradedBanner } from "@/components/ui/degraded-banner"
+import { PageHeader, RefreshLink } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
+import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import { projectSlug } from "@/lib/projects"
 import type { ProjectRecord } from "@/lib/types"
 import { formatRelativeLabel } from "@/lib/utils"
@@ -25,14 +26,33 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   const { project: slug } = await params
   const { refresh } = await searchParams
 
-  const records = await fetchBackend<ProjectRecord[]>("/projects", {
+  const recordsRes = await fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], {
     token: session.token,
     searchParams: { refresh: refresh === "1" ? "1" : undefined },
-  }).catch(() => [] as ProjectRecord[])
+  })
+  const records = recordsRes.data
 
   const apps = records.filter((p) => projectSlug(p) === decodeURIComponent(slug))
   if (apps.length === 0) {
-    notFound()
+    // Only a successful fetch can prove the project doesn't exist — an outage
+    // must not read as a 404.
+    if (!recordsRes.degraded) {
+      notFound()
+    }
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/projects"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <span aria-hidden>←</span> All projects
+        </Link>
+        <DegradedBanner sources={degradedSources([recordsRes])} />
+        <p className="text-sm text-muted-foreground">
+          This project couldn&apos;t be loaded right now. Try again in a moment.
+        </p>
+      </div>
+    )
   }
 
   const projectName = apps[0].project_name || apps[0].name
@@ -55,7 +75,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
 
       <section className="grid gap-4 sm:grid-cols-2">
         {apps.map((app) => (
-          <article key={app.id} className="flex flex-col rounded-2xl border border-border bg-card p-5">
+          <article key={app.id} className="flex flex-col rounded-lg border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-background font-mono text-sm font-semibold">
@@ -91,7 +111,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
               <ProjectActions applicationId={app.id} />
               <Link
                 href={`/projects/${slug}/apps/${app.id}`}
-                className="ml-auto rounded-lg bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+                className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
               >
                 Open app →
               </Link>

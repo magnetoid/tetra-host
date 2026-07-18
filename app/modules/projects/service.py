@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastapi import Request
@@ -13,6 +14,8 @@ from app.services.coolify import (
 )
 from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectsService:
@@ -77,18 +80,21 @@ class ProjectsService:
         self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
+        logger.info("starting application %s (tenant %s)", application_id, tenant_id)
         return await self.client.start_application(application_id)
 
     async def restart_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
+        logger.info("restarting application %s (tenant %s)", application_id, tenant_id)
         return await self.client.restart_application(application_id)
 
     async def stop_for_tenant(
         self, session: AsyncSession, tenant_id: str | None, application_id: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
+        logger.info("stopping application %s (tenant %s)", application_id, tenant_id)
         return await self.client.stop_application(application_id)
 
     # ── Detail & Raw ──────────────────────────────────────────────
@@ -132,6 +138,8 @@ class ProjectsService:
         application_id: str, command: str,
     ) -> str:
         await self._ensure_tenant_access(session, tenant_id, application_id)
+        # The command itself is intentionally not logged (may embed secrets).
+        logger.info("executing command in application %s (tenant %s)", application_id, tenant_id)
         return await self.client.execute_command(application_id, command)
 
     # ── Environment Variables ─────────────────────────────────────

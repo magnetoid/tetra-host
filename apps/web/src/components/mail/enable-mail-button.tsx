@@ -2,11 +2,12 @@
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCircleCheck, faEnvelope } from "@/lib/icons"
 
 /**
@@ -14,10 +15,8 @@ import { faCircleCheck, faEnvelope } from "@/lib/icons"
  * auto-wires MX/SPF/DKIM/DMARC (backend), right where you manage the domain.
  */
 export function EnableMailButton({ domain, enabled }: { domain: string; enabled: boolean }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [done, setDone] = useState(enabled)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   if (done) {
     return (
@@ -34,33 +33,23 @@ export function EnableMailButton({ domain, enabled }: { domain: string; enabled:
   }
 
   async function enable() {
-    setError(null)
-    setPending(true)
-    try {
-      const res = await fetch("/api/proxy/mail/domains", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain }),
-      })
-      const payload = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(payload.detail ?? "Couldn't enable mail for this domain.")
-        return
-      }
-      setDone(true)
-      router.refresh()
-    } catch {
-      setError("Network error — please retry.")
-    } finally {
-      setPending(false)
-    }
+    const ok = await run(
+      () =>
+        apiFetch("/api/proxy/mail/domains", {
+          method: "POST",
+          body: { domain },
+          errorMessage: "Couldn't enable mail for this domain.",
+        }),
+      { key: "enable", successMessage: "Mail enabled" },
+    )
+    if (ok) setDone(true)
   }
 
   return (
     <div className="space-y-2">
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
-      <Button icon={faEnvelope} onClick={enable} disabled={pending}>
-        {pending ? "Enabling…" : "Enable mail"}
+      <Button icon={faEnvelope} onClick={enable} disabled={pending !== null}>
+        {pending !== null ? "Enabling…" : "Enable mail"}
       </Button>
       <p className="text-xs text-muted-foreground">
         Creates a mailbox domain and wires MX, SPF, DKIM, and DMARC automatically.

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "Cloud Industry Hosting"
     app_env: Literal["development", "staging", "production"] = "development"
     app_secret: str = "change-me"
+    log_format: Literal["text", "json"] = "text"
     base_url: str = "http://127.0.0.1:8088"
     database_url: str = "sqlite+aiosqlite:///./data/tetra_host.db"
     redis_url: str = ""

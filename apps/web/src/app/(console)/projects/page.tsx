@@ -151,7 +151,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             <RefreshLink href="/projects?refresh=1" label="Refresh" />
             <Link
               href="/deploys"
-              className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+              className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
               + New project
             </Link>
@@ -174,11 +174,11 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           projects.map((project) => (
             <article
               key={project.key}
-              className="rounded-2xl border border-border bg-card p-5"
+              className="rounded-lg border border-border bg-card p-5 shadow-sm"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="grid size-10 place-items-center rounded-xl border border-border bg-background font-mono text-sm font-semibold">
+                  <div className="grid size-10 place-items-center rounded-lg border border-border bg-background font-mono text-sm font-semibold">
                     {project.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0">
@@ -204,7 +204,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                 {project.source === "coolify" ? (
                   <Link
                     href={`/projects/${project.slug}`}
-                    className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                    className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-accent"
                   >
                     Open project →
                   </Link>
@@ -212,7 +212,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               </div>
 
               {/* Resources / deployments inside this project */}
-              <div className="mt-4 divide-y divide-border overflow-hidden rounded-xl border border-border">
+              <div className="mt-4 divide-y divide-border overflow-hidden rounded-lg border border-border">
                 {project.resources.map((res) => (
                   <div
                     key={res.id}
@@ -246,7 +246,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                       ) : null}
                       <Link
                         href={res.href}
-                        className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                        className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-accent"
                       >
                         {res.linkLabel}
                       </Link>
@@ -264,13 +264,13 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/deploys"
-                  className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+                  className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                 >
                   + New project
                 </Link>
                 <Link
                   href="/apps"
-                  className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
+                  className="inline-flex items-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
                 >
                   Browse app catalog
                 </Link>

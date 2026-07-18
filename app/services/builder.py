@@ -9,9 +9,12 @@ repo, generates a build, and produces a local image via the Docker daemon. Comma
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 # (argv, cwd) -> (returncode, stdout, stderr)
 CommandRunner = Callable[[list[str], str | None], Awaitable[tuple[int, str, str]]]
@@ -149,6 +152,7 @@ class Builder:
                     "Set GITHUB_TOKEN on the host (a PAT with repo:read) to deploy it. "
                     f"({message})"
                 )
+            logger.warning("git clone failed for %s@%s: %s", git_url, ref, message)
             raise BuildError(message=message, code=exc.code) from exc
         out = await self._exec([self.git, "-C", dest, "rev-parse", "HEAD"])
         sha = out.strip()
@@ -189,6 +193,7 @@ class Builder:
         self, git_url: str, ref: str, *, project: str, on_line: LineSink | None = None
     ) -> BuildResult:
         """Clone + build a git repo into an immutable ``tetra-<project>:<sha>`` image."""
+        logger.info("building project '%s' from %s@%s", project, git_url, ref)
         dest = f"{self.workdir}/{project}"
         await self._exec(["rm", "-rf", dest])
         sha = await self.clone(git_url, ref, dest)
@@ -196,4 +201,5 @@ class Builder:
         image = f"tetra-{project}:{tag}"
         result = await self.build(dest, image, on_line=on_line)
         result.commit = sha
+        logger.info("built image %s via %s (commit %s)", result.image, result.builder, sha or "?")
         return result

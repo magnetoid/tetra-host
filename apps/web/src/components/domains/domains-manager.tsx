@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { useAction } from "@/hooks/use-action"
+import { apiFetch } from "@/lib/client-api"
 import { faCircleCheck, faPlus, faTrash } from "@/lib/icons"
 import type { DomainRecord, InstalledApp } from "@/lib/types"
 
@@ -20,42 +21,20 @@ export function DomainsManager({
   domains: DomainRecord[]
   apps: InstalledApp[]
 }) {
-  const router = useRouter()
+  const { run, pending, error } = useAction()
   const [hostname, setHostname] = useState("")
   const [project, setProject] = useState(apps[0]?.project ?? "")
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function call(path: string, init: RequestInit, key: string) {
-    setPending(key)
-    setError(null)
-    try {
-      const response = await fetch(path, init)
-      const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-      if (!response.ok) {
-        setError(payload.detail ?? "Request failed.")
-        return false
-      }
-      router.refresh()
-      return true
-    } catch {
-      setError("Unable to reach the control plane.")
-      return false
-    } finally {
-      setPending(null)
-    }
-  }
 
   async function addDomain(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const ok = await call(
-      "/api/proxy/domains",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, hostname }),
-      },
-      "add",
+    const ok = await run(
+      () =>
+        apiFetch("/api/proxy/domains", {
+          method: "POST",
+          body: { project, hostname },
+          errorMessage: "Request failed.",
+        }),
+      { key: "add", successMessage: "Domain added" },
     )
     if (ok) setHostname("")
   }
@@ -66,7 +45,7 @@ export function DomainsManager({
 
       <form
         onSubmit={addDomain}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-muted p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
       >
         <label className="block text-sm">
           <span className="mb-2 block text-muted-foreground">App</span>
@@ -109,7 +88,7 @@ export function DomainsManager({
       ) : (
         <div className="space-y-3">
           {domains.map((domain) => (
-            <div key={domain.id} className="rounded-2xl border border-border bg-muted p-4">
+            <div key={domain.id} className="rounded-lg border border-border bg-muted p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -127,7 +106,14 @@ export function DomainsManager({
                       icon={faCircleCheck}
                       disabled={pending !== null}
                       onClick={() =>
-                        call(`/api/proxy/domains/${domain.id}/verify`, { method: "POST" }, `verify:${domain.id}`)
+                        run(
+                          () =>
+                            apiFetch(`/api/proxy/domains/${domain.id}/verify`, {
+                              method: "POST",
+                              errorMessage: "Request failed.",
+                            }),
+                          { key: `verify:${domain.id}`, successMessage: "Domain verified" },
+                        )
                       }
                     >
                       {pending === `verify:${domain.id}` ? "…" : "Verify"}
@@ -139,7 +125,14 @@ export function DomainsManager({
                     icon={faTrash}
                     disabled={pending !== null}
                     onClick={() =>
-                      call(`/api/proxy/domains/${domain.id}`, { method: "DELETE" }, `rm:${domain.id}`)
+                      run(
+                        () =>
+                          apiFetch(`/api/proxy/domains/${domain.id}`, {
+                            method: "DELETE",
+                            errorMessage: "Request failed.",
+                          }),
+                        { key: `rm:${domain.id}`, successMessage: "Domain removed" },
+                      )
                     }
                   >
                     {pending === `rm:${domain.id}` ? "…" : "Remove"}

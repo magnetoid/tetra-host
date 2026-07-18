@@ -13,11 +13,14 @@ offline ``garbage-collect`` (see scripts/install-registry.sh).
 """
 
 import asyncio
+import logging
 
 import httpx
 
 # (argv, cwd) -> (returncode, stdout, stderr) — mirrors app/services/builder.py
 from app.services.builder import CommandRunner
+
+logger = logging.getLogger(__name__)
 
 _MANIFEST_ACCEPT = ", ".join(
     [
@@ -99,14 +102,17 @@ class ImageRegistry:
             return None
         ref = self.ref_for(image)
         if not await self._docker_ok("tag", image, ref):
+            logger.warning("registry tag failed for %s", image)
             return None
         if not await self._docker_ok("push", ref):
+            logger.warning("registry push failed for %s", ref)
             return None
         # Untag the builder's bare name so the qualified ref is the image's only local
         # tag — otherwise retention's rmi of the qualified ref would only untag and
         # never reclaim disk. Nothing uses the bare name after this point (compose,
         # rollback and prune all use the recorded qualified ref).
         await self._docker_ok("rmi", image)
+        logger.info("pushed %s to registry", ref)
         return ref
 
     async def image_exists(self, image: str) -> bool:
@@ -144,6 +150,7 @@ class ImageRegistry:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 return await self._delete_tag(client, repo, tag)
         except httpx.HTTPError:
+            logger.warning("registry manifest delete failed for %s", ref)
             return False
 
     async def _delete_tag(self, client: httpx.AsyncClient, repo: str, tag: str) -> bool:

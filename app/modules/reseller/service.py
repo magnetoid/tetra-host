@@ -7,6 +7,7 @@ exist). All writes are gated behind ``ENABLE_PROVIDER_ACTIONS``. The Cloudflare 
 API (real customer sub-accounts) is Path B — added when partner onboarding lands.
 """
 
+import logging
 from dataclasses import dataclass
 
 from fastapi import Request
@@ -22,6 +23,8 @@ from app.models.tenant_resource import (
 from app.services.cloudflare import CloudflareClient
 from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -124,6 +127,10 @@ class ResellerService:
         self._require_actions()
         self._require_cf_billing()
         await self._ensure_zone_access(session, tenant_id, zone_id)
+        logger.info(
+            "activating Cloudflare rate plan %s on zone %s (tenant %s)",
+            rate_plan_id, zone_id, tenant_id,
+        )
         existing = await self.get_subscription_for_tenant(session, tenant_id, zone_id)
         result = await self.client.set_zone_subscription(
             zone_id, rate_plan_id, frequency=frequency, update=bool(existing.get("id")),
@@ -140,6 +147,10 @@ class ResellerService:
         if service is None:
             raise ResellerError(f"Unknown service '{service_key}'.", status_code=404)
 
+        logger.info(
+            "activating Cloudflare service '%s' on zone %s (tenant %s)",
+            service_key, zone_id, tenant_id,
+        )
         result: dict = {}
         if service.activation == "plan":
             self._require_cf_billing()  # paid plan → real charge
