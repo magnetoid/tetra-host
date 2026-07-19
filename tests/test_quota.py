@@ -112,6 +112,28 @@ class TestQuotaReserveAndRelease:
 
         asyncio.run(run())
 
+    def test_platform_scope_tenant_bypasses_app_quota(self):
+        """The platform-scope operator tenant is exempt from the app-count cap:
+        a second app under a max_apps=1 plan must still succeed."""
+
+        async def run():
+            async with session_scope() as session:
+                tenant = await session.get(Tenant, self.tenant_id)
+                tenant.is_platform_scope = True
+
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                alloc = Allocation(cpu_millicores=500, mem_mb=512, disk_mb=1024)
+                await svc.check_and_reserve("app1", alloc, "App One")
+                await svc.check_and_reserve("app2", alloc, "App Two")
+
+            async with session_scope() as session:
+                svc = QuotaService(session, self.tenant_id)
+                u = await svc.usage()
+                assert u["apps"] == 2  # both reserved despite max_apps=1
+
+        asyncio.run(run())
+
     def test_release_removes_row_and_allows_new_reserve(self):
         """release() removes the reservation so a subsequent reserve succeeds."""
 

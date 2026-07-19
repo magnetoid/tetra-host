@@ -301,14 +301,17 @@ def _admin_summary(admin: AdminUser) -> AdminSummary:
     )
 
 
-def _tenant_summary(tenant: Tenant, plan_key: str = "") -> TenantSummary:
+def _tenant_summary(tenant: Tenant, plan_key: str | None = "") -> TenantSummary:
+    # Coerce nullable/absent values to "" — a tenant with no plan (plan_key None)
+    # or a legacy row with a null status must not 500 the endpoint on a str-type
+    # validation error.
     return TenantSummary(
         id=tenant.id,
-        name=tenant.name,
-        slug=tenant.slug,
+        name=tenant.name or "",
+        slug=tenant.slug or "",
         is_active=tenant.is_active,
-        status=tenant.status,
-        plan_key=plan_key,
+        status=tenant.status or "",
+        plan_key=plan_key or "",
     )
 
 

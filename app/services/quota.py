@@ -107,6 +107,12 @@ class QuotaService:
 
         return resource_count + deployment_count
 
+    async def _is_platform_scope(self) -> bool:
+        """The platform-scope tenant is the operator (it runs the platform, not a
+        billed customer), so it is exempt from per-plan resource quotas."""
+        tenant = await self._session.get(Tenant, self._tenant_id)
+        return bool(tenant and tenant.is_platform_scope)
+
     async def _resolve_max_apps(self) -> int:
         """Resolve max_apps from the tenant's plan, falling back to the free plan."""
         # Fetch the tenant's plan_id.
@@ -214,12 +220,12 @@ class QuotaService:
         # Step 2: re-read count under the lock.
         current_apps = await self._count_apps()
 
-        # Step 3: resolve plan limit.
-        max_apps = await self._resolve_max_apps()
-
-        # Step 4: enforce.
-        if current_apps + 1 > max_apps:
-            raise QuotaExceeded(reason="apps", limit=max_apps, used=current_apps)
+        # Step 3+4: resolve plan limit and enforce — UNLESS this is the
+        # platform-scope operator tenant, which runs the platform and is exempt.
+        if not await self._is_platform_scope():
+            max_apps = await self._resolve_max_apps()
+            if current_apps + 1 > max_apps:
+                raise QuotaExceeded(reason="apps", limit=max_apps, used=current_apps)
 
         # Step 5: insert reservation (flushed, not yet committed — caller's tx).
         reservation = TenantResource(
