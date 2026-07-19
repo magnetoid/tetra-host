@@ -101,3 +101,22 @@ def test_create_list_and_revoke(client: TestClient):
 def test_revoke_unknown_is_404(client: TestClient):
     headers = _login(client)
     assert client.delete("/api/v1/account/tokens/does-not-exist", headers=headers).status_code == 404
+
+
+def test_create_and_revoke_are_audited(client: TestClient):
+    headers = _login(client)
+    token_id = client.post("/api/v1/account/tokens", headers=headers, json={"name": "audited"}).json()["id"]
+    client.delete(f"/api/v1/account/tokens/{token_id}", headers=headers)
+
+    async def _actions():
+        from sqlalchemy import select
+
+        from app.models import AuditEvent
+
+        async with session_scope() as session:
+            rows = (await session.scalars(select(AuditEvent.action))).all()
+            return set(rows)
+
+    actions = asyncio.run(_actions())
+    assert "api_token.create" in actions
+    assert "api_token.revoke" in actions
