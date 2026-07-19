@@ -1,5 +1,7 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import inspect, text
@@ -8,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.config import get_settings
 from app.db.base import Base
 
+
+# Repo root (…/app/db/session.py → parents[2]) so Alembic resolves regardless of
+# the process working directory (systemd runs with WorkingDirectory=/opt/tetra-host).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -41,6 +48,61 @@ async def init_db() -> None:
     async with get_engine().begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
         await connection.run_sync(_upgrade_existing_schema)
+        await connection.run_sync(_stamp_alembic_head_if_absent)
+
+
+def _stamp_alembic_head_if_absent(connection) -> None:
+    """Mark a database that predates Alembic as being at the current head.
+
+    ``create_all`` above always materialises the *latest* model schema, so a
+    database with no ``alembic_version`` table is by definition at ``head``. We
+    record that (a plain "stamp") rather than replaying migration DDL, which
+    would collide with the tables ``create_all`` just built. This runs for fresh
+    dev/test databases and, once, for the existing production database on its
+    next boot.
+
+    Genuinely *new* migrations (revisions layered on the baseline) are applied
+    at deploy time with ``alembic upgrade head`` — never here — so this stays a
+    cheap, transaction-safe no-op on already-adopted databases. We read the head
+    id from the Alembic ``ScriptDirectory`` (read-only, no engine/transaction of
+    its own) so a fresh database created *after* new revisions exist is stamped
+    at the true head, not a stale baseline.
+    """
+    inspector = inspect(connection)
+    if "alembic_version" in inspector.get_table_names():
+        return
+
+    # Best-effort: the schema is already fully built by create_all above, so if
+    # Alembic is unavailable or misconfigured we must NOT crash boot over the
+    # bookkeeping stamp — log and carry on (a later deploy's `alembic upgrade
+    # head`/next boot will reconcile). This runs on every startup.
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        config = Config(str(ALEMBIC_INI))
+        config.set_main_option("script_location", str(_REPO_ROOT / "alembic"))
+        head = ScriptDirectory.from_config(config).get_current_head()
+    except Exception:  # ImportError, missing files, config errors — all non-fatal
+        logging.getLogger(__name__).warning(
+            "Alembic unavailable; skipping version stamp (schema is intact via create_all)",
+            exc_info=True,
+        )
+        return
+    if head is None:  # no revisions on disk — nothing to stamp
+        return
+
+    connection.execute(
+        text(
+            "CREATE TABLE alembic_version ("
+            "version_num VARCHAR(32) NOT NULL, "
+            "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+        )
+    )
+    connection.execute(
+        text("INSERT INTO alembic_version (version_num) VALUES (:v)"),
+        {"v": head},
+    )
 
 
 def _upgrade_existing_schema(connection) -> None:

@@ -240,6 +240,21 @@ if [[ $PRODUCTION -eq 1 || -n "$CONSOLE_DOMAIN" ]]; then
   fi
 fi
 
+# ── Database migrations ───────────────────────────────────────────────────
+# Apply any pending Alembic migrations BEFORE (re)starting the service, so the
+# schema is at head when the app boots. A database that predates Alembic is
+# stamped at head automatically on first boot (see app.db.session), and a fresh
+# database's tables are created by the app; this step only matters once real
+# migrations are layered on the baseline. Idempotent — safe to re-run.
+log "Applying database migrations (alembic upgrade head)"
+(
+  cd "$APP_DIR"
+  set -a; source ./.env; set +a
+  sudo -u "$USER_NAME" APP_DIR="$APP_DIR" \
+    env "PATH=$APP_DIR/.venv/bin:$PATH" DATABASE_URL="$DATABASE_URL" APP_SECRET="$APP_SECRET" \
+    "$APP_DIR/.venv/bin/alembic" upgrade head
+) || warn "alembic upgrade head failed — review before serving traffic."
+
 # ── Start services ────────────────────────────────────────────────────────
 if [[ $START -eq 1 ]]; then
   log "Starting services"
