@@ -532,6 +532,18 @@ export interface BuildDiagnosis {
   source: "heuristic" | "ai" | string
 }
 
+export interface ErrorDiagnosis {
+  issue_id: string
+  title: string
+  culprit: string
+  summary: string
+  category: string
+  likely_causes: string[]
+  suggested_fixes: string[]
+  confidence: "low" | "medium" | "high" | string
+  source: "heuristic" | "ai" | string
+}
+
 export interface DeployHook {
   id: string
   project: string

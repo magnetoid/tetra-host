@@ -13,7 +13,12 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.projects.service import ProjectsService
+from app.services.build_diagnostics import Diagnosis
+from app.services.error_diagnostics import analyze_error, anthropic_error_diagnoser
 from app.services.glitchtip import GlitchtipClient
+
+# Sentinel: distinguish "use the default AI diagnoser" from an explicit None (heuristic-only).
+_UNSET = object()
 
 
 def _slugify(value: str) -> str:
@@ -81,3 +86,42 @@ class ErrorsService:
             "dsn": dsn,
             "issues": [_issue(i) for i in issues if isinstance(i, dict)],
         }
+
+    async def diagnose_error_for_project(
+        self,
+        session: AsyncSession,
+        tenant_id: str | None,
+        application_id: str,
+        issue_id: str,
+        *,
+        diagnoser: object = _UNSET,
+    ) -> tuple[dict[str, Any], Diagnosis] | None:
+        """Explain one captured runtime error (heuristic + optional AI enrichment).
+
+        Tenant-isolated through ``get_errors_for_project``. Returns ``(issue, diagnosis)``
+        for the matching issue, or ``None`` when error tracking isn't ready or no issue with
+        ``issue_id`` is in the project's recent issues. The offline heuristic always runs;
+        AI enrichment is best-effort (any failure falls back to it). Pass ``diagnoser=None``
+        to force heuristic-only (used in tests)."""
+        data = await self.get_errors_for_project(session, tenant_id, application_id)
+        if not data.get("ready"):
+            return None
+        issue = next(
+            (i for i in data.get("issues", []) if str(i.get("id")) == str(issue_id)), None
+        )
+        if issue is None:
+            return None
+
+        title = str(issue.get("title") or "")
+        culprit = str(issue.get("culprit") or "")
+        level = str(issue.get("level") or "error")
+        heuristic = analyze_error(title, culprit, level)
+
+        fn = anthropic_error_diagnoser if diagnoser is _UNSET else diagnoser
+        if fn is None:
+            return issue, heuristic
+        try:
+            ai = await fn(title, culprit, level)
+        except Exception:  # AI enrichment is best-effort — never fail the endpoint
+            return issue, heuristic
+        return issue, (ai or heuristic)

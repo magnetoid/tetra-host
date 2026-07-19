@@ -73,7 +73,7 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
         </Card>
       ) : null}
 
-      <ErrorIssuesTable issues={errors.issues} />
+      <ErrorIssuesTable app={app} issues={errors.issues} />
     </div>
   )
 }

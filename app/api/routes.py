@@ -54,6 +54,7 @@ from app.api.contracts import (
     ServiceActivateResponse,
     ZoneSubscriptionSummary,
     BuildDiagnosis,
+    ErrorDiagnosis,
     BackupConfigSummary,
     BackupCreateRequest,
     BucketCreated,
@@ -891,6 +892,42 @@ async def api_project_errors(
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return ProjectErrors(**data)
+
+
+@router.get(
+    "/projects/{application_id}/errors/{issue_id}/explain", response_model=ErrorDiagnosis
+)
+async def api_explain_error(
+    application_id: str,
+    issue_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ErrorDiagnosis:
+    """Diagnose a captured runtime error and suggest fixes (``tetra ai explain-error``).
+
+    Always runs the offline heuristic analyzer; enriches with the Anthropic API when
+    ANTHROPIC_API_KEY is configured (best-effort, falls back to the heuristic)."""
+    service = ErrorsService(request)
+    try:
+        result = await service.diagnose_error_for_project(
+            session, current_admin.tenant_id, application_id, issue_id
+        )
+    except ProviderAPIError as exc:
+        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Error not found, or error tracking is not configured for this project.",
+        )
+    issue, diagnosis = result
+    return ErrorDiagnosis(
+        issue_id=issue_id,
+        title=str(issue.get("title") or ""),
+        culprit=str(issue.get("culprit") or ""),
+        **diagnosis.to_dict(),
+    )
 
 
 @router.get("/projects/{application_id}/envs")

@@ -550,6 +550,20 @@ class BuildDiagnosis(BaseModel):
     source: str  # heuristic | ai
 
 
+class ErrorDiagnosis(BaseModel):
+    """AI/heuristic diagnosis of a captured runtime error (``tetra ai explain-error``)."""
+
+    issue_id: str
+    title: str
+    culprit: str = ""
+    summary: str
+    category: str
+    likely_causes: list[str] = []
+    suggested_fixes: list[str] = []
+    confidence: str  # low | medium | high
+    source: str  # heuristic | ai
+
+
 class PreviewSummary(BaseModel):
     """A live per-branch preview environment (its own stack + subdomain)."""
 
