@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/tetra_host.db"
     redis_url: str = ""
     allowed_hosts_raw: str = "127.0.0.1,localhost,testserver"
+    # Origin-based CSRF backstop for the browser (session-cookie) surface. On by
+    # default; the /api, /graphql, and OIDC-token surfaces are always exempt.
+    csrf_protect: bool = True
     theme: str = "cloud-industry"
     template_search_path: str = ""
     session_cookie_name: str = "tetra_host_session"

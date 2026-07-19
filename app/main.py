@@ -16,6 +16,7 @@ from app.api.graphql import build_graphql_router
 from app.api.routes import router as api_router
 from app.cache import TTLCache
 from app.config import get_settings
+from app.csrf import CSRFMiddleware
 from app.db import close_db, init_db, session_scope
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.modules import load_plugins
@@ -74,6 +75,17 @@ def create_app() -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    if settings.csrf_protect:
+        # Global origin-based CSRF backstop for the browser/session surface. The
+        # /api, /graphql, and OIDC-token surfaces (and any Bearer client) are
+        # exempt; per-handler token checks remain as defense in depth.
+        from urllib.parse import urlsplit
+
+        trusted = set(settings.allowed_hosts)
+        base_host = urlsplit(settings.base_url).hostname
+        if base_host:
+            trusted.add(base_host)
+        app.add_middleware(CSRFMiddleware, trusted_hosts=trusted)
     if settings.allowed_hosts and settings.allowed_hosts != ["*"]:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     if settings.force_https_redirect:
