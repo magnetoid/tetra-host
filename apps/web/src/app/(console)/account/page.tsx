@@ -2,11 +2,12 @@ import Link from "next/link"
 
 import { AccountSettingsForm } from "@/components/account/account-settings-form"
 import { ApiTokensManager } from "@/components/account/api-tokens-manager"
+import { TwoFactorManager } from "@/components/account/two-factor-manager"
 import { Card, CardHeader } from "@/components/ui/card"
 import { PageHeader } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
 import { fetchDegraded } from "@/lib/fetch-degraded"
-import type { ApiTokenSummary } from "@/lib/types"
+import type { ApiTokenSummary, TwoFactorStatus } from "@/lib/types"
 
 export const metadata = { title: "Account" }
 
@@ -15,6 +16,12 @@ export default async function AccountPage() {
   const tokensRes = await fetchDegraded<ApiTokenSummary[]>("/account/tokens", "API tokens", [], {
     token,
   })
+  const twoFactorRes = await fetchDegraded<TwoFactorStatus>(
+    "/account/2fa",
+    "Two-factor auth",
+    { enabled: false, backup_codes_remaining: 0 },
+    { token },
+  )
   const isPlatformAdmin = admin.role === "platform_admin"
   const initial = (admin.full_name || admin.email || "?").charAt(0).toUpperCase()
 
@@ -66,6 +73,16 @@ export default async function AccountPage() {
       ) : null}
 
       <AccountSettingsForm fullName={admin.full_name} email={admin.email} />
+
+      <Card>
+        <CardHeader
+          title="Two-factor authentication"
+          action="A time-based code (TOTP) on every sign-in — panel, console, and CLI. Optional, off by default."
+        />
+        <div className="mt-4">
+          <TwoFactorManager status={twoFactorRes.data} />
+        </div>
+      </Card>
 
       <Card>
         <CardHeader

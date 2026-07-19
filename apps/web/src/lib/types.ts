@@ -546,6 +546,20 @@ export interface ApiTokenCreated extends ApiTokenSummary {
   token: string
 }
 
+export interface TwoFactorStatus {
+  enabled: boolean
+  backup_codes_remaining: number
+}
+
+export interface TwoFactorSetup {
+  secret: string
+  otpauth_uri: string
+}
+
+export interface TwoFactorEnableResponse {
+  backup_codes: string[]
+}
+
 export interface ErrorDiagnosis {
   issue_id: string
   title: string

@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import UTC, datetime
 
@@ -11,6 +12,7 @@ from app.config import Settings
 from app.models import AdminUser, Tenant
 from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING
+from app.services import totp
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,83 @@ class AuthService:
     async def touch_last_login(self, admin: AdminUser) -> None:
         admin.last_login_at = datetime.now(UTC)
         await self.session.flush()
+
+    # --- Optional TOTP two-factor auth --------------------------------------
+    #
+    # Every method below is a no-op for accounts that never opt in: enforcement
+    # keys off ``admin.totp_enabled``, which defaults False, so the login paths
+    # only ever call :meth:`verify_totp_login` when a user has switched it on.
+
+    async def setup_totp(self, admin: AdminUser) -> tuple[str, str]:
+        """Provision a fresh (pending) TOTP secret and return (secret, otpauth_uri).
+
+        Refuses if 2FA is already enabled — the caller must disable first, so an
+        in-use secret is never silently replaced. The secret is stored but not
+        active until :meth:`enable_totp` verifies a code.
+        """
+        if admin.totp_enabled:
+            raise ValueError("Two-factor authentication is already enabled.")
+        secret = totp.generate_secret()
+        admin.totp_secret = secret
+        await self.session.flush()
+        return secret, totp.provisioning_uri(secret, admin.email)
+
+    async def enable_totp(self, admin: AdminUser, code: str) -> list[str]:
+        """Activate 2FA after verifying a code against the pending secret.
+
+        Returns the one-time backup codes (shown once). Raises ValueError if
+        setup wasn't run or the code is wrong.
+        """
+        if admin.totp_enabled:
+            raise ValueError("Two-factor authentication is already enabled.")
+        if not admin.totp_secret:
+            raise ValueError("Start setup before enabling two-factor authentication.")
+        if not totp.verify(admin.totp_secret, code):
+            raise ValueError("That code is incorrect. Check your authenticator app and try again.")
+        backup_codes = totp.generate_backup_codes()
+        admin.totp_backup_codes = json.dumps([totp.hash_backup_code(c) for c in backup_codes])
+        admin.totp_enabled = True
+        await self.session.flush()
+        logger.info("2fa enabled for admin %s", admin.id)
+        return backup_codes
+
+    async def disable_totp(self, admin: AdminUser, *, password: str) -> None:
+        """Turn 2FA off after re-verifying the account password. Clears all state."""
+        if not self.verify_password(password, admin.password_hash):
+            raise ValueError("Password is incorrect.")
+        admin.totp_enabled = False
+        admin.totp_secret = None
+        admin.totp_backup_codes = None
+        await self.session.flush()
+        logger.info("2fa disabled for admin %s", admin.id)
+
+    async def verify_totp_login(self, admin: AdminUser, code: str) -> bool:
+        """Verify a login-time 2FA challenge: a TOTP code, or a one-time backup code.
+
+        Assumes the caller has already confirmed ``admin.totp_enabled``. A spent
+        backup code is consumed (removed) on success.
+        """
+        if not code or not admin.totp_secret:
+            return False
+        if totp.verify(admin.totp_secret, code):
+            return True
+        return await self._consume_backup_code(admin, code)
+
+    async def _consume_backup_code(self, admin: AdminUser, code: str) -> bool:
+        if not admin.totp_backup_codes:
+            return False
+        try:
+            hashes: list[str] = json.loads(admin.totp_backup_codes)
+        except (ValueError, TypeError):
+            return False
+        candidate = totp.hash_backup_code(code)
+        if candidate not in hashes:
+            return False
+        hashes.remove(candidate)
+        admin.totp_backup_codes = json.dumps(hashes)
+        await self.session.flush()
+        logger.info("2fa backup code consumed for admin %s (%d left)", admin.id, len(hashes))
+        return True
 
     @staticmethod
     def validate_password(password: str) -> None:

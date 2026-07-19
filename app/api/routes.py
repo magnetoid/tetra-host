@@ -149,6 +149,11 @@ from app.api.contracts import (
     TenantResourceSummary,
     TenantStatusCounts,
     TenantSummary,
+    TwoFactorDisableRequest,
+    TwoFactorEnableRequest,
+    TwoFactorEnableResponse,
+    TwoFactorSetupResponse,
+    TwoFactorStatus,
     UsageResponse,
     ZoneAnalytics,
     ZoneAnalyticsPoint,
@@ -497,6 +502,16 @@ async def api_login(
     admin = await auth_service.authenticate(email, password)
     if admin is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+    # Optional 2FA: only accounts that opted in (`totp_enabled`) are challenged.
+    # Clients detect the sentinel detail "2fa_required" and re-submit with `code`.
+    if admin.totp_enabled:
+        code = payload.get("code", "")
+        if not code:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="2fa_required")
+        if not await auth_service.verify_totp_login(admin, code):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code."
+            )
     await auth_service.touch_last_login(admin)
     token = create_api_token(request.state.settings, admin)
     return AuthResponse(token=token, admin=_admin_summary(admin))
@@ -1041,6 +1056,75 @@ async def api_revoke_token(
     ))
     await session.flush()
     return {"ok": True}
+
+
+def _backup_codes_remaining(admin: AdminUser) -> int:
+    if not admin.totp_backup_codes:
+        return 0
+    try:
+        return len(json.loads(admin.totp_backup_codes))
+    except (ValueError, TypeError):
+        return 0
+
+
+@router.get("/account/2fa", response_model=TwoFactorStatus)
+async def api_two_factor_status(
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> TwoFactorStatus:
+    """Whether the caller has TOTP two-factor auth enabled (+ backup codes left)."""
+    return TwoFactorStatus(
+        enabled=current_admin.totp_enabled,
+        backup_codes_remaining=_backup_codes_remaining(current_admin),
+    )
+
+
+@router.post("/account/2fa/setup", response_model=TwoFactorSetupResponse)
+async def api_two_factor_setup(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> TwoFactorSetupResponse:
+    """Provision a pending TOTP secret + otpauth URI. Not active until enabled."""
+    try:
+        secret, uri = await AuthService(session).setup_totp(current_admin)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return TwoFactorSetupResponse(secret=secret, otpauth_uri=uri)
+
+
+@router.post("/account/2fa/enable", response_model=TwoFactorEnableResponse)
+async def api_two_factor_enable(
+    body: TwoFactorEnableRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> TwoFactorEnableResponse:
+    """Activate 2FA after verifying a code. Returns one-time backup codes ONCE."""
+    try:
+        codes = await AuthService(session).enable_totp(current_admin, body.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.add(AuditEvent(
+        actor_email=current_admin.email, action="account.2fa_enable", target=current_admin.email
+    ))
+    await session.flush()
+    return TwoFactorEnableResponse(backup_codes=codes)
+
+
+@router.post("/account/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)
+async def api_two_factor_disable(
+    body: TwoFactorDisableRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> Response:
+    """Turn 2FA off after re-verifying the account password."""
+    try:
+        await AuthService(session).disable_totp(current_admin, password=body.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.add(AuditEvent(
+        actor_email=current_admin.email, action="account.2fa_disable", target=current_admin.email
+    ))
+    await session.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/projects/{application_id}/envs")

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -32,5 +32,13 @@ class AdminUser(Base):
         nullable=False,
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # --- Optional TOTP two-factor auth (opt-in; disabled leaves login unchanged) ---
+    # `totp_secret` holds a pending secret after setup and the active secret once
+    # enabled; enforcement keys off `totp_enabled` only. `totp_backup_codes` is a
+    # JSON array of sha256-hashed one-time recovery codes.
+    totp_secret: Mapped[str | None] = mapped_column(String(64))
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    totp_backup_codes: Mapped[str | None] = mapped_column(Text)
 
     tenant = relationship("Tenant", back_populates="admins")

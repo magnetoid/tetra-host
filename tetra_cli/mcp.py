@@ -103,6 +103,15 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.list_tokens(),
     },
     {
+        "name": "two_factor_status",
+        "description": "Whether the caller's account has TOTP two-factor auth enabled (and how "
+                       "many backup codes remain). Enabling/disabling 2FA is deliberately "
+                       "human-only (authenticator enrollment + password re-verification).",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.two_factor_status(),
+    },
+    {
         "name": "app_logs",
         "description": "Runtime container logs for an app.",
         "inputSchema": _schema(_project_arg("App/project name"), ["project"]),
