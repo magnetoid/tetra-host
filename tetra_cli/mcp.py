@@ -94,6 +94,15 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.explain_error(a["application_id"], a["issue_id"]),
     },
     {
+        "name": "list_api_tokens",
+        "description": "List the caller's personal API tokens (metadata only — no secrets). "
+                       "Creating/revoking tokens is deliberately human-only (secret reveal + "
+                       "account security), so those are not exposed here.",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.list_tokens(),
+    },
+    {
         "name": "app_logs",
         "description": "Runtime container logs for an app.",
         "inputSchema": _schema(_project_arg("App/project name"), ["project"]),

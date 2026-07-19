@@ -831,6 +831,42 @@ def test_main_ai_explain_error_renders(monkeypatch, capsys):
     assert "TypeError: boom" in out and "check the type" in out and "svc/pay.js" in out
 
 
+def test_client_create_token_posts_name_and_expiry():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/account/tokens"
+        assert request.method == "POST"
+        assert json.loads(request.content) == {"name": "ci", "expires_in_days": 30}
+        return httpx.Response(201, json={"id": "t1", "name": "ci", "prefix": "tetra_ab", "token": "tetra_secret"})
+
+    result = make_client(handler).create_token("ci", expires_in_days=30)
+    assert result["token"] == "tetra_secret"
+
+
+def test_main_tokens_create_reveals_secret_once(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(201, json={"id": "t1", "name": "ci", "prefix": "tetra_ab", "token": "tetra_topsecret"})
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["tokens", "create", "ci"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "tetra_topsecret" in out and "shown only once" in out
+
+
+def test_main_tokens_list_and_revoke(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=[{"id": "tok-123456789", "name": "laptop",
+                                              "prefix": "tetra_ab", "last_used_at": "", "expires_at": ""}])
+        return httpx.Response(200, json={"ok": True})  # DELETE
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    assert main(["tokens", "list"]) == 0
+    assert "laptop" in capsys.readouterr().out
+    assert main(["tokens", "revoke", "tok-123456789"]) == 0
+    assert "revoked" in capsys.readouterr().out
+
+
 # ── Mail (Phase 2) ──────────────────────────────────────────────────────────
 
 

@@ -550,6 +550,28 @@ class BuildDiagnosis(BaseModel):
     source: str  # heuristic | ai
 
 
+class ApiTokenSummary(BaseModel):
+    """A personal API token (no secret — the plaintext is shown only at creation)."""
+
+    id: str
+    name: str
+    prefix: str
+    created_at: str
+    last_used_at: str = ""
+    expires_at: str = ""
+
+
+class ApiTokenCreated(ApiTokenSummary):
+    """Creation response — carries the plaintext ``token`` exactly once."""
+
+    token: str
+
+
+class CreateApiTokenRequest(BaseModel):
+    name: str
+    expires_in_days: int | None = None
+
+
 class ErrorDiagnosis(BaseModel):
     """AI/heuristic diagnosis of a captured runtime error (``tetra ai explain-error``)."""
 

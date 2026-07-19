@@ -413,6 +413,18 @@ class TetraClient:
             "GET", f"/projects/{application_id}/errors/{issue_id}/explain"
         )
 
+    def list_tokens(self) -> Any:
+        return self._request("GET", "/account/tokens")
+
+    def create_token(self, name: str, expires_in_days: int | None = None) -> Any:
+        body: dict[str, Any] = {"name": name}
+        if expires_in_days:
+            body["expires_in_days"] = expires_in_days
+        return self._request("POST", "/account/tokens", json_body=body)
+
+    def revoke_token(self, token_id: str) -> Any:
+        return self._request("DELETE", f"/account/tokens/{token_id}")
+
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 

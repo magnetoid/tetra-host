@@ -1,13 +1,20 @@
 import Link from "next/link"
 
 import { AccountSettingsForm } from "@/components/account/account-settings-form"
+import { ApiTokensManager } from "@/components/account/api-tokens-manager"
+import { Card, CardHeader } from "@/components/ui/card"
 import { PageHeader } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
+import { fetchDegraded } from "@/lib/fetch-degraded"
+import type { ApiTokenSummary } from "@/lib/types"
 
 export const metadata = { title: "Account" }
 
 export default async function AccountPage() {
-  const { admin } = await requireConsoleSession()
+  const { admin, token } = await requireConsoleSession()
+  const tokensRes = await fetchDegraded<ApiTokenSummary[]>("/account/tokens", "API tokens", [], {
+    token,
+  })
   const isPlatformAdmin = admin.role === "platform_admin"
   const initial = (admin.full_name || admin.email || "?").charAt(0).toUpperCase()
 
@@ -59,6 +66,16 @@ export default async function AccountPage() {
       ) : null}
 
       <AccountSettingsForm fullName={admin.full_name} email={admin.email} />
+
+      <Card>
+        <CardHeader
+          title="API tokens"
+          action="Personal tokens for the tetra CLI and CI — Bearer-authenticated, revocable."
+        />
+        <div className="mt-4">
+          <ApiTokensManager tokens={tokensRes.data} />
+        </div>
+      </Card>
     </div>
   )
 }

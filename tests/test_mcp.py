@@ -219,6 +219,14 @@ def test_explain_error_is_a_read_tool():
     assert "explain_error" in names  # available without --allow-writes
 
 
+def test_api_tokens_list_only_never_create_or_revoke():
+    # list is a read tool; create (secret reveal) + revoke stay human-only, even with writes on.
+    server = MCPServer(_noop_client(), allow_writes=True)
+    names = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert "list_api_tokens" in names
+    assert not any("token" in n and n != "list_api_tokens" for n in names)
+
+
 def test_call_explain_error_hits_endpoint():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/projects/app-7/errors/42/explain"
