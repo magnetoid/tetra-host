@@ -24,7 +24,7 @@ from app.services.app_catalog import (
 )
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
-from app.services.quota import Allocation, QuotaService
+from app.services.quota import QuotaService
 from app.services.compute import ComputeSample, parse_compute_samples
 from app.services.limits import apply_resource_limits
 from app.services.tenant_resources import TenantResourceFilter
@@ -155,18 +155,15 @@ class AppsService:
 
         # Atomically reserve a quota slot BEFORE the build starts.
         # QuotaExceeded is intentionally NOT caught here — it must bubble up to the 402 handler.
-        settings = get_settings()
-        allocation = Allocation(
-            cpu_millicores=settings.default_app_cpu_millicores,
-            mem_mb=settings.default_app_mem_mb,
-            disk_mb=settings.default_app_disk_mb,
-        )
+        quota = QuotaService(session, tenant_id or "")
+        # Per-app allocation is derived from the tenant's plan (larger tiers →
+        # larger containers, floored at the global defaults).
+        allocation = await quota.plan_allocation()
         # Hard cgroup caps so the stack can't starve the shared host.
         compose = apply_resource_limits(
             compose, cpu_millicores=allocation.cpu_millicores, mem_mb=allocation.mem_mb
         )
         env = render_service_vars(compose, domain=resolved_domain)
-        quota = QuotaService(session, tenant_id or "")
         await quota.check_and_reserve(project, allocation, template.name)
 
         logger.info("installing app '%s' from template '%s' (tenant %s)", project, slug, tenant_id)

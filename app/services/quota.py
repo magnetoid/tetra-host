@@ -113,24 +113,53 @@ class QuotaService:
         tenant = await self._session.get(Tenant, self._tenant_id)
         return bool(tenant and tenant.is_platform_scope)
 
-    async def _resolve_max_apps(self) -> int:
-        """Resolve max_apps from the tenant's plan, falling back to the free plan."""
-        # Fetch the tenant's plan_id.
+    async def _resolve_plan(self) -> Plan | None:
+        """Resolve the tenant's Plan, falling back to the seeded free plan."""
         tenant = await self._session.get(Tenant, self._tenant_id)
         plan: Plan | None = None
-
         if tenant and tenant.plan_id:
             plan = await self._session.get(Plan, tenant.plan_id)
-
         if plan is None:
-            # Fall back to the free plan.
             plan = await self._session.scalar(select(Plan).where(Plan.key == "free"))
+        return plan
 
+    async def _resolve_max_apps(self) -> int:
+        """Resolve max_apps from the tenant's plan, falling back to the free plan."""
+        plan = await self._resolve_plan()
         if plan is None:
             # Absolute last resort: use the module-level constant (matches the seeded Free plan).
             return DEFAULT_FREE_MAX_APPS
-
         return plan.max_apps
+
+    async def plan_allocation(self) -> Allocation:
+        """Per-app resource allocation derived from the tenant's plan.
+
+        A plan's ``cpu_millicores``/``mem_mb``/``disk_mb`` columns are the
+        tenant's *total* budget; each app gets a fair share (total ÷ max_apps),
+        never below the global per-app defaults — so a larger plan tier grants
+        larger containers while no app is ever starved below the baseline. These
+        values are stored on the reservation row and read back at build time by
+        the deploy engine (``_limits_for`` → ``apply_resource_limits``), so the
+        plan tier now sizes the real cgroup caps, not just the app count.
+
+        Disk has no cgroup analogue in the compose/Docker path, so ``disk_mb``
+        remains advisory (recorded for accounting, not enforced).
+        """
+        cfg = get_settings()
+        defaults = Allocation(
+            cpu_millicores=cfg.default_app_cpu_millicores,
+            mem_mb=cfg.default_app_mem_mb,
+            disk_mb=cfg.default_app_disk_mb,
+        )
+        plan = await self._resolve_plan()
+        if plan is None:
+            return defaults
+        share = max(plan.max_apps, 1)
+        return Allocation(
+            cpu_millicores=max(defaults.cpu_millicores, plan.cpu_millicores // share),
+            mem_mb=max(defaults.mem_mb, plan.mem_mb // share),
+            disk_mb=max(defaults.disk_mb, plan.disk_mb // share),
+        )
 
     async def _acquire_tenant_lock(self) -> None:
         """Acquire a per-tenant advisory lock (Postgres only; no-op on SQLite).

@@ -555,3 +555,81 @@ def test_git_deploy_over_quota_returns_402(client: TestClient, monkeypatch):
     assert body["reason"] == "apps"
     assert body["limit"] == 1
     assert body["used"] == 1
+
+
+# ---------------------------------------------------------------------------
+# plan_allocation — per-app resource sizing derived from the tenant's plan
+# ---------------------------------------------------------------------------
+
+
+async def _seed_tenant_with_plan(
+    *, max_apps: int, cpu: int, mem: int, disk: int, key: str
+) -> str:
+    """Seed a tenant on a plan with the given totals; return the tenant id."""
+    await init_db()
+    async with session_scope() as session:
+        plan = Plan(
+            key=key,
+            name=key,
+            max_apps=max_apps,
+            max_domains=0,
+            cpu_millicores=cpu,
+            mem_mb=mem,
+            disk_mb=disk,
+        )
+        session.add(plan)
+        await session.flush()
+        tenant = Tenant(name=key, slug=key, status="active", plan_id=plan.id)
+        session.add(tenant)
+        await session.flush()
+        return tenant.id
+
+
+class TestPlanAllocation:
+    """plan_allocation slices the plan's total budget per app, floored at defaults."""
+
+    def test_free_equivalent_plan_matches_defaults(self):
+        cfg = get_settings()
+        tenant_id = asyncio.run(
+            _seed_tenant_with_plan(max_apps=1, cpu=500, mem=512, disk=2048, key="alloc-free")
+        )
+
+        async def _run():
+            async with session_scope() as session:
+                return await QuotaService(session, tenant_id).plan_allocation()
+
+        alloc = asyncio.run(_run())
+        assert alloc.cpu_millicores == cfg.default_app_cpu_millicores
+        assert alloc.mem_mb == cfg.default_app_mem_mb
+        assert alloc.disk_mb == cfg.default_app_disk_mb
+
+    def test_large_plan_grants_bigger_per_app_share(self):
+        # 8000/8192/40960 over 10 apps → 800/819/4096 per app (all above defaults).
+        tenant_id = asyncio.run(
+            _seed_tenant_with_plan(max_apps=10, cpu=8000, mem=8192, disk=40960, key="alloc-pro")
+        )
+
+        async def _run():
+            async with session_scope() as session:
+                return await QuotaService(session, tenant_id).plan_allocation()
+
+        alloc = asyncio.run(_run())
+        assert alloc.cpu_millicores == 800
+        assert alloc.mem_mb == 819
+        assert alloc.disk_mb == 4096
+
+    def test_never_below_defaults_when_share_is_tiny(self):
+        # A plan whose per-app slice would be tiny is floored at the global defaults.
+        cfg = get_settings()
+        tenant_id = asyncio.run(
+            _seed_tenant_with_plan(max_apps=100, cpu=1000, mem=1024, disk=4096, key="alloc-floor")
+        )
+
+        async def _run():
+            async with session_scope() as session:
+                return await QuotaService(session, tenant_id).plan_allocation()
+
+        alloc = asyncio.run(_run())
+        assert alloc.cpu_millicores == cfg.default_app_cpu_millicores
+        assert alloc.mem_mb == cfg.default_app_mem_mb
+        assert alloc.disk_mb == cfg.default_app_disk_mb
