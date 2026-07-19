@@ -842,6 +842,21 @@ def test_client_create_token_posts_name_and_expiry():
     assert result["token"] == "tetra_secret"
 
 
+def test_main_audit_csv_outputs_csv(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"events": [
+            {"created_at": "2026-07-19T00:00:00", "actor_email": "a@b.c",
+             "action": "tenant.approve", "target": "t1", "details": ""},
+        ], "total": 1})
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["audit", "--csv"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert out.splitlines()[0] == "created_at,actor_email,action,target,details"
+    assert "tenant.approve" in out
+
+
 def test_client_create_token_read_only_flag():
     def handler(request: httpx.Request) -> httpx.Response:
         assert json.loads(request.content) == {"name": "ci", "read_only": True}
