@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -71,12 +72,23 @@ def _stamp_alembic_head_if_absent(connection) -> None:
     if "alembic_version" in inspector.get_table_names():
         return
 
-    from alembic.config import Config
-    from alembic.script import ScriptDirectory
+    # Best-effort: the schema is already fully built by create_all above, so if
+    # Alembic is unavailable or misconfigured we must NOT crash boot over the
+    # bookkeeping stamp — log and carry on (a later deploy's `alembic upgrade
+    # head`/next boot will reconcile). This runs on every startup.
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
 
-    config = Config(str(ALEMBIC_INI))
-    config.set_main_option("script_location", str(_REPO_ROOT / "alembic"))
-    head = ScriptDirectory.from_config(config).get_current_head()
+        config = Config(str(ALEMBIC_INI))
+        config.set_main_option("script_location", str(_REPO_ROOT / "alembic"))
+        head = ScriptDirectory.from_config(config).get_current_head()
+    except Exception:  # ImportError, missing files, config errors — all non-fatal
+        logging.getLogger(__name__).warning(
+            "Alembic unavailable; skipping version stamp (schema is intact via create_all)",
+            exc_info=True,
+        )
+        return
     if head is None:  # no revisions on disk — nothing to stamp
         return
 
