@@ -96,6 +96,25 @@ def test_call_list_apps_returns_inventory():
     assert "blog" in result["content"][0]["text"]
 
 
+def test_two_factor_status_is_read_only_and_enable_disable_absent():
+    server = MCPServer(_noop_client(), allow_writes=True)
+    names = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert "two_factor_status" in names
+    # Enabling/disabling 2FA is human-only — never an MCP tool, even with writes on.
+    assert not names & {"two_factor_enable", "two_factor_disable", "enable_2fa"}
+
+
+def test_call_two_factor_status_returns_state():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/account/2fa"
+        return httpx.Response(200, json={"enabled": True, "backup_codes_remaining": 7})
+
+    server = MCPServer(make_client(handler))
+    response = server.handle_message(_rpc("tools/call", {"name": "two_factor_status", "arguments": {}}))
+    assert response["result"]["isError"] is False
+    assert "enabled" in response["result"]["content"][0]["text"]
+
+
 def test_call_get_deployment_passes_id():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/deploys/dep-9"

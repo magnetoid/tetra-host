@@ -575,6 +575,34 @@ class CreateApiTokenRequest(BaseModel):
     expires_in_days: int | None = None
 
 
+class TwoFactorStatus(BaseModel):
+    """Whether the current admin has TOTP two-factor auth enabled."""
+
+    enabled: bool
+    backup_codes_remaining: int = 0
+
+
+class TwoFactorSetupResponse(BaseModel):
+    """Provisioning material for enrolling an authenticator app (shown during setup)."""
+
+    secret: str
+    otpauth_uri: str
+
+
+class TwoFactorEnableRequest(BaseModel):
+    code: str
+
+
+class TwoFactorEnableResponse(BaseModel):
+    """One-time recovery codes, returned exactly once when 2FA is switched on."""
+
+    backup_codes: list[str]
+
+
+class TwoFactorDisableRequest(BaseModel):
+    password: str
+
+
 class ErrorDiagnosis(BaseModel):
     """AI/heuristic diagnosis of a captured runtime error (``tetra ai explain-error``)."""
 

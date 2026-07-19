@@ -174,7 +174,7 @@
 
           <div>
             <label for="email" class="mb-2 block text-sm font-medium text-zinc-300">Email</label>
-            <input id="email" name="email" type="email" placeholder="you@company.com" autocomplete="username" required
+            <input id="email" name="email" type="email" value="{{ prefill_email or '' }}" placeholder="you@company.com" autocomplete="username" required
               class="w-full rounded-xl border border-border bg-surface2 px-4 py-3 text-sm outline-none transition focus:border-violet focus:ring-2 focus:ring-violet/25" />
           </div>
 
@@ -194,6 +194,15 @@
               </button>
             </div>
           </div>
+
+          {% if require_totp %}
+          <div>
+            <label for="totp_code" class="mb-2 block text-sm font-medium text-zinc-300">Two-factor code</label>
+            <input id="totp_code" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" autofocus
+              class="w-full rounded-xl border border-violet/40 bg-surface2 px-4 py-3 font-mono text-sm tracking-widest outline-none transition focus:border-violet focus:ring-2 focus:ring-violet/25" />
+            <p class="mt-1.5 text-xs text-zinc-500">Enter the 6-digit code from your authenticator app, or a backup code.</p>
+          </div>
+          {% endif %}
 
           <button type="submit"
             class="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-violet to-indigo-600 px-4 py-3 font-medium text-white shadow-lg shadow-violet/25 transition hover:shadow-violet/40 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-violet/50 focus:ring-offset-2 focus:ring-offset-background active:scale-[0.99]">

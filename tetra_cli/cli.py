@@ -83,7 +83,14 @@ def cmd_login(args: argparse.Namespace) -> int:
     email = args.email or input("Email: ").strip()
     password = args.password or getpass.getpass("Password: ")
     client = TetraClient(url)
-    client.login(email, password)
+    try:
+        client.login(email, password, code=args.code)
+    except TetraError as exc:
+        if exc.status == 401 and str(exc) == "2fa_required":
+            code = args.code or input("Two-factor code: ").strip()
+            client.login(email, password, code=code)
+        else:
+            raise
     path = save_config(url, client.token)
     admin = client.me()
     print(c("✓", "32") + f" logged in as {admin.get('email')} ({url})")
@@ -1231,6 +1238,39 @@ def cmd_tokens_revoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_2fa_status(args: argparse.Namespace) -> int:
+    status = client_from_config().two_factor_status()
+    if status.get("enabled"):
+        left = status.get("backup_codes_remaining", 0)
+        print(c("✓ two-factor authentication is ENABLED", "32") + c(f"  ({left} backup codes left)", "90"))
+    else:
+        print(c("two-factor authentication is disabled", "90"))
+    return 0
+
+
+def cmd_2fa_enable(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    setup = client.two_factor_setup()
+    print("Scan this URI in your authenticator app (or enter the secret manually):")
+    print(f"  {c(setup.get('otpauth_uri', ''), '1;36')}")
+    print(c(f"  secret: {setup.get('secret', '')}", "90"))
+    code = args.code or input("Enter the 6-digit code to confirm: ").strip()
+    result = client.two_factor_enable(code)
+    codes = result.get("backup_codes", []) if isinstance(result, dict) else []
+    print(c("\n✓ two-factor authentication enabled", "32"))
+    print(c("  save these one-time backup codes now — they are shown only once:", "1;33"))
+    for code_line in codes:
+        print(f"    {c(code_line, '1;36')}")
+    return 0
+
+
+def cmd_2fa_disable(args: argparse.Namespace) -> int:
+    password = args.password or getpass.getpass("Account password: ")
+    client_from_config().two_factor_disable(password)
+    print(c("✓", "32") + " two-factor authentication disabled")
+    return 0
+
+
 def cmd_infra_list(args: argparse.Namespace) -> int:
     rows = client_from_config().infra_servers()
     if not isinstance(rows, list) or not rows:
@@ -1581,6 +1621,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--url")
     sp.add_argument("--email")
     sp.add_argument("--password")
+    sp.add_argument("--code", help="two-factor authentication code (if 2FA is enabled)")
     sp.set_defaults(func=cmd_login)
 
     sub.add_parser("whoami", help="show the current admin").set_defaults(func=cmd_whoami)
@@ -2019,6 +2060,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp = tokens.add_parser("revoke", help="revoke a token by id")
     sp.add_argument("token_id")
     sp.set_defaults(func=cmd_tokens_revoke)
+
+    twofa = sub.add_parser(
+        "2fa", help="two-factor authentication (status/enable/disable)"
+    ).add_subparsers(dest="twofa_cmd", required=True)
+    twofa.add_parser("status", help="show whether 2FA is enabled").set_defaults(func=cmd_2fa_status)
+    sp = twofa.add_parser("enable", help="enroll an authenticator app and turn 2FA on")
+    sp.add_argument("--code", help="verification code (otherwise prompted)")
+    sp.set_defaults(func=cmd_2fa_enable)
+    sp = twofa.add_parser("disable", help="turn 2FA off (re-verifies your password)")
+    sp.add_argument("--password", help="account password (otherwise prompted)")
+    sp.set_defaults(func=cmd_2fa_disable)
 
     ai = sub.add_parser("ai", help="AI-assisted ops + resell AI models (OpenRouter)").add_subparsers(
         dest="ai_cmd", required=True

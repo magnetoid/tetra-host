@@ -30,6 +30,35 @@ def test_client_login_sends_credentials_and_keeps_token():
     assert seen["body"] == {"email": "a@b.c", "password": "secretpass"}
 
 
+def test_client_login_forwards_2fa_code():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"token": "t", "admin": {}})
+
+    make_client(handler, token="").login("a@b.c", "secretpass", code="123456")
+    assert seen["body"] == {"email": "a@b.c", "password": "secretpass", "code": "123456"}
+
+
+def test_client_two_factor_methods_build_requests():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path)] = request.content and json.loads(request.content)
+        return httpx.Response(200, json={"enabled": True, "backup_codes": ["a", "b"], "secret": "S"})
+
+    client = make_client(handler)
+    client.two_factor_status()
+    client.two_factor_setup()
+    client.two_factor_enable("000111")
+    client.two_factor_disable("hunter2000")
+    assert ("GET", "/api/v1/account/2fa") in seen
+    assert ("POST", "/api/v1/account/2fa/setup") in seen
+    assert seen[("POST", "/api/v1/account/2fa/enable")] == {"code": "000111"}
+    assert seen[("POST", "/api/v1/account/2fa/disable")] == {"password": "hunter2000"}
+
+
 def test_client_deploy_passes_force_and_returns_deployment_id():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/projects/app-1/deploy"

@@ -40,6 +40,7 @@ async def login(
     password: str = Form(...),
     csrf_token: str = Form(...),
     next_url: str = Form("/dashboard"),
+    totp_code: str = Form(""),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     limiter = request.app.state.rate_limiter
@@ -83,6 +84,23 @@ async def login(
             "auth/login.html",
             {
                 "error": "Invalid credentials.",
+                "next_url": next_url,
+                "csrf_token": ensure_csrf_token(request),
+            },
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    # Optional 2FA — only enforced for accounts that opted in. For everyone else
+    # `totp_enabled` is False and this branch is skipped entirely, so the login
+    # path is unchanged.
+    if admin.totp_enabled and not await auth_service.verify_totp_login(admin, totp_code):
+        return templates.TemplateResponse(
+            request,
+            "auth/login.html",
+            {
+                "error": "Enter the code from your authenticator app." if totp_code else None,
+                "require_totp": True,
+                "prefill_email": form_data.email,
                 "next_url": next_url,
                 "csrf_token": ensure_csrf_token(request),
             },

@@ -61,8 +61,11 @@ class TetraClient:
             return response.text
 
     # ── Auth ──────────────────────────────────────────────────────────────
-    def login(self, email: str, password: str) -> str:
-        data = self._request("POST", "/auth/login", json_body={"email": email, "password": password})
+    def login(self, email: str, password: str, code: str | None = None) -> str:
+        body: dict[str, Any] = {"email": email, "password": password}
+        if code:
+            body["code"] = code
+        data = self._request("POST", "/auth/login", json_body=body)
         self.token = data["token"]
         return self.token
 
@@ -428,6 +431,19 @@ class TetraClient:
 
     def revoke_token(self, token_id: str) -> Any:
         return self._request("DELETE", f"/account/tokens/{token_id}")
+
+    # --- Two-factor auth ---
+    def two_factor_status(self) -> Any:
+        return self._request("GET", "/account/2fa")
+
+    def two_factor_setup(self) -> Any:
+        return self._request("POST", "/account/2fa/setup")
+
+    def two_factor_enable(self, code: str) -> Any:
+        return self._request("POST", "/account/2fa/enable", json_body={"code": code})
+
+    def two_factor_disable(self, password: str) -> Any:
+        return self._request("POST", "/account/2fa/disable", json_body={"password": password})
 
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
