@@ -535,6 +535,7 @@ export interface BuildDiagnosis {
 export interface ApiTokenSummary {
   id: string
   name: string
+  scope: string
   prefix: string
   created_at: string
   last_used_at: string

@@ -51,6 +51,7 @@ class ApiTokenService:
         *,
         admin: AdminUser,
         name: str,
+        scope: str = "full",
         expires_in_days: int | None = None,
     ) -> CreatedToken:
         """Mint a new token for ``admin``. Returns the row + the one-time secret."""
@@ -62,6 +63,7 @@ class ApiTokenService:
             tenant_id=admin.tenant_id,
             admin_user_id=admin.id,
             name=(name or "").strip()[:120] or "token",
+            scope="read" if scope == "read" else "full",
             prefix=secret[:_DISPLAY_PREFIX_LEN],
             token_hash=hash_token(secret),
             expires_at=expires_at,
@@ -91,10 +93,11 @@ class ApiTokenService:
         await self._session.flush()
         return True
 
-    async def authenticate(self, token: str) -> str | None:
-        """Resolve a bearer token to its admin_user_id, or None if invalid.
+    async def authenticate(self, token: str) -> ApiToken | None:
+        """Resolve a bearer token to its ``ApiToken`` row, or None if invalid.
 
         Enforces revocation + expiry and records ``last_used_at`` (best-effort).
+        The caller reads ``admin_user_id`` and ``scope`` off the returned row.
         """
         row = await self._session.scalar(
             select(ApiToken).where(ApiToken.token_hash == hash_token(token))
@@ -110,4 +113,4 @@ class ApiTokenService:
                 return None
         row.last_used_at = utc_now()
         await self._session.flush()
-        return row.admin_user_id
+        return row

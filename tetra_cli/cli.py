@@ -1191,15 +1191,19 @@ def cmd_tokens_list(args: argparse.Namespace) -> int:
     for row in rows:
         used = row.get("last_used_at") or "never used"
         exp = f"  expires {row['expires_at']}" if row.get("expires_at") else ""
+        scope = row.get("scope", "full")
+        scope_tag = c(" [read-only]", "33") if scope == "read" else ""
         print(
             f"{c(str(row.get('id', ''))[:8], '1;36')}  {c(row.get('prefix', ''), '90')}  "
-            f"{row.get('name', '')}  (last used {used}){exp}"
+            f"{row.get('name', '')}{scope_tag}  (last used {used}){exp}"
         )
     return 0
 
 
 def cmd_tokens_create(args: argparse.Namespace) -> int:
-    result = client_from_config().create_token(args.name, expires_in_days=args.expires_in_days)
+    result = client_from_config().create_token(
+        args.name, read_only=args.read_only, expires_in_days=args.expires_in_days
+    )
     secret = result.get("token", "") if isinstance(result, dict) else ""
     if not secret:
         return die("token was not created")
@@ -1994,6 +1998,8 @@ def build_parser() -> argparse.ArgumentParser:
     tokens.add_parser("list", help="list your API tokens").set_defaults(func=cmd_tokens_list)
     sp = tokens.add_parser("create", help="mint a new token (secret shown once)")
     sp.add_argument("name", help="a label for the token, e.g. 'ci' or 'laptop'")
+    sp.add_argument("--read-only", action="store_true", dest="read_only",
+                    help="least-privilege: the token may only make GET requests")
     sp.add_argument("--expires-in-days", type=int, default=None, dest="expires_in_days",
                     help="optional expiry in days (default: never)")
     sp.set_defaults(func=cmd_tokens_create)

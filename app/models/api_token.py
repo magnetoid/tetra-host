@@ -28,6 +28,8 @@ class ApiToken(Base):
     tenant_id: Mapped[str] = mapped_column(String(36), index=True)
     admin_user_id: Mapped[str] = mapped_column(String(36), index=True)
     name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    # Least-privilege scope: "full" (default) or "read" (rejects unsafe methods).
+    scope: Mapped[str] = mapped_column(String(10), default="full", nullable=False, server_default="full")
     # Non-secret display prefix, e.g. "tetra_a1b2c3d4"; lets a user identify a token.
     prefix: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     # SHA-256 hex of the full secret. Unique so authentication is a single indexed lookup.
