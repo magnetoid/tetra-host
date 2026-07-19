@@ -973,6 +973,13 @@ async def api_create_token(
     created = await ApiTokenService(session).create(
         admin=current_admin, name=body.name, expires_in_days=body.expires_in_days
     )
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="api_token.create",
+        target=created.row.prefix,
+        details=created.row.name,
+    ))
+    await session.flush()
     return ApiTokenCreated(**_api_token_summary(created.row).model_dump(), token=created.secret)
 
 
@@ -985,6 +992,13 @@ async def api_revoke_token(
     revoked = await ApiTokenService(session).revoke(current_admin, token_id)
     if not revoked:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found.")
+    session.add(AuditEvent(
+        actor_email=current_admin.email,
+        action="api_token.revoke",
+        target=token_id,
+        details="",
+    ))
+    await session.flush()
     return {"ok": True}
 
 
