@@ -121,6 +121,15 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.list_notifications(),
     },
     {
+        "name": "list_uptime_monitors",
+        "description": "List the tenant's HTTP uptime monitors with their latest status "
+                       "(up/down/unknown), latency, and last-checked time. Creating/deleting "
+                       "monitors and on-demand checks are human-only.",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.list_monitors(),
+    },
+    {
         "name": "app_logs",
         "description": "Runtime container logs for an app.",
         "inputSchema": _schema(_project_arg("App/project name"), ["project"]),

@@ -575,6 +575,25 @@ class CreateApiTokenRequest(BaseModel):
     expires_in_days: int | None = None
 
 
+class UptimeMonitorSummary(BaseModel):
+    """A tenant HTTP uptime monitor and its latest probe result."""
+
+    id: str
+    name: str
+    url: str
+    enabled: bool = True
+    status: str = "unknown"  # unknown | up | down
+    last_checked_at: str = ""
+    last_latency_ms: int = 0
+    last_detail: str = ""
+    created_at: str
+
+
+class CreateUptimeMonitorRequest(BaseModel):
+    name: str
+    url: str
+
+
 class NotificationChannelSummary(BaseModel):
     """An outbound webhook notification channel (no secret in list responses)."""
 

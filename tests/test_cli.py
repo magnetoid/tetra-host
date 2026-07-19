@@ -61,6 +61,24 @@ def test_client_notification_methods_build_requests():
     assert ("DELETE", "/api/v1/account/notifications/n1") in seen
 
 
+def test_client_monitor_methods_build_requests():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path)] = request.content and json.loads(request.content)
+        return httpx.Response(200, json={"id": "m1", "status": "up"})
+
+    client = make_client(handler)
+    client.list_monitors()
+    client.create_monitor("site", "https://example.com")
+    client.check_monitor("m1")
+    client.delete_monitor("m1")
+    assert ("GET", "/api/v1/account/monitors") in seen
+    assert seen[("POST", "/api/v1/account/monitors")] == {"name": "site", "url": "https://example.com"}
+    assert ("POST", "/api/v1/account/monitors/m1/check") in seen
+    assert ("DELETE", "/api/v1/account/monitors/m1") in seen
+
+
 def test_client_two_factor_methods_build_requests():
     seen = {}
 

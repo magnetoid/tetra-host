@@ -460,6 +460,19 @@ class TetraClient:
     def test_notification(self, channel_id: str) -> Any:
         return self._request("POST", f"/account/notifications/{channel_id}/test")
 
+    # --- Uptime monitors ---
+    def list_monitors(self) -> Any:
+        return self._request("GET", "/account/monitors")
+
+    def create_monitor(self, name: str, url: str) -> Any:
+        return self._request("POST", "/account/monitors", json_body={"name": name, "url": url})
+
+    def delete_monitor(self, monitor_id: str) -> Any:
+        return self._request("DELETE", f"/account/monitors/{monitor_id}")
+
+    def check_monitor(self, monitor_id: str) -> Any:
+        return self._request("POST", f"/account/monitors/{monitor_id}/check")
+
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 
