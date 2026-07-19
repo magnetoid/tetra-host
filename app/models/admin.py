@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -38,7 +38,11 @@ class AdminUser(Base):
     # enabled; enforcement keys off `totp_enabled` only. `totp_backup_codes` is a
     # JSON array of sha256-hashed one-time recovery codes.
     totp_secret: Mapped[str | None] = mapped_column(String(64))
-    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # server_default so raw-SQL / legacy-migration inserts (which don't apply the
+    # ORM-side default) still satisfy NOT NULL — matches migration 0003.
+    totp_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     totp_backup_codes: Mapped[str | None] = mapped_column(Text)
 
     tenant = relationship("Tenant", back_populates="admins")
