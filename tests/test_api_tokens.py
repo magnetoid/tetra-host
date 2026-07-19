@@ -122,6 +122,38 @@ def test_full_scope_is_the_default(client: TestClient):
     assert body["scope"] == "full"
 
 
+def test_pat_requests_carry_ratelimit_headers(client: TestClient):
+    headers = _login(client)
+    secret = client.post("/api/v1/account/tokens", headers=headers, json={"name": "rl"}).json()["token"]
+    resp = client.get("/api/v1/account/tokens", headers={"Authorization": f"Bearer {secret}"})
+    assert resp.status_code == 200
+    assert resp.headers.get("X-RateLimit-Limit")
+    assert "X-RateLimit-Remaining" in resp.headers
+
+
+def test_session_auth_is_not_rate_limited(client: TestClient):
+    # Console/session (login-minted) token: no rate-limit headers, never throttled.
+    headers = _login(client)
+    resp = client.get("/api/v1/account/tokens", headers=headers)
+    assert resp.status_code == 200
+    assert "X-RateLimit-Limit" not in resp.headers
+
+
+def test_pat_over_limit_returns_429(client: TestClient, monkeypatch):
+    from app.rate_limit import RateLimitDecision
+
+    headers = _login(client)
+    secret = client.post("/api/v1/account/tokens", headers=headers, json={"name": "rl2"}).json()["token"]
+
+    async def _deny(key, limit, window_seconds):
+        return RateLimitDecision(allowed=False, retry_after_seconds=42, remaining=0)
+
+    monkeypatch.setattr(client.app.state.rate_limiter, "check", _deny)
+    resp = client.get("/api/v1/account/tokens", headers={"Authorization": f"Bearer {secret}"})
+    assert resp.status_code == 429
+    assert resp.headers.get("Retry-After") == "42"
+
+
 def test_revoke_unknown_is_404(client: TestClient):
     headers = _login(client)
     assert client.delete("/api/v1/account/tokens/does-not-exist", headers=headers).status_code == 404
