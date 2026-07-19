@@ -1313,6 +1313,45 @@ def cmd_notifications_test(args: argparse.Namespace) -> int:
     return 1
 
 
+def _uptime_dot(status: str) -> str:
+    return {"up": c("● up", "32"), "down": c("● down", "31")}.get(status, c("○ unknown", "90"))
+
+
+def cmd_monitors_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().list_monitors()
+    if not isinstance(rows, list) or not rows:
+        print(c("no uptime monitors", "90"))
+        return 0
+    for row in rows:
+        latency = f"{row.get('last_latency_ms', 0)}ms" if row.get("last_checked_at") else "—"
+        print(
+            f"{c(str(row.get('id', ''))[:8], '1;36')}  {_uptime_dot(row.get('status', ''))}  "
+            f"{row.get('name', '')}  {c(row.get('url', ''), '90')}  ({latency})"
+        )
+    return 0
+
+
+def cmd_monitors_create(args: argparse.Namespace) -> int:
+    result = client_from_config().create_monitor(args.name, args.url)
+    mid = result.get("id", "") if isinstance(result, dict) else ""
+    print(c("✓", "32") + f" created monitor '{args.name}' ({mid[:8]})")
+    return 0
+
+
+def cmd_monitors_rm(args: argparse.Namespace) -> int:
+    client_from_config().delete_monitor(args.monitor_id)
+    print(c("✓", "32") + f" deleted monitor {args.monitor_id[:8]}")
+    return 0
+
+
+def cmd_monitors_check(args: argparse.Namespace) -> int:
+    result = client_from_config().check_monitor(args.monitor_id)
+    status = result.get("status", "") if isinstance(result, dict) else ""
+    detail = result.get("last_detail", "") if isinstance(result, dict) else ""
+    print(f"{_uptime_dot(status)}  {c(detail, '90')}")
+    return 0 if status == "up" else 1
+
+
 def cmd_infra_list(args: argparse.Namespace) -> int:
     rows = client_from_config().infra_servers()
     if not isinstance(rows, list) or not rows:
@@ -2129,6 +2168,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp = notif.add_parser("test", help="send a test event to a channel")
     sp.add_argument("channel_id")
     sp.set_defaults(func=cmd_notifications_test)
+
+    monitors = sub.add_parser(
+        "monitors", help="HTTP uptime monitors (probed each minute; alert on down/up)"
+    ).add_subparsers(dest="monitors_cmd", required=True)
+    monitors.add_parser("list", help="list uptime monitors").set_defaults(func=cmd_monitors_list)
+    sp = monitors.add_parser("create", help="add a monitor for a URL")
+    sp.add_argument("name", help="a label, e.g. 'marketing-site'")
+    sp.add_argument("url", help="the URL to probe")
+    sp.set_defaults(func=cmd_monitors_create)
+    sp = monitors.add_parser("rm", help="delete a monitor by id")
+    sp.add_argument("monitor_id")
+    sp.set_defaults(func=cmd_monitors_rm)
+    sp = monitors.add_parser("check", help="probe a monitor now")
+    sp.add_argument("monitor_id")
+    sp.set_defaults(func=cmd_monitors_check)
 
     ai = sub.add_parser("ai", help="AI-assisted ops + resell AI models (OpenRouter)").add_subparsers(
         dest="ai_cmd", required=True

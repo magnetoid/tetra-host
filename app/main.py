@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
     async with session_scope() as session:
         auth_service = AuthService(session)
         await auth_service.ensure_bootstrap_admin(settings)
+    app.state.uptime_checks_enabled = settings.uptime_checks_enabled
     if settings.scheduler_enabled:
         start_scheduler(app)
     try:

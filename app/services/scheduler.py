@@ -56,7 +56,18 @@ async def run_due_jobs(http_client: httpx.AsyncClient, now: datetime) -> int:
         return len(due)
 
 
+async def run_uptime_checks() -> int:
+    """Probe every enabled uptime monitor and alert on transitions. Self-contained
+    (own session + own per-probe clients); imported lazily so the scheduler module
+    stays dependency-light."""
+    from app.services.uptime import UptimeService
+
+    async with session_scope() as session:
+        return await UptimeService(session).run_all_due()
+
+
 async def scheduler_loop(app) -> None:
+    uptime_enabled = getattr(app.state, "uptime_checks_enabled", True)
     while True:
         now = datetime.now(UTC)
         await asyncio.sleep(max(1.0, 60 - now.second - now.microsecond / 1_000_000))
@@ -67,6 +78,13 @@ async def scheduler_loop(app) -> None:
                 logger.info("scheduler fired %d job(s) at %s", fired, tick.isoformat())
         except Exception:  # noqa: BLE001 — a scheduler error must never kill the loop
             logger.exception("scheduler tick failed")
+        if uptime_enabled:
+            try:
+                checked = await run_uptime_checks()
+                if checked:
+                    logger.debug("uptime probed %d monitor(s) at %s", checked, tick.isoformat())
+            except Exception:  # noqa: BLE001 — uptime probing must never kill the loop
+                logger.exception("uptime check tick failed")
 
 
 def start_scheduler(app) -> None:

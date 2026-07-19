@@ -20,6 +20,7 @@ from app.models.sso import TenantSSOConfig
 from app.models.team import TenantInvite
 from app.models.tenant import Tenant
 from app.models.tenant_resource import TenantResource
+from app.models.uptime import UptimeMonitor
 
 __all__ = [
     "AdminUser",
@@ -43,4 +44,5 @@ __all__ = [
     "TenantInvite",
     "TenantResource",
     "TenantSSOConfig",
+    "UptimeMonitor",
 ]

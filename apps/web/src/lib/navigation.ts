@@ -17,6 +17,7 @@ import {
   faGaugeHigh,
   faGear,
   faGlobe,
+  faHeartPulse,
   faKey,
   faLayerGroup,
   faListCheck,
@@ -95,6 +96,7 @@ export const consoleNavItems: NavItem[] = [
   { section: "Deploy", href: "/projects", label: "Projects", icon: faServer },
   { section: "Deploy", href: "/apps", label: "App catalog", icon: faBox },
   { section: "Deploy", href: "/jobs", label: "Jobs", icon: faListCheck },
+  { section: "Deploy", href: "/monitors", label: "Uptime", icon: faHeartPulse },
 
   // Resources — the managed services your apps consume.
   { section: "Resources", href: "/databases", label: "Databases", icon: faDatabase },

@@ -151,8 +151,10 @@ from app.api.contracts import (
     NotificationChannelCreated,
     NotificationChannelSummary,
     CreateNotificationChannelRequest,
+    CreateUptimeMonitorRequest,
     NotificationTestResult,
     TenantSummary,
+    UptimeMonitorSummary,
     TwoFactorDisableRequest,
     TwoFactorEnableRequest,
     TwoFactorEnableResponse,
@@ -169,6 +171,7 @@ from app.config import get_settings
 from app.api.security import create_api_token, read_api_token
 from app.services.api_tokens import ApiTokenService, looks_like_personal_token
 from app.services.notifications import NotificationService, TEST_EVENT
+from app.services.uptime import UptimeService
 from app.db import get_db_session
 from app.models import AdminUser, ApiToken, Tenant, TenantResource
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
@@ -1213,6 +1216,81 @@ async def api_test_notification(
         channel, TEST_EVENT, {"message": "Test notification from Tetra Host.", "channel": channel.name}
     )
     return NotificationTestResult(ok=ok, status=label)
+
+
+def _uptime_summary(monitor) -> UptimeMonitorSummary:
+    return UptimeMonitorSummary(
+        id=monitor.id,
+        name=monitor.name,
+        url=monitor.url,
+        enabled=monitor.enabled,
+        status=monitor.status,
+        last_checked_at=monitor.last_checked_at.isoformat() if monitor.last_checked_at else "",
+        last_latency_ms=monitor.last_latency_ms,
+        last_detail=monitor.last_detail or "",
+        created_at=monitor.created_at.isoformat() if monitor.created_at else "",
+    )
+
+
+@router.get("/account/monitors", response_model=list[UptimeMonitorSummary])
+async def api_list_monitors(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[UptimeMonitorSummary]:
+    rows = await UptimeService(session).list_for_tenant(current_admin.tenant_id)
+    return [_uptime_summary(row) for row in rows]
+
+
+@router.post(
+    "/account/monitors", response_model=UptimeMonitorSummary, status_code=status.HTTP_201_CREATED
+)
+async def api_create_monitor(
+    body: CreateUptimeMonitorRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> UptimeMonitorSummary:
+    url = body.url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="URL must start with http:// or https://."
+        )
+    monitor = await UptimeService(session).create(current_admin.tenant_id, name=body.name, url=url)
+    session.add(AuditEvent(
+        actor_email=current_admin.email, action="monitor.create", target=monitor.name
+    ))
+    await session.flush()
+    return _uptime_summary(monitor)
+
+
+@router.delete("/account/monitors/{monitor_id}")
+async def api_delete_monitor(
+    monitor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    deleted = await UptimeService(session).delete(current_admin.tenant_id, monitor_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Monitor not found.")
+    session.add(AuditEvent(
+        actor_email=current_admin.email, action="monitor.delete", target=monitor_id
+    ))
+    await session.flush()
+    return {"ok": True}
+
+
+@router.post("/account/monitors/{monitor_id}/check", response_model=UptimeMonitorSummary)
+async def api_check_monitor(
+    monitor_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> UptimeMonitorSummary:
+    """Probe a monitor on demand (also fires alerts on a state transition)."""
+    service = UptimeService(session)
+    monitor = await service.get(current_admin.tenant_id, monitor_id)
+    if monitor is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Monitor not found.")
+    await service.check_one(monitor)
+    return _uptime_summary(monitor)
 
 
 @router.get("/projects/{application_id}/envs")

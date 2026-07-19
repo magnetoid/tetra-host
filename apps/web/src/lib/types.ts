@@ -546,6 +546,18 @@ export interface ApiTokenCreated extends ApiTokenSummary {
   token: string
 }
 
+export interface UptimeMonitorSummary {
+  id: string
+  name: string
+  url: string
+  enabled: boolean
+  status: string
+  last_checked_at: string
+  last_latency_ms: number
+  last_detail: string
+  created_at: string
+}
+
 export interface NotificationChannelSummary {
   id: string
   name: string

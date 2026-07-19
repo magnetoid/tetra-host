@@ -109,6 +109,9 @@ class Settings(BaseSettings):
     # In-process cron scheduler for tenant scheduled jobs (HTTP triggers). Runs one asyncio
     # task in the app lifespan. Disable in tests / multi-instance deploys.
     scheduler_enabled: bool = True
+    # Per-minute uptime probing of tenant monitors (rides the same scheduler tick).
+    # Fires app.down/app.up notifications on a state transition.
+    uptime_checks_enabled: bool = True
     # GitHub token for cloning PRIVATE repos in the deploy builder. Empty = only public repos
     # clone (private ones fail with "could not read Username"). A PAT (classic or fine-grained)
     # with repo:read; injected as x-access-token into the clone URL and scrubbed from all logs.

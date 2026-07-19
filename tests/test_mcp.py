@@ -124,6 +124,24 @@ def test_call_list_notification_channels():
     assert "slack" in response["result"]["content"][0]["text"]
 
 
+def test_uptime_monitors_read_only():
+    server = MCPServer(_noop_client(), allow_writes=True)
+    names = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert "list_uptime_monitors" in names
+    assert not names & {"create_uptime_monitor", "delete_uptime_monitor", "check_uptime_monitor"}
+
+
+def test_call_list_uptime_monitors():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/account/monitors"
+        return httpx.Response(200, json=[{"id": "m1", "name": "site", "status": "up"}])
+
+    server = MCPServer(make_client(handler))
+    response = server.handle_message(_rpc("tools/call", {"name": "list_uptime_monitors", "arguments": {}}))
+    assert response["result"]["isError"] is False
+    assert "site" in response["result"]["content"][0]["text"]
+
+
 def test_call_two_factor_status_returns_state():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/account/2fa"
