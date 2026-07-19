@@ -343,8 +343,36 @@ def _audit_event_summary(event: AuditEvent) -> AuditEventSummary:
     )
 
 
+async def _enforce_api_token_rate_limit(request: Request, response: Response, token_id: str) -> None:
+    """Sliding-window request cap per personal API token (never touches session auth).
+
+    Sets standard ``X-RateLimit-*`` headers and raises 429 (with ``Retry-After``)
+    when the per-minute limit is exceeded. Disabled when the limit is 0.
+    """
+    limit = request.state.settings.api_rate_limit_per_minute
+    if limit <= 0:
+        return
+    limiter = getattr(request.app.state, "rate_limiter", None)
+    if limiter is None:
+        return
+    decision = await limiter.check(f"apitoken:{token_id}", limit, 60)
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(decision.remaining)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="API rate limit exceeded — slow down.",
+            headers={
+                "Retry-After": str(decision.retry_after_seconds),
+                "X-RateLimit-Limit": str(limit),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+
 async def get_current_api_admin(
     request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_db_session),
     authorization: str | None = Header(default=None),
 ) -> AdminUser:
@@ -358,6 +386,7 @@ async def get_current_api_admin(
     if looks_like_personal_token(token):
         api_token = await ApiTokenService(session).authenticate(token)
         if api_token is not None:
+            await _enforce_api_token_rate_limit(request, response, api_token.id)
             # Least-privilege: a read-only token may not perform state changes.
             if api_token.scope == "read" and request.method not in {"GET", "HEAD", "OPTIONS"}:
                 raise HTTPException(

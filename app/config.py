@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     force_https_redirect: bool = False
     login_rate_limit_attempts: int = 5
     login_rate_limit_window_seconds: int = 300
+    # Per-personal-API-token request cap (sliding 60s window). 0 = disabled. Only
+    # applies to `tetra_…` bearer tokens — the console's session auth is never
+    # rate-limited, so SSR page loads are unaffected.
+    api_rate_limit_per_minute: int = 300
     signup_rate_per_hour: int = 5
     max_pending_tenants: int = 100
     max_pending_tenants_per_ip: int = 3
