@@ -2728,6 +2728,49 @@ async def api_audit_log(
     )
 
 
+@router.get("/audit/export.csv")
+async def api_audit_log_csv(
+    action: str = "",
+    actor: str = "",
+    session: AsyncSession = Depends(get_db_session),
+    _: AdminUser = Depends(require_platform_admin),
+) -> Response:
+    """Download the (filtered) audit log as CSV — a compliance/record-keeping export.
+
+    Same filters as ``/audit``; caps at 10k rows to bound the response."""
+    import csv
+    import io
+
+    conditions = []
+    if action.strip():
+        conditions.append(AuditEvent.action.ilike(f"%{action.strip()}%"))
+    if actor.strip():
+        conditions.append(AuditEvent.actor_email.ilike(f"%{actor.strip()}%"))
+    rows_q = select(AuditEvent)
+    for condition in conditions:
+        rows_q = rows_q.where(condition)
+    rows = list(
+        (await session.scalars(rows_q.order_by(AuditEvent.created_at.desc()).limit(10_000))).all()
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["created_at", "actor_email", "action", "target", "details"])
+    for event in rows:
+        writer.writerow([
+            event.created_at.isoformat() if event.created_at else "",
+            event.actor_email,
+            event.action,
+            event.target,
+            event.details,
+        ])
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="audit-log.csv"'},
+    )
+
+
 # ── Reseller: Cloudflare plans + services on tenant zones (Path A) ─────────
 def _cf_plan_summary(plan: dict) -> CloudflarePlanSummary:
     return CloudflarePlanSummary(

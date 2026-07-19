@@ -102,6 +102,18 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
             Clear
           </Link>
         ) : null}
+        <a
+          href={(() => {
+            const sp = new URLSearchParams()
+            if (action) sp.set("action", action)
+            if (actor) sp.set("actor", actor)
+            const s = sp.toString()
+            return `/api/proxy/audit/export.csv${s ? `?${s}` : ""}`
+          })()}
+          className="ml-auto rounded-lg border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+        >
+          Export CSV
+        </a>
       </form>
 
       <div className="space-y-4">

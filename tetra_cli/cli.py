@@ -441,6 +441,18 @@ def cmd_audit(args: argparse.Namespace) -> int:
         limit=args.limit, action=args.action or "", actor=args.actor or ""
     )
     events = data.get("events", []) if isinstance(data, dict) else []
+    if getattr(args, "csv", False):
+        import csv
+        import sys
+
+        writer = csv.writer(sys.stdout)
+        writer.writerow(["created_at", "actor_email", "action", "target", "details"])
+        for e in events:
+            writer.writerow([
+                e.get("created_at", ""), e.get("actor_email", ""), e.get("action", ""),
+                e.get("target", ""), e.get("details", ""),
+            ])
+        return 0
     if not events:
         print(c("no audit events", "90"))
         return 0
@@ -1613,6 +1625,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--limit", type=int, default=50, help="max events (1-200)")
     sp.add_argument("--action", help="filter by action substring, e.g. tenant.approve")
     sp.add_argument("--actor", help="filter by actor email substring")
+    sp.add_argument("--csv", action="store_true", help="output CSV (for export/piping)")
     sp.set_defaults(func=cmd_audit)
 
     account = sub.add_parser("account", help="your profile + password").add_subparsers(

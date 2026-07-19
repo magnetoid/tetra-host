@@ -67,6 +67,32 @@ def test_audit_lists_filters_and_pages(client):
     assert other["total"] == 1
     assert other["events"][0]["actor_email"] == "other@x.test"
 
+
+def test_audit_csv_export_requires_platform_admin(client):
+    assert client.get("/api/v1/audit/export.csv").status_code == 401
+    asyncio.run(_seed(slug="co", email="o@co.test", role=ROLE_OWNER))
+    headers = _login(client, "o@co.test")
+    assert client.get("/api/v1/audit/export.csv", headers=headers).status_code == 403
+
+
+def test_audit_csv_export_returns_downloadable_csv(client):
+    asyncio.run(_seed(slug="cp", email="p@cp.test", role=ROLE_PLATFORM_ADMIN))
+    asyncio.run(_seed_events())
+    headers = _login(client, "p@cp.test")
+
+    resp = client.get("/api/v1/audit/export.csv", headers=headers)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "attachment" in resp.headers.get("content-disposition", "")
+    lines = resp.text.strip().splitlines()
+    assert lines[0] == "created_at,actor_email,action,target,details"
+    assert len(lines) == 1 + 4  # header + 4 events
+    assert any("tenant.reject" in line for line in lines)
+
+    # Filter carries through to the export.
+    filtered = client.get("/api/v1/audit/export.csv?action=approve", headers=headers)
+    assert len(filtered.text.strip().splitlines()) == 1 + 3
+
     # Pagination clamps + reports limit/offset.
     page = client.get("/api/v1/audit?limit=2&offset=2", headers=headers).json()
     assert page["limit"] == 2 and page["offset"] == 2

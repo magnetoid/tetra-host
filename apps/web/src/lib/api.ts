@@ -111,10 +111,13 @@ export async function proxyBackendRequest(
   })
 
   const responseBody = await response.text()
-  return new Response(responseBody, {
-    status: response.status,
-    headers: {
-      "Content-Type": response.headers.get("content-type") ?? "application/json",
-    },
-  })
+  const passthrough: Record<string, string> = {
+    "Content-Type": response.headers.get("content-type") ?? "application/json",
+  }
+  // Preserve attachment semantics for file downloads (e.g. CSV export).
+  const disposition = response.headers.get("content-disposition")
+  if (disposition) {
+    passthrough["Content-Disposition"] = disposition
+  }
+  return new Response(responseBody, { status: response.status, headers: passthrough })
 }
