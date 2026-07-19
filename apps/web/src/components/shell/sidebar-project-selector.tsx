@@ -74,7 +74,7 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
           className="h-3.5 w-3.5 shrink-0 text-primary"
         />
         <span className="min-w-0 flex-1 truncate text-left font-medium">
-          {activeName ?? "Platform"}
+          {activeName ?? "All projects"}
         </span>
         <FontAwesomeIcon
           icon={faChevronDown}
@@ -111,7 +111,7 @@ export function SidebarProjectSelector({ projects }: { projects: ProjectMeta[] }
               )}
             >
               <FontAwesomeIcon icon={faLayerGroup} className="h-3.5 w-3.5 text-muted-foreground" fixedWidth />
-              <span className="flex-1">Platform</span>
+              <span className="flex-1">All projects</span>
               {!activeSlug ? <FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3 text-primary" /> : null}
             </button>
           </div>

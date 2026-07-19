@@ -1,29 +1,54 @@
 import Link from "next/link"
 
-import { faEnvelope, faGlobe, faServer, faTriangleExclamation, faUsers } from "@/lib/icons"
-
-import { ZoneTraffic } from "@/components/dns/zone-traffic"
-import { BarList } from "@/components/tremor/bar-list"
-import { DonutChart, DonutLegend } from "@/components/tremor/donut-chart"
+import { AppStatus } from "@/components/ui/app-status"
 import { Card } from "@/components/ui/card"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
+import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader, RefreshLink } from "@/components/ui/page-header"
-import { ProviderCard } from "@/components/ui/provider-card"
 import { StatCard } from "@/components/ui/stat-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
-import type {
-  DashboardResponse,
-  DNSResponse,
-  MailResponse,
-  ProjectRecord,
-  ZoneAnalytics,
-} from "@/lib/types"
+import { faEnvelope, faGlobe, faServer, faTriangleExclamation } from "@/lib/icons"
+import type { DashboardResponse, DNSResponse, MailResponse, ProjectRecord } from "@/lib/types"
 
-// Provider-health donut: connected → ok, degraded → warn, unconfigured → muted grid.
-const HEALTH_COLORS = ["var(--status-ok)", "var(--status-warn)", "var(--chart-grid)"]
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
 
+// A project groups one-or-more deployable apps (mirrors Coolify's project →
+// resources). We group the flat app list into projects for the portfolio grid.
+type ProjectGroup = {
+  slug: string
+  name: string
+  apps: ProjectRecord[]
+  domain: string
+  unhealthy: boolean
+}
+
+function groupProjects(apps: ProjectRecord[]): ProjectGroup[] {
+  const groups = new Map<string, ProjectGroup>()
+  for (const app of apps) {
+    const slug = app.project_uuid || `name:${norm(app.project_name || app.name)}`
+    const name = app.project_name || app.name
+    const group =
+      groups.get(slug) ??
+      ({ slug, name, apps: [], domain: "", unhealthy: false } as ProjectGroup)
+    group.apps.push(app)
+    if (!group.domain && app.primary_domain) group.domain = app.primary_domain
+    if (app.status && !["running", "healthy", "active"].includes(app.status.toLowerCase())) {
+      group.unhealthy = true
+    }
+    groups.set(slug, group)
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Console Overview — the "All projects" view. When a specific project is chosen
+ * in the sidebar selector the console routes to that project's own overview
+ * (/projects/<slug>); here, with "All projects" selected, it shows the whole
+ * portfolio plus a light read on mail/DNS. Operator-level provider health and
+ * traffic live on Super Admin, not here.
+ */
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
   const dashboard = await fetchBackend<DashboardResponse>("/dashboard", { token: session.token })
@@ -42,49 +67,19 @@ export default async function DashboardPage() {
       { token: session.token },
     ),
   ])
-  const projects = projectsRes.data
+  const projects = groupProjects(projectsRes.data)
   const mail = mailRes.data
   const dns = dnsRes.data
-
-  const primaryZone = dns.selected_zone || dns.zones[0]?.id || ""
-  const analyticsRes = primaryZone
-    ? await fetchDegraded<ZoneAnalytics | null>(
-        `/dns/zones/${primaryZone}/analytics`,
-        "Traffic analytics",
-        null,
-        { token: session.token, searchParams: { days: "7" } },
-      )
-    : null
-  const analytics = analyticsRes?.data ?? null
-  const degraded = degradedSources(
-    [projectsRes, mailRes, dnsRes, ...(analyticsRes ? [analyticsRes] : [])],
-  )
-  const primaryZoneName = dns.zones.find((zone) => zone.id === primaryZone)?.name ?? primaryZone
+  const degraded = degradedSources([projectsRes, mailRes, dnsRes])
 
   const m = dashboard.metrics
-  const providerCount = (status: string) =>
-    dashboard.providers.filter((p) => p.status === status).length
-  const connected = providerCount("connected")
-
-  const health = [
-    { name: "Connected", value: connected },
-    { name: "Degraded", value: providerCount("degraded") },
-    { name: "Not configured", value: providerCount("not_configured") },
-  ]
-
-  const resources = [
-    { name: "Projects", value: m.projects },
-    { name: "Mail domains", value: m.mail_domains },
-    { name: "DNS zones", value: m.dns_zones },
-    { name: "Admins", value: m.admins },
-  ]
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Tetra AI Cloud"
+        eyebrow={session.admin.tenant_name ?? "Workspace"}
         title="Overview"
-        description="A live view of your projects, mail, DNS, and provider health."
+        description="Every project in your workspace, with mail and DNS at a glance."
         action={
           <div className="flex gap-2">
             <RefreshLink href="/dashboard" label="Refresh" />
@@ -102,10 +97,8 @@ export default async function DashboardPage() {
 
       <DegradedBanner sources={degraded} />
 
-      {/* Restraint: icons stay neutral; color is reserved for meaning — the
-          Unhealthy tile turns red only when something actually needs attention. */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={faServer} label="Projects" value={m.projects} hint={session.admin.tenant_name ?? "Your workspace"} accent="text-primary" />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={faServer} label="Projects" value={projects.length} hint={session.admin.tenant_name ?? "Your workspace"} accent="text-primary" />
         <StatCard
           icon={faTriangleExclamation}
           label="Unhealthy"
@@ -115,93 +108,67 @@ export default async function DashboardPage() {
         />
         <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-muted-foreground" />
         <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-muted-foreground" />
-        <StatCard icon={faUsers} label="Admins" value={m.admins} hint="This workspace" accent="text-muted-foreground" />
       </section>
 
-      {/* Bento: one asymmetric grid mixing the traffic hero, provider health,
-          connectivity, resource mix, and per-domain previews at varying tile
-          widths. Auto-placement fills gaps gracefully when a tile is absent
-          (e.g. no traffic analytics). */}
-      <section className="grid auto-rows-min gap-4 lg:grid-cols-6">
-        {analytics && analytics.points.length > 0 ? (
-          <Card className="lg:col-span-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-lg font-semibold">Traffic</h2>
-                <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  {primaryZoneName} · Cloudflare · last 7 days
-                </p>
-              </div>
-              <Link href="/dns" className="text-sm text-muted-foreground transition hover:text-foreground">
-                All zones
+      {/* All projects — the portfolio grid. */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Projects</h2>
+          <Link href="/projects" className="text-sm text-muted-foreground transition hover:text-foreground">
+            Manage all →
+          </Link>
+        </div>
+        {projects.length === 0 ? (
+          <EmptyState
+            title="No projects yet"
+            description="Deploy from a Git repo or the app catalog to see your projects here."
+            action={
+              <Link
+                href="/projects"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-accent"
+              >
+                Create your first project →
               </Link>
-            </div>
-            <div className="mt-4">
-              <ZoneTraffic analytics={analytics} />
-            </div>
-          </Card>
-        ) : null}
-
-        <Card className="lg:col-span-2">
-          <h2 className="font-display text-lg font-semibold">Provider health</h2>
-          <div className="mt-4">
-            <DonutChart
-              data={health}
-              colors={HEALTH_COLORS}
-              centerValue={`${connected}/${dashboard.providers.length}`}
-              centerLabel="healthy"
-            />
-          </div>
-          <DonutLegend data={health} colors={HEALTH_COLORS} className="mt-4" />
-        </Card>
-
-        <Card className="lg:col-span-4">
-          <h2 className="font-display text-lg font-semibold">Connectivity</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {dashboard.providers.map((provider) => (
-              <ProviderCard key={provider.name} provider={provider} />
+            }
+          />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => (
+              <Link
+                key={project.slug}
+                href={`/projects/${project.slug}`}
+                className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-accent"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{project.name}</span>
+                  <AppStatus value={project.unhealthy ? "unhealthy" : "running"} />
+                </div>
+                <div className="truncate font-mono text-xs text-muted-foreground">
+                  {project.domain || "no domain yet"}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {project.apps.length} app{project.apps.length === 1 ? "" : "s"}
+                </div>
+              </Link>
             ))}
           </div>
-        </Card>
+        )}
+      </section>
 
-        <Card className="lg:col-span-2">
-          <h2 className="font-display text-lg font-semibold">Resource mix</h2>
-          <div className="mt-5">
-            <BarList data={resources} />
-          </div>
-        </Card>
-
-        <PreviewPanel
-          title="Recent projects"
-          href="/projects"
-          empty="No projects yet."
-          className="lg:col-span-2"
-        >
-          {projects.slice(0, 3).map((project) => (
-            <PreviewItem key={project.id} title={project.name} subtitle={project.primary_domain} mono />
-          ))}
-        </PreviewPanel>
-        <PreviewPanel
-          title="Mail domains"
-          href="/mail"
-          empty="No mail domains yet."
-          className="lg:col-span-2"
-        >
-          {mail.domains.slice(0, 3).map((domain) => (
+      {/* Secondary resource previews. */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <PreviewPanel title="Mail domains" href="/mail" empty="No mail domains yet.">
+          {mail.domains.slice(0, 4).map((domain) => (
             <PreviewItem
               key={domain.domain_name}
               title={domain.domain_name}
               subtitle={`${domain.mailboxes} mailboxes · ${domain.aliases} aliases`}
+              mono
             />
           ))}
         </PreviewPanel>
-        <PreviewPanel
-          title="DNS zones"
-          href="/dns"
-          empty="No DNS zones yet."
-          className="lg:col-span-2"
-        >
-          {dns.zones.slice(0, 3).map((zone) => (
+        <PreviewPanel title="DNS zones" href="/dns" empty="No DNS zones yet.">
+          {dns.zones.slice(0, 4).map((zone) => (
             <PreviewItem
               key={zone.id}
               title={zone.name}
@@ -219,20 +186,18 @@ function PreviewPanel({
   title,
   href,
   empty,
-  className,
   children,
 }: {
   title: string
   href: string
   empty: string
-  className?: string
   children: React.ReactNode
 }) {
   const items = Array.isArray(children) ? children : [children]
   const hasItems = items.some(Boolean)
 
   return (
-    <Card className={className}>
+    <Card>
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-semibold">{title}</h2>
         <Link href={href} className="text-sm text-muted-foreground transition hover:text-foreground">

@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { AdminLinks } from "@/components/admin/admin-links"
 import { AuditEventsTable } from "@/components/audit/audit-events-table"
+import { PlatformInfra } from "@/components/dashboard/platform-infra"
 import { PendingTenantsTable } from "@/components/tenants/pending-tenants-table"
 import { Card, CardHeader } from "@/components/ui/card"
 import { MetricCard } from "@/components/ui/metric-card"
@@ -9,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { StatCard } from "@/components/ui/stat-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
+import { fetchDegraded } from "@/lib/fetch-degraded"
 import {
   faBox,
   faChartBar,
@@ -20,7 +22,13 @@ import {
   faUserShield,
   faWandSparkles,
 } from "@/lib/icons"
-import type { PlatformOverview, StatusResponse } from "@/lib/types"
+import type {
+  DashboardResponse,
+  DNSResponse,
+  PlatformOverview,
+  StatusResponse,
+  ZoneAnalytics,
+} from "@/lib/types"
 
 function usd(v: number): string {
   const abs = Math.abs(v)
@@ -61,12 +69,40 @@ export default async function SuperAdminPage() {
     )
   }
 
-  const [overview, status] = await Promise.all([
+  const [overview, status, dashboardRes, dnsRes] = await Promise.all([
     fetchBackend<PlatformOverview>("/admin/overview", { token: session.token }),
     fetchBackend<StatusResponse>("/status", { token: session.token }).catch(() => null),
+    fetchDegraded<DashboardResponse>(
+      "/dashboard",
+      "Providers",
+      { providers: [], metrics: { projects: 0, unhealthy_projects: 0, mail_domains: 0, dns_zones: 0, admins: 0 } },
+      { token: session.token },
+    ),
+    fetchDegraded<DNSResponse>(
+      "/dns",
+      "DNS",
+      { providers: [], selected_zone: "", zones: [], records: [] },
+      { token: session.token },
+    ),
   ])
   const { tenant_status, totals, committed_resources, revenue, ai, pending_tenants, recent_events } =
     overview
+
+  // Operator infrastructure view ("Tetra AI Cloud" provider health + traffic),
+  // relocated here from the tenant Overview.
+  const dashboard = dashboardRes.data
+  const dns = dnsRes.data
+  const primaryZone = dns.selected_zone || dns.zones[0]?.id || ""
+  const analyticsRes = primaryZone
+    ? await fetchDegraded<ZoneAnalytics | null>(
+        `/dns/zones/${primaryZone}/analytics`,
+        "Traffic analytics",
+        null,
+        { token: session.token, searchParams: { days: "7" } },
+      )
+    : null
+  const analytics = analyticsRes?.data ?? null
+  const primaryZoneName = dns.zones.find((zone) => zone.id === primaryZone)?.name ?? primaryZone
 
   return (
     <div className="space-y-6">
@@ -97,6 +133,19 @@ export default async function SuperAdminPage() {
         <StatCard icon={faWandSparkles} label="AI spend (30d)" value={usd(ai.spend_30d_usd)} accent="text-primary" />
         <StatCard icon={faWandSparkles} label="AI calls (30d)" value={ai.requests_30d} accent="text-muted-foreground" />
       </section>
+
+      {/* Platform infrastructure — provider health, traffic, resource mix. */}
+      {dashboard.providers.length > 0 ? (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Platform infrastructure</h2>
+          <PlatformInfra
+            providers={dashboard.providers}
+            metrics={dashboard.metrics}
+            analytics={analytics}
+            primaryZoneName={primaryZoneName}
+          />
+        </div>
+      ) : null}
 
       {/* Platform health */}
       <Card>
