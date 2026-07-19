@@ -27,6 +27,29 @@
 - **No Docker cleanup endpoint.** Cleanup is a `docker_cleanup` query param on delete operations, not a standalone endpoint.
 - **Hetzner endpoints** (`/hetzner/*`) are cloud-provisioning specific and require a Hetzner cloud token via `/cloud-tokens`.
 
+### Per-application resource limits (verified 2026-07-19, openapi.json)
+
+The application create/update endpoints accept container resource caps. Verbatim
+schema property names (from `raw.githubusercontent.com/coollabsio/coolify/main/openapi.json`):
+
+| Property | Type | Meaning | Example |
+|----------|------|---------|---------|
+| `limits_memory` | string | Memory limit (Docker units) | `"512m"`, `"1g"`, `"0"` (unlimited) |
+| `limits_memory_swap` | string | Memory + swap limit | `"1g"` |
+| `limits_memory_swappiness` | integer | Swappiness 0–100 | `60` |
+| `limits_memory_reservation` | string | Soft memory reservation | `"256m"` |
+| `limits_cpus` | string | CPU limit (cores) | `"0.5"`, `"2"`, `"0"` (unlimited) |
+| `limits_cpuset` | string (nullable) | Pinned CPU set | `"0,1"` |
+| `limits_cpu_shares` | integer | Relative CPU weight | `1024` |
+
+Accepted in the body of `POST /applications/{public,private-github-app,private-deploy-key,dockerfile}`
+and `PATCH /applications/{uuid}`. **Note (Tetra):** Tetra's own deploy/app-install
+paths run through the *Docker-compose engine* (`app/services/docker_engine.py`), not
+Coolify, so hard caps are enforced via compose `cpus`/`mem_limit`/`pids_limit`
+(`app/services/limits.py`) sized from the tenant's plan (`QuotaService.plan_allocation`).
+These Coolify fields are the equivalent if/when an app is provisioned through
+Coolify's API directly. **There is no `limits_disk` field** — disk stays advisory.
+
 ---
 
 ### Applications

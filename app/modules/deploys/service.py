@@ -35,7 +35,7 @@ from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.limits import apply_resource_limits
-from app.services.quota import Allocation, QuotaService
+from app.services.quota import QuotaService
 from app.services.registry import ImageRegistry, is_registry_qualified
 from app.services.secrets import decrypt, encrypt
 
@@ -178,12 +178,6 @@ class DeploysService:
         """
         self._require_actions()
         project = sanitize_project_name(name)
-        settings = get_settings()
-        allocation = Allocation(
-            cpu_millicores=settings.default_app_cpu_millicores,
-            mem_mb=settings.default_app_mem_mb,
-            disk_mb=settings.default_app_disk_mb,
-        )
         async with session_scope() as session:
             # Reject if a TenantResource with this project name already exists for the tenant.
             existing = await session.scalar(
@@ -199,7 +193,10 @@ class DeploysService:
 
             # Atomically check quota and reserve BEFORE the build is scheduled.
             # QuotaExceeded is not caught here — it rolls back and propagates.
+            # Per-app allocation is plan-derived (larger tiers → larger cgroup
+            # caps at build time via _limits_for), floored at the global defaults.
             quota = QuotaService(session, tenant_id or "")
+            allocation = await quota.plan_allocation()
             await quota.check_and_reserve(project, allocation, name)
 
             deployment = Deployment(
