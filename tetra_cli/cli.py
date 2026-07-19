@@ -1183,6 +1183,38 @@ def cmd_deploys_env_rm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tokens_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().list_tokens()
+    if not isinstance(rows, list) or not rows:
+        print(c("no API tokens", "90"))
+        return 0
+    for row in rows:
+        used = row.get("last_used_at") or "never used"
+        exp = f"  expires {row['expires_at']}" if row.get("expires_at") else ""
+        print(
+            f"{c(str(row.get('id', ''))[:8], '1;36')}  {c(row.get('prefix', ''), '90')}  "
+            f"{row.get('name', '')}  (last used {used}){exp}"
+        )
+    return 0
+
+
+def cmd_tokens_create(args: argparse.Namespace) -> int:
+    result = client_from_config().create_token(args.name, expires_in_days=args.expires_in_days)
+    secret = result.get("token", "") if isinstance(result, dict) else ""
+    if not secret:
+        return die("token was not created")
+    print(c("✓", "32") + f" created token '{args.name}'")
+    print(c("  save this now — it is shown only once:", "1;33"))
+    print(f"  {c(secret, '1;36')}")
+    return 0
+
+
+def cmd_tokens_revoke(args: argparse.Namespace) -> int:
+    client_from_config().revoke_token(args.token_id)
+    print(c("✓", "32") + f" revoked token {args.token_id[:8]}")
+    return 0
+
+
 def cmd_infra_list(args: argparse.Namespace) -> int:
     rows = client_from_config().infra_servers()
     if not isinstance(rows, list) or not rows:
@@ -1955,6 +1987,19 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--allow-writes", dest="allow_writes", action="store_true",
                     help="expose write tools (each call still requires confirm=true)")
     sp.set_defaults(func=cmd_mcp_serve)
+
+    tokens = sub.add_parser(
+        "tokens", help="personal API tokens (create/list/revoke) for CLI + CI"
+    ).add_subparsers(dest="tokens_cmd", required=True)
+    tokens.add_parser("list", help="list your API tokens").set_defaults(func=cmd_tokens_list)
+    sp = tokens.add_parser("create", help="mint a new token (secret shown once)")
+    sp.add_argument("name", help="a label for the token, e.g. 'ci' or 'laptop'")
+    sp.add_argument("--expires-in-days", type=int, default=None, dest="expires_in_days",
+                    help="optional expiry in days (default: never)")
+    sp.set_defaults(func=cmd_tokens_create)
+    sp = tokens.add_parser("revoke", help="revoke a token by id")
+    sp.add_argument("token_id")
+    sp.set_defaults(func=cmd_tokens_revoke)
 
     ai = sub.add_parser("ai", help="AI-assisted ops + resell AI models (OpenRouter)").add_subparsers(
         dest="ai_cmd", required=True

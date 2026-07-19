@@ -1,4 +1,5 @@
 from app.models.admin import AdminUser
+from app.models.api_token import ApiToken
 from app.models.app_env import AppEnvVar
 from app.models.audit import AuditEvent
 from app.models.billing import (
@@ -22,6 +23,7 @@ from app.models.tenant_resource import TenantResource
 __all__ = [
     "AdminUser",
     "AiUsageEvent",
+    "ApiToken",
     "AppEnvVar",
     "AuditEvent",
     "CreditTransaction",

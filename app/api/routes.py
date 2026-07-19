@@ -53,7 +53,10 @@ from app.api.contracts import (
     ResellerChargeSummary,
     ServiceActivateResponse,
     ZoneSubscriptionSummary,
+    ApiTokenCreated,
+    ApiTokenSummary,
     BuildDiagnosis,
+    CreateApiTokenRequest,
     ErrorDiagnosis,
     BackupConfigSummary,
     BackupCreateRequest,
@@ -155,8 +158,9 @@ from app.api.contracts import (
 )
 from app.config import get_settings
 from app.api.security import create_api_token, read_api_token
+from app.services.api_tokens import ApiTokenService, looks_like_personal_token
 from app.db import get_db_session
-from app.models import AdminUser, Tenant, TenantResource
+from app.models import AdminUser, ApiToken, Tenant, TenantResource
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
 from app.models.tenant_resource import RESOURCE_TYPE_APP, RESOURCE_TYPE_DATABASE
 from app.models.audit import AuditEvent
@@ -348,12 +352,18 @@ async def get_current_api_admin(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
 
     token = authorization.removeprefix("Bearer ").strip()
-    payload = read_api_token(
-        request.state.settings,
-        token,
-        max_age_seconds=request.state.settings.session_max_age_seconds,
-    )
-    admin_id = payload.get("admin_user_id") if payload else None
+    # Personal API tokens (tetra_…) are stored, revocable rows; the stateless
+    # login-minted signed token is the fallback (backward compatible).
+    admin_id: str | None = None
+    if looks_like_personal_token(token):
+        admin_id = await ApiTokenService(session).authenticate(token)
+    else:
+        payload = read_api_token(
+            request.state.settings,
+            token,
+            max_age_seconds=request.state.settings.session_max_age_seconds,
+        )
+        admin_id = payload.get("admin_user_id") if payload else None
     if not admin_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session token.")
 
@@ -928,6 +938,54 @@ async def api_explain_error(
         culprit=str(issue.get("culprit") or ""),
         **diagnosis.to_dict(),
     )
+
+
+# ── Personal API tokens (self-service, revocable) ──────────────────────────
+
+
+def _api_token_summary(row: ApiToken) -> ApiTokenSummary:
+    return ApiTokenSummary(
+        id=row.id,
+        name=row.name,
+        prefix=row.prefix,
+        created_at=row.created_at.isoformat() if row.created_at else "",
+        last_used_at=row.last_used_at.isoformat() if row.last_used_at else "",
+        expires_at=row.expires_at.isoformat() if row.expires_at else "",
+    )
+
+
+@router.get("/account/tokens", response_model=list[ApiTokenSummary])
+async def api_list_tokens(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[ApiTokenSummary]:
+    rows = await ApiTokenService(session).list_for_admin(current_admin)
+    return [_api_token_summary(row) for row in rows]
+
+
+@router.post("/account/tokens", response_model=ApiTokenCreated, status_code=status.HTTP_201_CREATED)
+async def api_create_token(
+    body: CreateApiTokenRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> ApiTokenCreated:
+    """Mint a personal API token. The plaintext ``token`` is returned ONCE — store it now."""
+    created = await ApiTokenService(session).create(
+        admin=current_admin, name=body.name, expires_in_days=body.expires_in_days
+    )
+    return ApiTokenCreated(**_api_token_summary(created.row).model_dump(), token=created.secret)
+
+
+@router.delete("/account/tokens/{token_id}")
+async def api_revoke_token(
+    token_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    revoked = await ApiTokenService(session).revoke(current_admin, token_id)
+    if not revoked:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found.")
+    return {"ok": True}
 
 
 @router.get("/projects/{application_id}/envs")
