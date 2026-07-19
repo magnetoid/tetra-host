@@ -13,6 +13,7 @@ from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.domain import Domain
 from app.models.job import JobRun, ScheduledJob
+from app.models.notification import NotificationChannel
 from app.models.plan import Plan
 from app.models.preview_env import PreviewEnv
 from app.models.sso import TenantSSOConfig
@@ -31,6 +32,7 @@ __all__ = [
     "Deployment",
     "Domain",
     "JobRun",
+    "NotificationChannel",
     "Plan",
     "ScheduledJob",
     "PreviewEnv",

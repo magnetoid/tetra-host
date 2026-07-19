@@ -112,6 +112,15 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.two_factor_status(),
     },
     {
+        "name": "list_notification_channels",
+        "description": "List the tenant's outbound webhook notification channels (name, url, "
+                       "subscribed events, last delivery status — no secrets). Creating/deleting "
+                       "and test-sends are human-only.",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.list_notifications(),
+    },
+    {
         "name": "app_logs",
         "description": "Runtime container logs for an app.",
         "inputSchema": _schema(_project_arg("App/project name"), ["project"]),

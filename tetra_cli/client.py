@@ -445,6 +445,21 @@ class TetraClient:
     def two_factor_disable(self, password: str) -> Any:
         return self._request("POST", "/account/2fa/disable", json_body={"password": password})
 
+    # --- Notification channels (outbound webhooks) ---
+    def list_notifications(self) -> Any:
+        return self._request("GET", "/account/notifications")
+
+    def create_notification(self, name: str, url: str, events: str = "*") -> Any:
+        return self._request(
+            "POST", "/account/notifications", json_body={"name": name, "url": url, "events": events}
+        )
+
+    def delete_notification(self, channel_id: str) -> Any:
+        return self._request("DELETE", f"/account/notifications/{channel_id}")
+
+    def test_notification(self, channel_id: str) -> Any:
+        return self._request("POST", f"/account/notifications/{channel_id}/test")
+
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 

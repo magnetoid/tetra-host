@@ -1271,6 +1271,48 @@ def cmd_2fa_disable(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_notifications_list(args: argparse.Namespace) -> int:
+    rows = client_from_config().list_notifications()
+    if not isinstance(rows, list) or not rows:
+        print(c("no notification channels", "90"))
+        return 0
+    for row in rows:
+        state = c("on", "32") if row.get("enabled") else c("off", "31")
+        last = row.get("last_status") or "never sent"
+        print(
+            f"{c(str(row.get('id', ''))[:8], '1;36')}  {row.get('name', '')}  [{state}]  "
+            f"{c(row.get('events', '*'), '33')}  {c(row.get('url', ''), '90')}  ({last})"
+        )
+    return 0
+
+
+def cmd_notifications_create(args: argparse.Namespace) -> int:
+    result = client_from_config().create_notification(args.name, args.url, args.events)
+    secret = result.get("secret", "") if isinstance(result, dict) else ""
+    print(c("✓", "32") + f" created notification channel '{args.name}'")
+    if secret:
+        print(c("  signing secret (shown once — configure it on your receiver to verify signatures):", "1;33"))
+        print(f"  {c(secret, '1;36')}")
+    return 0
+
+
+def cmd_notifications_rm(args: argparse.Namespace) -> int:
+    client_from_config().delete_notification(args.channel_id)
+    print(c("✓", "32") + f" deleted channel {args.channel_id[:8]}")
+    return 0
+
+
+def cmd_notifications_test(args: argparse.Namespace) -> int:
+    result = client_from_config().test_notification(args.channel_id)
+    ok = isinstance(result, dict) and result.get("ok")
+    label = result.get("status", "") if isinstance(result, dict) else ""
+    if ok:
+        print(c("✓", "32") + f" test delivered ({label})")
+        return 0
+    print(c("✗", "31") + f" delivery failed: {label}")
+    return 1
+
+
 def cmd_infra_list(args: argparse.Namespace) -> int:
     rows = client_from_config().infra_servers()
     if not isinstance(rows, list) or not rows:
@@ -2071,6 +2113,22 @@ def build_parser() -> argparse.ArgumentParser:
     sp = twofa.add_parser("disable", help="turn 2FA off (re-verifies your password)")
     sp.add_argument("--password", help="account password (otherwise prompted)")
     sp.set_defaults(func=cmd_2fa_disable)
+
+    notif = sub.add_parser(
+        "notifications", help="outbound webhook notifications (deploy events → Slack/Discord/custom)"
+    ).add_subparsers(dest="notif_cmd", required=True)
+    notif.add_parser("list", help="list notification channels").set_defaults(func=cmd_notifications_list)
+    sp = notif.add_parser("create", help="add a webhook channel (signing secret shown once)")
+    sp.add_argument("name", help="a label, e.g. 'team-slack'")
+    sp.add_argument("url", help="the webhook URL to POST events to")
+    sp.add_argument("--events", default="*", help="comma-separated event types, or '*' for all (default)")
+    sp.set_defaults(func=cmd_notifications_create)
+    sp = notif.add_parser("rm", help="delete a channel by id")
+    sp.add_argument("channel_id")
+    sp.set_defaults(func=cmd_notifications_rm)
+    sp = notif.add_parser("test", help="send a test event to a channel")
+    sp.add_argument("channel_id")
+    sp.set_defaults(func=cmd_notifications_test)
 
     ai = sub.add_parser("ai", help="AI-assisted ops + resell AI models (OpenRouter)").add_subparsers(
         dest="ai_cmd", required=True

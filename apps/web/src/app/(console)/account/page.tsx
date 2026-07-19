@@ -2,12 +2,13 @@ import Link from "next/link"
 
 import { AccountSettingsForm } from "@/components/account/account-settings-form"
 import { ApiTokensManager } from "@/components/account/api-tokens-manager"
+import { NotificationsManager } from "@/components/account/notifications-manager"
 import { TwoFactorManager } from "@/components/account/two-factor-manager"
 import { Card, CardHeader } from "@/components/ui/card"
 import { PageHeader } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
 import { fetchDegraded } from "@/lib/fetch-degraded"
-import type { ApiTokenSummary, TwoFactorStatus } from "@/lib/types"
+import type { ApiTokenSummary, NotificationChannelSummary, TwoFactorStatus } from "@/lib/types"
 
 export const metadata = { title: "Account" }
 
@@ -20,6 +21,12 @@ export default async function AccountPage() {
     "/account/2fa",
     "Two-factor auth",
     { enabled: false, backup_codes_remaining: 0 },
+    { token },
+  )
+  const notificationsRes = await fetchDegraded<NotificationChannelSummary[]>(
+    "/account/notifications",
+    "Notifications",
+    [],
     { token },
   )
   const isPlatformAdmin = admin.role === "platform_admin"
@@ -81,6 +88,16 @@ export default async function AccountPage() {
         />
         <div className="mt-4">
           <TwoFactorManager status={twoFactorRes.data} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Notifications"
+          action="Outbound webhooks (Slack, Discord, or custom) — signed events when your deploys succeed or fail."
+        />
+        <div className="mt-4">
+          <NotificationsManager channels={notificationsRes.data} />
         </div>
       </Card>
 
