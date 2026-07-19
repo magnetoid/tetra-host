@@ -842,6 +842,15 @@ def test_client_create_token_posts_name_and_expiry():
     assert result["token"] == "tetra_secret"
 
 
+def test_client_create_token_read_only_flag():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content) == {"name": "ci", "read_only": True}
+        return httpx.Response(201, json={"id": "t1", "name": "ci", "scope": "read", "token": "tetra_x"})
+
+    result = make_client(handler).create_token("ci", read_only=True)
+    assert result["scope"] == "read"
+
+
 def test_main_tokens_create_reveals_secret_once(monkeypatch, capsys):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(201, json={"id": "t1", "name": "ci", "prefix": "tetra_ab", "token": "tetra_topsecret"})

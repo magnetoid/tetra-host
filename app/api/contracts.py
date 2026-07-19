@@ -555,6 +555,7 @@ class ApiTokenSummary(BaseModel):
 
     id: str
     name: str
+    scope: str = "full"  # full | read
     prefix: str
     created_at: str
     last_used_at: str = ""
@@ -569,6 +570,8 @@ class ApiTokenCreated(ApiTokenSummary):
 
 class CreateApiTokenRequest(BaseModel):
     name: str
+    # A read-only token may only perform GET/HEAD requests (least privilege).
+    read_only: bool = False
     expires_in_days: int | None = None
 
 

@@ -21,6 +21,7 @@ const INPUT_CLASS =
 export function ApiTokensManager({ tokens }: { tokens: ApiTokenSummary[] }) {
   const { run, pending, error } = useAction()
   const [name, setName] = useState("")
+  const [readOnly, setReadOnly] = useState(false)
   const [created, setCreated] = useState<ApiTokenCreated | null>(null)
 
   async function createToken(event: React.FormEvent<HTMLFormElement>) {
@@ -29,11 +30,12 @@ export function ApiTokensManager({ tokens }: { tokens: ApiTokenSummary[] }) {
       async () => {
         const payload = await apiFetch<ApiTokenCreated>("/api/proxy/account/tokens", {
           method: "POST",
-          body: { name },
+          body: { name, read_only: readOnly },
           errorMessage: "Could not create token.",
         })
         setCreated(payload)
         setName("")
+        setReadOnly(false)
       },
       { key: "create" },
     )
@@ -71,6 +73,16 @@ export function ApiTokensManager({ tokens }: { tokens: ApiTokenSummary[] }) {
             required
           />
         </label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            aria-label="Read-only token"
+            checked={readOnly}
+            onChange={(event) => setReadOnly(event.target.checked)}
+            className="h-4 w-4 rounded border-border"
+          />
+          Read-only
+        </label>
         <Button type="submit" icon={faPlus} disabled={pending !== null}>
           {pending === "create" ? "…" : "Create token"}
         </Button>
@@ -107,6 +119,11 @@ export function ApiTokensManager({ tokens }: { tokens: ApiTokenSummary[] }) {
               <div className="flex min-w-0 items-center gap-3 text-sm">
                 <FontAwesomeIcon icon={faKey} className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="font-medium">{token.name}</span>
+                {token.scope === "read" ? (
+                  <span className="rounded-full border border-status-warn/40 bg-status-warn/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-status-warn">
+                    read-only
+                  </span>
+                ) : null}
                 <span className="font-mono text-xs text-muted-foreground">{token.prefix}…</span>
                 <span className="text-xs text-muted-foreground">
                   {token.last_used_at ? "in use" : "never used"}

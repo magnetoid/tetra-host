@@ -356,7 +356,15 @@ async def get_current_api_admin(
     # login-minted signed token is the fallback (backward compatible).
     admin_id: str | None = None
     if looks_like_personal_token(token):
-        admin_id = await ApiTokenService(session).authenticate(token)
+        api_token = await ApiTokenService(session).authenticate(token)
+        if api_token is not None:
+            # Least-privilege: a read-only token may not perform state changes.
+            if api_token.scope == "read" and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This API token is read-only.",
+                )
+            admin_id = api_token.admin_user_id
     else:
         payload = read_api_token(
             request.state.settings,
@@ -947,6 +955,7 @@ def _api_token_summary(row: ApiToken) -> ApiTokenSummary:
     return ApiTokenSummary(
         id=row.id,
         name=row.name,
+        scope=row.scope,
         prefix=row.prefix,
         created_at=row.created_at.isoformat() if row.created_at else "",
         last_used_at=row.last_used_at.isoformat() if row.last_used_at else "",
@@ -971,7 +980,10 @@ async def api_create_token(
 ) -> ApiTokenCreated:
     """Mint a personal API token. The plaintext ``token`` is returned ONCE — store it now."""
     created = await ApiTokenService(session).create(
-        admin=current_admin, name=body.name, expires_in_days=body.expires_in_days
+        admin=current_admin,
+        name=body.name,
+        scope="read" if body.read_only else "full",
+        expires_in_days=body.expires_in_days,
     )
     session.add(AuditEvent(
         actor_email=current_admin.email,

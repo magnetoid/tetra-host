@@ -98,6 +98,30 @@ def test_create_list_and_revoke(client: TestClient):
     assert after.status_code == 401
 
 
+def test_read_only_token_can_read_but_not_write(client: TestClient):
+    headers = _login(client)
+    created = client.post(
+        "/api/v1/account/tokens", headers=headers, json={"name": "ci-ro", "read_only": True}
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["scope"] == "read"
+    ro = {"Authorization": f"Bearer {body['token']}"}
+
+    # GET works…
+    assert client.get("/api/v1/account/tokens", headers=ro).status_code == 200
+    # …but any state change is rejected with 403 (read-only), before the handler runs.
+    denied = client.post("/api/v1/account/tokens", headers=ro, json={"name": "nope"})
+    assert denied.status_code == 403, denied.text
+    assert "read-only" in denied.json()["detail"].lower()
+
+
+def test_full_scope_is_the_default(client: TestClient):
+    headers = _login(client)
+    body = client.post("/api/v1/account/tokens", headers=headers, json={"name": "def"}).json()
+    assert body["scope"] == "full"
+
+
 def test_revoke_unknown_is_404(client: TestClient):
     headers = _login(client)
     assert client.delete("/api/v1/account/tokens/does-not-exist", headers=headers).status_code == 404

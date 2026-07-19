@@ -416,8 +416,12 @@ class TetraClient:
     def list_tokens(self) -> Any:
         return self._request("GET", "/account/tokens")
 
-    def create_token(self, name: str, expires_in_days: int | None = None) -> Any:
+    def create_token(
+        self, name: str, *, read_only: bool = False, expires_in_days: int | None = None
+    ) -> Any:
         body: dict[str, Any] = {"name": name}
+        if read_only:
+            body["read_only"] = True
         if expires_in_days:
             body["expires_in_days"] = expires_in_days
         return self._request("POST", "/account/tokens", json_body=body)
