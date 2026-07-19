@@ -1112,10 +1112,7 @@ def cmd_mcp_serve(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_ai_explain(args: argparse.Namespace) -> int:
-    d = client_from_config().explain_deployment(args.deployment_id)
-    if not isinstance(d, dict):
-        return die("could not fetch diagnosis")
+def _print_diagnosis(d: dict) -> None:
     tint = {"high": "32", "medium": "33", "low": "90"}.get(d.get("confidence", ""), "90")
     print(c(f"◆ {d.get('summary', '')}", "1;36"))
     print(f"  category:   {d.get('category', '')}"
@@ -1131,6 +1128,24 @@ def cmd_ai_explain(args: argparse.Namespace) -> int:
         print(c("  suggested fixes:", "1;32"))
         for fix in fixes:
             print(f"    → {fix}")
+
+
+def cmd_ai_explain(args: argparse.Namespace) -> int:
+    d = client_from_config().explain_deployment(args.deployment_id)
+    if not isinstance(d, dict):
+        return die("could not fetch diagnosis")
+    _print_diagnosis(d)
+    return 0
+
+
+def cmd_ai_explain_error(args: argparse.Namespace) -> int:
+    d = client_from_config().explain_error(args.application_id, args.issue_id)
+    if not isinstance(d, dict):
+        return die("could not fetch diagnosis")
+    if d.get("title"):
+        culprit = f"  ({d['culprit']})" if d.get("culprit") else ""
+        print(c(f"⚠ {d['title']}", "1;33") + culprit)
+    _print_diagnosis(d)
     return 0
 
 
@@ -1947,6 +1962,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp = ai.add_parser("explain", help="explain a deployment's build outcome + suggest fixes")
     sp.add_argument("deployment_id")
     sp.set_defaults(func=cmd_ai_explain)
+    sp = ai.add_parser(
+        "explain-error", help="explain a captured runtime error (Errors tab) + suggest fixes"
+    )
+    sp.add_argument("application_id", help="the project/app id")
+    sp.add_argument("issue_id", help="the GlitchTip issue id (from `tetra` errors / the Errors tab)")
+    sp.set_defaults(func=cmd_ai_explain_error)
     sp = ai.add_parser("models", help="list the resellable model catalog")
     sp.add_argument("--limit", type=int, default=30, help="max models to show")
     sp.set_defaults(func=cmd_ai_models)

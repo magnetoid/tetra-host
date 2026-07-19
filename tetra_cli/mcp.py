@@ -79,6 +79,21 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.explain_deployment(a["deployment_id"]),
     },
     {
+        "name": "explain_error",
+        "description": "Diagnose a captured runtime error (from the Errors tab) and get suggested "
+                       "fixes (heuristic analysis, AI-enriched when configured). Needs the app id "
+                       "and the GlitchTip issue id.",
+        "inputSchema": _schema(
+            {
+                "application_id": {"type": "string", "description": "App/project id"},
+                "issue_id": {"type": "string", "description": "GlitchTip issue id"},
+            },
+            ["application_id", "issue_id"],
+        ),
+        "write": False,
+        "handler": lambda c, a: c.explain_error(a["application_id"], a["issue_id"]),
+    },
+    {
         "name": "app_logs",
         "description": "Runtime container logs for an app.",
         "inputSchema": _schema(_project_arg("App/project name"), ["project"]),

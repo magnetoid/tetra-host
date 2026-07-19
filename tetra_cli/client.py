@@ -408,6 +408,11 @@ class TetraClient:
     def explain_deployment(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}/explain")
 
+    def explain_error(self, application_id: str, issue_id: str) -> Any:
+        return self._request(
+            "GET", f"/projects/{application_id}/errors/{issue_id}/explain"
+        )
+
     def deploy_status(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}")
 

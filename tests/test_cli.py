@@ -802,6 +802,35 @@ def test_main_ai_explain_renders(monkeypatch, capsys):
     assert "Dependency conflict" in out and "commit a lockfile" in out and "ERESOLVE" in out
 
 
+def test_client_explain_error_issues_get():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/projects/app-7/errors/42/explain"
+        return httpx.Response(200, json={
+            "issue_id": "42", "title": "TypeError: x is not a function", "culprit": "a.js",
+            "summary": "type error", "category": "type-error", "likely_causes": ["wrong type"],
+            "suggested_fixes": ["validate inputs"], "confidence": "high", "source": "heuristic",
+        })
+
+    result = make_client(handler).explain_error("app-7", "42")
+    assert result["category"] == "type-error"
+
+
+def test_main_ai_explain_error_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "issue_id": "42", "title": "TypeError: boom", "culprit": "svc/pay.js",
+            "summary": "a value was used as the wrong type", "category": "type-error",
+            "likely_causes": ["called a non-function"], "suggested_fixes": ["check the type"],
+            "confidence": "medium", "source": "ai",
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["ai", "explain-error", "app-7", "42"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "TypeError: boom" in out and "check the type" in out and "svc/pay.js" in out
+
+
 # ── Mail (Phase 2) ──────────────────────────────────────────────────────────
 
 
