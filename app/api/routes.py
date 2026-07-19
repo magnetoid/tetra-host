@@ -148,6 +148,10 @@ from app.api.contracts import (
     TenantResourceCreateRequest,
     TenantResourceSummary,
     TenantStatusCounts,
+    NotificationChannelCreated,
+    NotificationChannelSummary,
+    CreateNotificationChannelRequest,
+    NotificationTestResult,
     TenantSummary,
     TwoFactorDisableRequest,
     TwoFactorEnableRequest,
@@ -164,6 +168,7 @@ from app.api.contracts import (
 from app.config import get_settings
 from app.api.security import create_api_token, read_api_token
 from app.services.api_tokens import ApiTokenService, looks_like_personal_token
+from app.services.notifications import NotificationService, TEST_EVENT
 from app.db import get_db_session
 from app.models import AdminUser, ApiToken, Tenant, TenantResource
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
@@ -1125,6 +1130,89 @@ async def api_two_factor_disable(
     ))
     await session.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _notification_summary(channel) -> NotificationChannelSummary:
+    return NotificationChannelSummary(
+        id=channel.id,
+        name=channel.name,
+        url=channel.url,
+        events=channel.events,
+        enabled=channel.enabled,
+        created_at=channel.created_at.isoformat() if channel.created_at else "",
+        last_delivered_at=channel.last_delivered_at.isoformat() if channel.last_delivered_at else "",
+        last_status=channel.last_status or "",
+    )
+
+
+@router.get("/account/notifications", response_model=list[NotificationChannelSummary])
+async def api_list_notifications(
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[NotificationChannelSummary]:
+    rows = await NotificationService(session).list_for_tenant(current_admin.tenant_id)
+    return [_notification_summary(row) for row in rows]
+
+
+@router.post(
+    "/account/notifications",
+    response_model=NotificationChannelCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+async def api_create_notification(
+    body: CreateNotificationChannelRequest,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> NotificationChannelCreated:
+    """Register an outbound webhook. The signing ``secret`` is returned once."""
+    url = body.url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="URL must start with http:// or https://."
+        )
+    channel = await NotificationService(session).create(
+        current_admin.tenant_id, name=body.name, url=url, events=body.events
+    )
+    session.add(AuditEvent(
+        actor_email=current_admin.email, action="notification.create", target=channel.name
+    ))
+    await session.flush()
+    return NotificationChannelCreated(
+        **_notification_summary(channel).model_dump(), secret=channel.secret
+    )
+
+
+@router.delete("/account/notifications/{channel_id}")
+async def api_delete_notification(
+    channel_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> dict[str, bool]:
+    deleted = await NotificationService(session).delete(current_admin.tenant_id, channel_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found.")
+    session.add(AuditEvent(
+        actor_email=current_admin.email, action="notification.delete", target=channel_id
+    ))
+    await session.flush()
+    return {"ok": True}
+
+
+@router.post("/account/notifications/{channel_id}/test", response_model=NotificationTestResult)
+async def api_test_notification(
+    channel_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> NotificationTestResult:
+    """Send a sample event to verify the endpoint + signature wiring."""
+    service = NotificationService(session)
+    channel = await service.get(current_admin.tenant_id, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found.")
+    ok, label = await service.deliver(
+        channel, TEST_EVENT, {"message": "Test notification from Tetra Host.", "channel": channel.name}
+    )
+    return NotificationTestResult(ok=ok, status=label)
 
 
 @router.get("/projects/{application_id}/envs")

@@ -35,6 +35,7 @@ from app.services.builder import BuildError, Builder
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.limits import apply_resource_limits
+from app.services.notifications import DEPLOY_FAILED, DEPLOY_SUCCEEDED, NotificationService
 from app.services.quota import QuotaService
 from app.services.registry import ImageRegistry, is_registry_qualified
 from app.services.secrets import decrypt, encrypt
@@ -225,6 +226,23 @@ class DeploysService:
                 setattr(deployment, key, value)
             deployment.log = "\n".join(log)
 
+    async def _notify_deploy(
+        self, tenant_id: str | None, project: str, deployment_id: str, event: str,
+        payload: dict[str, object],
+    ) -> None:
+        """Fire outbound webhook notifications for a deploy outcome. Best-effort:
+        opens its own session and swallows every error so a webhook can NEVER
+        affect the deploy that triggered it."""
+        if not tenant_id:
+            return
+        try:
+            async with session_scope() as session:
+                await NotificationService(session).dispatch(
+                    tenant_id, event, {"project": project, "deployment_id": deployment_id, **payload}
+                )
+        except Exception:  # noqa: BLE001 — notifications must never break a deploy
+            logger.warning("deploy notification dispatch failed for %s", deployment_id, exc_info=True)
+
     async def _run_deploy(
         self, deployment_id: str, tenant_id: str | None, *, git_url: str, ref: str, project: str,
         port: int, env_project: str | None = None,
@@ -295,7 +313,12 @@ class DeploysService:
             logger.info(
                 "deployment %s ready: project '%s' image %s", deployment_id, project, image_ref
             )
+            # Only notify for real (non-preview) app deploys.
             if env_project is None:
+                await self._notify_deploy(
+                    tenant_id, project, deployment_id, DEPLOY_SUCCEEDED,
+                    {"status": STATUS_READY, "domain": domain, "commit": build.commit},
+                )
                 await self._prune_old_images(tenant_id, project)
         except (BuildError, DockerEngineError) as exc:
             logger.warning("deployment %s failed for project '%s': %s", deployment_id, project, exc)
@@ -305,6 +328,11 @@ class DeploysService:
             # _run_deploy runs after the request session is closed, so open a fresh scope.
             async with session_scope() as release_session:
                 await QuotaService(release_session, tenant_id or "").release(project)
+            if env_project is None:
+                await self._notify_deploy(
+                    tenant_id, project, deployment_id, DEPLOY_FAILED,
+                    {"status": STATUS_ERROR, "error": str(exc)[:500]},
+                )
         except Exception as exc:  # never leave a deployment stuck in "building"
             logger.exception(
                 "deployment %s crashed unexpectedly (project '%s')", deployment_id, project
@@ -313,6 +341,11 @@ class DeploysService:
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
             async with session_scope() as release_session:
                 await QuotaService(release_session, tenant_id or "").release(project)
+            if env_project is None:
+                await self._notify_deploy(
+                    tenant_id, project, deployment_id, DEPLOY_FAILED,
+                    {"status": STATUS_ERROR, "error": str(exc)[:500]},
+                )
 
     async def _prune_old_images(self, tenant_id: str | None, project: str) -> None:
         """Retention: keep the newest ``keep_images`` DISTINCT images of ``project``'s

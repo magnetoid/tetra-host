@@ -104,6 +104,26 @@ def test_two_factor_status_is_read_only_and_enable_disable_absent():
     assert not names & {"two_factor_enable", "two_factor_disable", "enable_2fa"}
 
 
+def test_notification_channels_read_only_no_write_tools():
+    server = MCPServer(_noop_client(), allow_writes=True)
+    names = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert "list_notification_channels" in names
+    assert not names & {"create_notification_channel", "delete_notification_channel", "test_notification"}
+
+
+def test_call_list_notification_channels():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/account/notifications"
+        return httpx.Response(200, json=[{"id": "n1", "name": "slack", "url": "https://x", "enabled": True}])
+
+    server = MCPServer(make_client(handler))
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "list_notification_channels", "arguments": {}})
+    )
+    assert response["result"]["isError"] is False
+    assert "slack" in response["result"]["content"][0]["text"]
+
+
 def test_call_two_factor_status_returns_state():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/account/2fa"

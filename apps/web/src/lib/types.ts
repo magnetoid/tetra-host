@@ -546,6 +546,26 @@ export interface ApiTokenCreated extends ApiTokenSummary {
   token: string
 }
 
+export interface NotificationChannelSummary {
+  id: string
+  name: string
+  url: string
+  events: string
+  enabled: boolean
+  created_at: string
+  last_delivered_at: string
+  last_status: string
+}
+
+export interface NotificationChannelCreated extends NotificationChannelSummary {
+  secret: string
+}
+
+export interface NotificationTestResult {
+  ok: boolean
+  status: string
+}
+
 export interface TwoFactorStatus {
   enabled: boolean
   backup_codes_remaining: number

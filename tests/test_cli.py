@@ -41,6 +41,26 @@ def test_client_login_forwards_2fa_code():
     assert seen["body"] == {"email": "a@b.c", "password": "secretpass", "code": "123456"}
 
 
+def test_client_notification_methods_build_requests():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path)] = request.content and json.loads(request.content)
+        return httpx.Response(200, json={"id": "n1", "secret": "whsec_x", "ok": True, "status": "ok"})
+
+    client = make_client(handler)
+    client.list_notifications()
+    client.create_notification("slack", "https://hooks.example/x", events="deploy.failed")
+    client.test_notification("n1")
+    client.delete_notification("n1")
+    assert ("GET", "/api/v1/account/notifications") in seen
+    assert seen[("POST", "/api/v1/account/notifications")] == {
+        "name": "slack", "url": "https://hooks.example/x", "events": "deploy.failed"
+    }
+    assert ("POST", "/api/v1/account/notifications/n1/test") in seen
+    assert ("DELETE", "/api/v1/account/notifications/n1") in seen
+
+
 def test_client_two_factor_methods_build_requests():
     seen = {}
 

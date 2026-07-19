@@ -575,6 +575,36 @@ class CreateApiTokenRequest(BaseModel):
     expires_in_days: int | None = None
 
 
+class NotificationChannelSummary(BaseModel):
+    """An outbound webhook notification channel (no secret in list responses)."""
+
+    id: str
+    name: str
+    url: str
+    events: str = "*"
+    enabled: bool = True
+    created_at: str
+    last_delivered_at: str = ""
+    last_status: str = ""
+
+
+class NotificationChannelCreated(NotificationChannelSummary):
+    """Creation response — carries the shared HMAC ``secret`` once (for the receiver)."""
+
+    secret: str
+
+
+class CreateNotificationChannelRequest(BaseModel):
+    name: str
+    url: str
+    events: str = "*"
+
+
+class NotificationTestResult(BaseModel):
+    ok: bool
+    status: str
+
+
 class TwoFactorStatus(BaseModel):
     """Whether the current admin has TOTP two-factor auth enabled."""
 
