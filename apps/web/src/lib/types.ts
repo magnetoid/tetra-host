@@ -28,6 +28,16 @@ export interface ProviderSummary {
   detail: string
 }
 
+export interface RecentDeployment {
+  id: string
+  project: string
+  ref: string
+  commit: string
+  status: string
+  domain: string
+  created_at: string
+}
+
 export interface DashboardResponse {
   providers: ProviderSummary[]
   metrics: {
@@ -36,7 +46,13 @@ export interface DashboardResponse {
     mail_domains: number
     dns_zones: number
     admins: number
+    mailboxes: number
+    deploys_24h: number
+    deploys_ok_24h: number
+    monitors_total: number
+    monitors_up: number
   }
+  recent_deployments: RecentDeployment[]
 }
 
 export interface ProjectRecord {

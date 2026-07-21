@@ -75,7 +75,14 @@ export default async function SuperAdminPage() {
     fetchDegraded<DashboardResponse>(
       "/dashboard",
       "Providers",
-      { providers: [], metrics: { projects: 0, unhealthy_projects: 0, mail_domains: 0, dns_zones: 0, admins: 0 } },
+      {
+        providers: [],
+        metrics: {
+          projects: 0, unhealthy_projects: 0, mail_domains: 0, dns_zones: 0, admins: 0,
+          mailboxes: 0, deploys_24h: 0, deploys_ok_24h: 0, monitors_total: 0, monitors_up: 0,
+        },
+        recent_deployments: [],
+      },
       { token: session.token },
     ),
     fetchDegraded<DNSResponse>(

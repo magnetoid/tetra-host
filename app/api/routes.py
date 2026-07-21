@@ -128,6 +128,7 @@ from app.api.contracts import (
     PlanSummary,
     PlanUpdateRequest,
     PlatformAiSummary,
+    RecentDeployment,
     PlatformOverview,
     PlatformResourceUsage,
     PlatformRevenue,
@@ -700,14 +701,65 @@ async def api_dashboard(
         select(func.count()).select_from(AdminUser).where(AdminUser.tenant_id == current_admin.tenant_id)
     ) or 0
     unhealthy_sites = sum(1 for site in sites if "unhealthy" in site.status or "exited" in site.status)
+
+    # ── Editorial-dashboard aggregates, all over existing tables ──────────────
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import Deployment, UptimeMonitor
+    from app.models.deployment import STATUS_READY
+
+    tid = current_admin.tenant_id
+    since = datetime.now(UTC) - timedelta(hours=24)
+    deploys_24h = await session.scalar(
+        select(func.count()).select_from(Deployment).where(
+            Deployment.tenant_id == tid, Deployment.created_at >= since
+        )
+    ) or 0
+    deploys_ok_24h = await session.scalar(
+        select(func.count()).select_from(Deployment).where(
+            Deployment.tenant_id == tid, Deployment.created_at >= since,
+            Deployment.status == STATUS_READY,
+        )
+    ) or 0
+    monitors_total = await session.scalar(
+        select(func.count()).select_from(UptimeMonitor).where(UptimeMonitor.tenant_id == tid)
+    ) or 0
+    monitors_up = await session.scalar(
+        select(func.count()).select_from(UptimeMonitor).where(
+            UptimeMonitor.tenant_id == tid, UptimeMonitor.status == "up"
+        )
+    ) or 0
+    recent_rows = (
+        await session.scalars(
+            select(Deployment)
+            .where(Deployment.tenant_id == tid)
+            .order_by(Deployment.created_at.desc())
+            .limit(6)
+        )
+    ).all()
+    recent_deployments = [
+        RecentDeployment(
+            id=row.id, project=row.project, ref=row.ref, commit=(row.commit or "")[:7],
+            status=row.status, domain=row.domain,
+            created_at=row.created_at.isoformat() if row.created_at else "",
+        )
+        for row in recent_rows
+    ]
+
     return DashboardResponse(
         providers=providers,
+        recent_deployments=recent_deployments,
         metrics=DashboardMetrics(
             projects=len(sites),
             unhealthy_projects=unhealthy_sites,
             mail_domains=len(domains),
             dns_zones=len(zones),
             admins=int(admin_count),
+            mailboxes=len(mailboxes),
+            deploys_24h=int(deploys_24h),
+            deploys_ok_24h=int(deploys_ok_24h),
+            monitors_total=int(monitors_total),
+            monitors_up=int(monitors_up),
         ),
     )
 
