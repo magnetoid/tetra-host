@@ -53,33 +53,38 @@
   --radius: 0.375rem;
 }
 
-/* ── Light theme (opt-in via data-theme="light" on <html>) ─────────────────
-   The console was dark-only; this remaps the semantic tokens plus the handful of
-   fixed zinc utilities the components lean on, so a theme flip reads correctly. */
+/* ── Light theme = DEFAULT (warm editorial palette) ────────────────────────
+   The approved redesign is a warm, near-white editorial surface with hairline
+   dividers and an indigo accent (Linear/Vercel/Stripe register). This is the
+   default; dark is opt-in. Remaps the semantic tokens plus the fixed zinc
+   utilities the older components lean on, so both themes read correctly. */
 [data-theme="light"] {
-  --background: #ffffff;
-  --foreground: #18181b;
-  --muted: #f4f4f5;
-  --border: #e4e4e7;
-  --card: #ffffff;
-  --card-foreground: #18181b;
+  --background: #faf9f5; /* warm near-white canvas */
+  --foreground: #1a1a1a; /* near-black ink */
+  --muted: #f2f0ea; /* warm muted fill */
+  --border: #e6e4dd; /* warm hairline */
+  --card: #ffffff; /* panels sit a touch brighter than the canvas */
+  --card-foreground: #1a1a1a;
   --popover: #ffffff;
-  --popover-foreground: #18181b;
-  --secondary: #e4e4e7;
-  --secondary-foreground: #18181b;
-  --muted-foreground: #52525b;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --input: #e4e4e7;
+  --popover-foreground: #1a1a1a;
+  --primary: #6366f1; /* indigo accent (links, progress, active tab) */
+  --secondary: #eceae3;
+  --secondary-foreground: #1a1a1a;
+  --muted-foreground: #6b6862; /* warm gray for labels/sub-lines */
+  --accent: #f2f0ea;
+  --accent-foreground: #1a1a1a;
+  --input: #e6e4dd;
+  --ring: #6366f1;
 
-  /* Chart chrome for light mode */
-  --chart-grid: #e4e4e7;
-  --chart-axis: #71717a;
-  --chart-cursor: #d4d4d8;
+  /* Chart chrome for the warm light canvas */
+  --chart-grid: #e6e4dd;
+  --chart-axis: #8a877e;
+  --chart-cursor: #d8d5cc;
   --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-border: #e4e4e7;
+  --chart-tooltip-border: #e6e4dd;
 
-  /* Darken series + status hues for contrast on a white canvas */
+  /* Series + status hues tuned for the warm-white canvas (bold-text legible) */
+  --chart-1: #6366f1;
   --chart-2: #0891b2;
   --chart-3: #059669;
   --chart-4: #d97706;
@@ -88,7 +93,7 @@
   --status-ok: #059669;
   --status-warn: #d97706;
   --status-err: #dc2626;
-  --status-live: #0891b2;
+  --status-live: #0d9488;
   color-scheme: light;
 }
 
