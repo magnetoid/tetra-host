@@ -1,54 +1,65 @@
 import Link from "next/link"
 
-import { AppStatus } from "@/components/ui/app-status"
-import { Card } from "@/components/ui/card"
+import { DeploymentsPanel } from "@/components/dashboard/deployments-panel"
+import { KpiRail, type Kpi } from "@/components/dashboard/kpi-rail"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
-import { EmptyState } from "@/components/ui/empty-state"
-import { PageHeader, RefreshLink } from "@/components/ui/page-header"
-import { StatCard } from "@/components/ui/stat-card"
 import { fetchBackend } from "@/lib/api"
 import { requireConsoleSession } from "@/lib/auth"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
-import { faEnvelope, faGlobe, faServer, faTriangleExclamation } from "@/lib/icons"
-import type { DashboardResponse, DNSResponse, MailResponse, ProjectRecord } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import type {
+  DashboardResponse,
+  DNSResponse,
+  MailResponse,
+  ProjectRecord,
+  ProviderSummary,
+} from "@/lib/types"
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
-
-// A project groups one-or-more deployable apps (mirrors Coolify's project →
-// resources). We group the flat app list into projects for the portfolio grid.
-type ProjectGroup = {
-  slug: string
-  name: string
-  apps: ProjectRecord[]
-  domain: string
-  unhealthy: boolean
+const PROVIDER_TONE: Record<string, string> = {
+  ok: "bg-status-ok",
+  operational: "bg-status-ok",
+  connected: "bg-status-ok",
+  degraded: "bg-status-warn",
+  error: "bg-status-err",
+  not_configured: "bg-muted-foreground",
 }
 
-function groupProjects(apps: ProjectRecord[]): ProjectGroup[] {
-  const groups = new Map<string, ProjectGroup>()
+const HEALTHY = new Set(["running", "healthy", "active"])
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+type Portfolio = { slug: string; name: string; domain: string; unhealthy: boolean; appCount: number }
+
+/** Group the flat app list into projects, tracking a display domain + health. */
+function groupPortfolio(apps: ProjectRecord[]): Portfolio[] {
+  const groups = new Map<string, Portfolio>()
   for (const app of apps) {
     const slug = app.project_uuid || `name:${norm(app.project_name || app.name)}`
-    const name = app.project_name || app.name
-    const group =
+    const g =
       groups.get(slug) ??
-      ({ slug, name, apps: [], domain: "", unhealthy: false } as ProjectGroup)
-    group.apps.push(app)
-    if (!group.domain && app.primary_domain) group.domain = app.primary_domain
-    if (app.status && !["running", "healthy", "active"].includes(app.status.toLowerCase())) {
-      group.unhealthy = true
-    }
-    groups.set(slug, group)
+      ({ slug, name: app.project_name || app.name, domain: "", unhealthy: false, appCount: 0 } as Portfolio)
+    g.appCount += 1
+    if (!g.domain && app.primary_domain) g.domain = app.primary_domain
+    if (app.status && !HEALTHY.has(app.status.toLowerCase())) g.unhealthy = true
+    groups.set(slug, g)
   }
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/**
- * Console Overview — the "All projects" view. When a specific project is chosen
- * in the sidebar selector the console routes to that project's own overview
- * (/projects/<slug>); here, with "All projects" selected, it shows the whole
- * portfolio plus a light read on mail/DNS. Operator-level provider health and
- * traffic live on Super Admin, not here.
- */
+function pct(n: number, d: number): string {
+  if (d <= 0) return "—"
+  return `${Math.round((n / d) * 100)}%`
+}
+
+function providerDot(status: string): string {
+  return PROVIDER_TONE[status] ?? "bg-muted-foreground"
+}
+
+function providerWarn(status: string): boolean {
+  const dot = providerDot(status)
+  return dot === "bg-status-warn" || dot === "bg-status-err"
+}
+
+/** Console Overview — editorial dashboard: KPI rail + deployments + resource rail. */
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
   const dashboard = await fetchBackend<DashboardResponse>("/dashboard", { token: session.token })
@@ -67,171 +78,165 @@ export default async function DashboardPage() {
       { token: session.token },
     ),
   ])
-  const projects = groupProjects(projectsRes.data)
+  const projects = groupPortfolio(projectsRes.data)
   const mail = mailRes.data
   const dns = dnsRes.data
   const degraded = degradedSources([projectsRes, mailRes, dnsRes])
-
   const m = dashboard.metrics
+
+  const kpis: Kpi[] = [
+    { label: "Projects", value: String(projects.length || m.projects), sub: `${m.unhealthy_projects} unhealthy`, tone: m.unhealthy_projects > 0 ? "warn" : "muted" },
+    { label: "Deploys / 24h", value: String(m.deploys_24h), sub: m.deploys_24h > 0 ? `${pct(m.deploys_ok_24h, m.deploys_24h)} success` : "none yet", tone: "ok" },
+    { label: "Uptime", value: pct(m.monitors_up, m.monitors_total), sub: m.monitors_total > 0 ? `${m.monitors_up}/${m.monitors_total} up` : "no monitors", tone: m.monitors_total > 0 && m.monitors_up < m.monitors_total ? "err" : "ok" },
+    { label: "DNS zones", value: String(m.dns_zones), sub: "Cloudflare", tone: "muted" },
+    { label: "Mailboxes", value: String(m.mailboxes), sub: `${m.mail_domains} domains`, tone: "muted" },
+    { label: "Admins", value: String(m.admins), sub: session.admin.tenant_name ?? "Workspace", tone: "muted" },
+  ]
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow={session.admin.tenant_name ?? "Workspace"}
-        title="Overview"
-        description="Every project in your workspace, with mail and DNS at a glance."
-        action={
-          <div className="flex gap-2">
-            <RefreshLink href="/dashboard" label="Refresh" />
-            {session.admin.role === "platform_admin" ? (
-              <Link
-                href="/super-admin"
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-accent"
-              >
-                Super Admin
-              </Link>
-            ) : null}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+            {session.admin.tenant_name ?? "Workspace"}
           </div>
-        }
-      />
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Overview</h1>
+        </div>
+        <Link
+          href="/dashboard"
+          className="rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+        >
+          Refresh
+        </Link>
+      </div>
 
       <DegradedBanner sources={degraded} />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={faServer} label="Projects" value={projects.length} hint={session.admin.tenant_name ?? "Your workspace"} accent="text-primary" />
-        <StatCard
-          icon={faTriangleExclamation}
-          label="Unhealthy"
-          value={m.unhealthy_projects}
-          hint={m.unhealthy_projects > 0 ? "Need attention" : "All healthy"}
-          accent={m.unhealthy_projects > 0 ? "text-status-err" : "text-muted-foreground"}
-        />
-        <StatCard icon={faEnvelope} label="Mail domains" value={m.mail_domains} hint="Mailcow" accent="text-muted-foreground" />
-        <StatCard icon={faGlobe} label="DNS zones" value={m.dns_zones} hint="Cloudflare" accent="text-muted-foreground" />
-      </section>
+      <KpiRail items={kpis} />
 
-      {/* All projects — the portfolio grid. */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Projects</h2>
-          <Link href="/projects" className="text-sm text-muted-foreground transition hover:text-foreground">
-            Manage all →
-          </Link>
+      <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+        {/* Left — deployments + portfolio */}
+        <div className="space-y-8">
+          <DeploymentsPanel deployments={dashboard.recent_deployments} />
+
+          <section>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Projects</h2>
+              <Link href="/projects" className="text-sm text-primary transition-colors hover:text-primary/80">
+                Manage all →
+              </Link>
+            </div>
+            {projects.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
+                No projects yet. Deploy from a Git repo or the app catalog.
+              </div>
+            ) : (
+              <div className="divide-y divide-border border-t border-border">
+                {projects.slice(0, 8).map((project) => (
+                  <Link
+                    key={project.slug}
+                    href={`/projects/${project.slug}`}
+                    className="flex items-center gap-4 py-3 text-sm transition-colors hover:bg-accent/50"
+                  >
+                    <span className={cn("size-1.5 shrink-0 rounded-full", project.unhealthy ? "bg-status-err" : "bg-status-ok")} />
+                    <span className="w-40 shrink-0 truncate font-medium">{project.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                      {project.domain || "no domain yet"}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {project.appCount} app{project.appCount === 1 ? "" : "s"}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-        {projects.length === 0 ? (
-          <EmptyState
-            title="No projects yet"
-            description="Deploy from a Git repo or the app catalog to see your projects here."
-            action={
-              <Link
-                href="/projects"
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-accent"
-              >
-                Create your first project →
-              </Link>
-            }
-          />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <Link
-                key={project.slug}
-                href={`/projects/${project.slug}`}
-                className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-accent"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{project.name}</span>
-                  <AppStatus value={project.unhealthy ? "unhealthy" : "running"} />
-                </div>
-                <div className="truncate font-mono text-xs text-muted-foreground">
-                  {project.domain || "no domain yet"}
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {project.apps.length} app{project.apps.length === 1 ? "" : "s"}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
 
-      {/* Secondary resource previews. */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <PreviewPanel title="Mail domains" href="/mail" empty="No mail domains yet.">
-          {mail.domains.slice(0, 4).map((domain) => (
-            <PreviewItem
-              key={domain.domain_name}
-              title={domain.domain_name}
-              subtitle={`${domain.mailboxes} mailboxes · ${domain.aliases} aliases`}
-              mono
-            />
-          ))}
-        </PreviewPanel>
-        <PreviewPanel title="DNS zones" href="/dns" empty="No DNS zones yet.">
-          {dns.zones.slice(0, 4).map((zone) => (
-            <PreviewItem
-              key={zone.id}
-              title={zone.name}
-              subtitle={[zone.status, zone.account_name].filter(Boolean).join(" · ")}
-              mono
-            />
-          ))}
-        </PreviewPanel>
-      </section>
+        {/* Right — resource rail */}
+        <aside className="space-y-8 lg:border-l lg:border-border lg:pl-8">
+          <RailSection title="Providers">
+            <div className="space-y-2.5">
+              {dashboard.providers.map((p: ProviderSummary) => (
+                <div key={p.name} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className={cn("size-1.5 rounded-full", providerDot(p.status))} />
+                    {p.name}
+                  </span>
+                  <span className={cn("truncate text-xs", providerWarn(p.status) ? "text-status-warn" : "text-muted-foreground")}>
+                    {p.detail}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </RailSection>
+
+          <RailSection title="Uptime" href="/monitors">
+            {m.monitors_total > 0 ? (
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-2xl font-semibold tabular-nums">{pct(m.monitors_up, m.monitors_total)}</span>
+                <span className="text-xs text-muted-foreground">{m.monitors_up}/{m.monitors_total} monitors up</span>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No uptime monitors yet.</p>
+            )}
+          </RailSection>
+
+          <RailSection title="Mail" href="/mail">
+            {mail.domains.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No mail domains yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {mail.domains.slice(0, 4).map((d) => (
+                  <div key={d.domain_name} className="flex items-center justify-between text-sm">
+                    <span className="truncate font-mono text-xs">{d.domain_name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{d.mailboxes} mailboxes</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </RailSection>
+
+          <RailSection title="DNS" href="/dns">
+            {dns.zones.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No DNS zones yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {dns.zones.slice(0, 4).map((z) => (
+                  <div key={z.id} className="flex items-center justify-between text-sm">
+                    <span className="truncate font-mono text-xs">{z.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{z.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </RailSection>
+        </aside>
+      </div>
     </div>
   )
 }
 
-function PreviewPanel({
+function RailSection({
   title,
   href,
-  empty,
   children,
 }: {
   title: string
-  href: string
-  empty: string
+  href?: string
   children: React.ReactNode
 }) {
-  const items = Array.isArray(children) ? children : [children]
-  const hasItems = items.some(Boolean)
-
   return (
-    <Card>
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg font-semibold">{title}</h2>
-        <Link href={href} className="text-sm text-muted-foreground transition hover:text-foreground">
-          View all
-        </Link>
+    <section>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {href ? (
+          <Link href={href} className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+            View →
+          </Link>
+        ) : null}
       </div>
-      <div className="mt-4 space-y-3">
-        {hasItems ? (
-          children
-        ) : (
-          <div className="rounded-lg border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
-            {empty}
-          </div>
-        )}
-      </div>
-    </Card>
-  )
-}
-
-function PreviewItem({
-  title,
-  subtitle,
-  mono = false,
-}: {
-  title: string
-  subtitle: string
-  mono?: boolean
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-background p-4 transition-colors hover:border-primary/30">
-      <div className="font-medium">{title}</div>
-      <div className={`mt-1 text-sm text-muted-foreground ${mono ? "font-mono text-xs" : ""}`}>
-        {subtitle || "—"}
-      </div>
-    </div>
+      {children}
+    </section>
   )
 }

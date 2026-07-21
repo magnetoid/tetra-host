@@ -56,6 +56,24 @@ class DashboardMetrics(BaseModel):
     mail_domains: int
     dns_zones: int
     admins: int
+    # Editorial-dashboard aggregates (all computed over existing tables).
+    mailboxes: int = 0
+    deploys_24h: int = 0
+    deploys_ok_24h: int = 0
+    monitors_total: int = 0
+    monitors_up: int = 0
+
+
+class RecentDeployment(BaseModel):
+    """A recent deployment for the Overview deployments table."""
+
+    id: str
+    project: str
+    ref: str = ""
+    commit: str = ""
+    status: str
+    domain: str = ""
+    created_at: str = ""
 
 
 class DashboardResponse(BaseModel):
@@ -63,6 +81,7 @@ class DashboardResponse(BaseModel):
 
     providers: list[ProviderSummary]
     metrics: DashboardMetrics
+    recent_deployments: list[RecentDeployment] = []
 
 
 class ProjectSummary(BaseModel):
