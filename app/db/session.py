@@ -315,23 +315,29 @@ def _backfill_task14(connection) -> None:
         {"e": bootstrap_email},
     )
 
-    # Mark the BOOTSTRAP admin's tenant as platform-scope. The legacy/platform tenant
+    # Mark a platform admin's tenant as platform-scope. The legacy/platform tenant
     # (which owns all pre-multi-tenancy global resources) must fall open in the
     # fail-closed isolation filter, or its admin would see an empty panel. This covers
     # production tenants whose slug isn't 'default' (e.g. 'cloud-industry').
     #
-    # Keyed on the bootstrap EMAIL, never on "any platform_admin": a platform_admin row
-    # that somehow lands in a customer tenant must not silently make that whole tenant
-    # fall open and read every other tenant's resources. Runs AFTER the role backfill
-    # and BEFORE the promotion below, so the promotion sees accurate scope flags.
-    # Idempotent.
+    # `signup_ip IS NULL` is the load-bearing guard. is_platform_scope makes
+    # TenantResourceFilter._fall_open() return True, i.e. that tenant reads EVERY other
+    # tenant's resources — so it must never be reachable from the public signup path.
+    # `POST /api/v1/auth/signup` always stamps signup_ip (falling back to the literal
+    # "unknown"), so a NULL there means the tenant was created by the platform, never by
+    # an anonymous visitor. Operator- and bootstrap-created tenants keep the old
+    # behaviour; a self-serve tenant can no longer be opened even if a platform_admin
+    # row somehow ends up in it.
+    #
+    # Runs AFTER the role backfill and BEFORE the promotion below, so the promotion sees
+    # accurate scope flags. Idempotent.
     connection.execute(
         text(
             "UPDATE tenants SET is_platform_scope=1 "
-            "WHERE id IN (SELECT DISTINCT tenant_id FROM admin_users "
-            "             WHERE role='platform_admin' AND lower(email)=:e)"
-        ),
-        {"e": bootstrap_email},
+            "WHERE signup_ip IS NULL "
+            "  AND id IN (SELECT DISTINCT tenant_id FROM admin_users "
+            "             WHERE role='platform_admin')"
+        )
     )
 
     # Ensure at least one platform_admin exists; if none, promote the oldest admin
