@@ -10,3 +10,6 @@ node_modules/
 
 # SDD subagent scratch (briefs, reports, diffs)
 .superpowers/
+
+# Editable-install build artifact (created by `pip install -e .`)
+*.egg-info/
