@@ -16,6 +16,8 @@ from app.db.base import Base
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
 
+logger = logging.getLogger(__name__)
+
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -305,36 +307,65 @@ def _backfill_task14(connection) -> None:
         )
     )
 
-    # Role backfill: set bootstrap admin email to platform_admin.
+    # Role backfill: set bootstrap admin email to platform_admin. The configured
+    # bootstrap identity is the ONLY email this backfill will ever elevate.
     bootstrap_email = get_settings().admin_bootstrap_email.strip().lower()
     connection.execute(
         text("UPDATE admin_users SET role='platform_admin' WHERE lower(email)=:e"),
         {"e": bootstrap_email},
     )
 
-    # Ensure at least one platform_admin exists; if none, promote the oldest.
+    # Mark the BOOTSTRAP admin's tenant as platform-scope. The legacy/platform tenant
+    # (which owns all pre-multi-tenancy global resources) must fall open in the
+    # fail-closed isolation filter, or its admin would see an empty panel. This covers
+    # production tenants whose slug isn't 'default' (e.g. 'cloud-industry').
+    #
+    # Keyed on the bootstrap EMAIL, never on "any platform_admin": a platform_admin row
+    # that somehow lands in a customer tenant must not silently make that whole tenant
+    # fall open and read every other tenant's resources. Runs AFTER the role backfill
+    # and BEFORE the promotion below, so the promotion sees accurate scope flags.
+    # Idempotent.
+    connection.execute(
+        text(
+            "UPDATE tenants SET is_platform_scope=1 "
+            "WHERE id IN (SELECT DISTINCT tenant_id FROM admin_users "
+            "             WHERE role='platform_admin' AND lower(email)=:e)"
+        ),
+        {"e": bootstrap_email},
+    )
+
+    # Ensure at least one platform_admin exists; if none, promote the oldest admin
+    # THAT ALREADY BELONGS TO A PLATFORM-SCOPE TENANT.
+    #
+    # The tenant-scope restriction is load-bearing. Without it, this promoted "the
+    # oldest admin_user" outright — and on a self-serve panel with no seeded bootstrap
+    # admin, the oldest admin_user is the FIRST PERSON TO SIGN UP. Every restart then
+    # handed an unvetted stranger platform_admin. A self-serve tenant is created with
+    # is_platform_scope=False and nothing above can flip it, so the candidate pool here
+    # can only ever contain genuine platform staff.
+    #
+    # If no candidate exists we intentionally promote NOBODY and log it: a panel with
+    # no administrator is recoverable (set ADMIN_BOOTSTRAP_PASSWORD and restart);
+    # a panel that hands admin to an anonymous signup is not.
     count = connection.execute(
         text("SELECT COUNT(*) FROM admin_users WHERE role='platform_admin'")
     ).scalar() or 0
     if not count:
-        connection.execute(
+        promoted = connection.execute(
             text(
                 "UPDATE admin_users SET role='platform_admin' "
-                "WHERE id=(SELECT id FROM admin_users ORDER BY created_at LIMIT 1)"
+                "WHERE id=(SELECT a.id FROM admin_users a "
+                "          JOIN tenants t ON t.id = a.tenant_id "
+                "          WHERE t.is_platform_scope=1 "
+                "          ORDER BY a.created_at LIMIT 1)"
             )
-        )
-
-    # Mark every platform admin's tenant as platform-scope. The legacy/platform tenant
-    # (which owns all pre-multi-tenancy global resources) must fall open in the
-    # fail-closed isolation filter, or its admin would see an empty panel. This covers
-    # production tenants whose slug isn't 'default' (e.g. 'cloud-industry'). Runs AFTER
-    # the role backfill so the platform_admin rows are set. Idempotent.
-    connection.execute(
-        text(
-            "UPDATE tenants SET is_platform_scope=1 "
-            "WHERE id IN (SELECT DISTINCT tenant_id FROM admin_users WHERE role='platform_admin')"
-        )
-    )
+        ).rowcount
+        if not promoted:
+            logger.warning(
+                "no platform admin exists and no platform-scope admin was eligible for "
+                "promotion; set ADMIN_BOOTSTRAP_EMAIL/ADMIN_BOOTSTRAP_PASSWORD and restart "
+                "to seed one (refusing to promote a self-serve signup)"
+            )
 
 
 def _backfill_task31(connection) -> None:

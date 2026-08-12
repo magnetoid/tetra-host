@@ -96,3 +96,57 @@ def test_restart_does_not_platform_scope_a_self_serve_tenant(client):
             assert tenant.is_platform_scope is False, f"{email}'s tenant fell open"
 
     asyncio.run(go())
+
+
+def test_signup_cannot_claim_the_reserved_bootstrap_admin_email(client):
+    """The configured ADMIN_BOOTSTRAP_EMAIL is a reserved platform identity.
+
+    `_backfill_task14` unconditionally runs
+        UPDATE admin_users SET role='platform_admin' WHERE lower(email)=<bootstrap email>
+    on every start. `admin_bootstrap_email` has a well-known default
+    ("admin@cloud-industry.com", app/config.py). On any panel where that account
+    does not already exist — i.e. ADMIN_BOOTSTRAP_PASSWORD is unset, so
+    `ensure_bootstrap_admin` never seeds it — an attacker simply SIGNS UP with
+    that email and is handed platform_admin on the next restart.
+
+    `ensure_bootstrap_admin` does not help: it returns an existing row untouched,
+    so the attacker keeps their own password.
+    """
+    from app.config import get_settings
+
+    reserved = get_settings().admin_bootstrap_email
+
+    async def clear_seeded():
+        await _drop_seeded_platform_admins()
+
+    asyncio.run(clear_seeded())
+
+    response = client.post(
+        "/api/v1/auth/signup",
+        json={
+            "email": reserved,
+            "password": "correct-horse-battery",
+            "org_name": "Evil Corp",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert not response.json()["admin"]["id"], (
+        "RESERVED IDENTITY TAKEOVER: self-serve signup was allowed to register the "
+        "configured ADMIN_BOOTSTRAP_EMAIL, which the startup backfill elevates to "
+        "platform_admin"
+    )
+
+    async def go():
+        # A restart re-runs the email-keyed role backfill.
+        await init_db()
+        async with session_scope() as session:
+            admin = (
+                await session.scalars(select(AdminUser).where(AdminUser.email == reserved))
+            ).first()
+            if admin is not None:
+                assert admin.role != ROLE_PLATFORM_ADMIN, (
+                    "PRIVILEGE ESCALATION: a self-serve signup holding the bootstrap "
+                    "email was promoted to platform_admin"
+                )
+
+    asyncio.run(go())
