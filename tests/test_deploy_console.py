@@ -189,7 +189,16 @@ def test_api_deployment_detail_returns_parsed_log(client, monkeypatch):
             deployment_log=json.dumps([{"output": "hello world", "type": "stdout", "timestamp": "t1"}]),
         )
 
+    async def fake_list_for_app(self, application_uuid):
+        # dep-1 must actually belong to app-console: the route now binds the
+        # deployment id to its parent application (Coolify's deployment endpoints
+        # are flat, so the app-ownership check alone does not scope them).
+        return [CoolifyDeployment(id="dep-1", status="finished")]
+
     monkeypatch.setattr("app.services.coolify.CoolifyClient.get_deployment", fake_get_deployment)
+    monkeypatch.setattr(
+        "app.services.coolify.CoolifyClient.list_deployments_for_application", fake_list_for_app
+    )
 
     token = _login(client)
     response = client.get("/api/v1/projects/app-console/deployments/dep-1", headers=_auth(token))
