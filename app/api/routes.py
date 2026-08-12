@@ -1446,8 +1446,14 @@ async def api_stream_deployment_logs(
     service = ProjectsService(request)
     # Validate tenant access once, up front: the request DB session is not
     # safely usable inside the long-lived streaming generator below.
+    #
+    # This must validate the DEPLOYMENT, not just the application: the generator
+    # below calls the flat /api/v1/deployments/{uuid} endpoint, so an app-only
+    # check would let any tenant stream any other tenant's live build log.
     try:
-        await service.ensure_access_for_tenant(session, current_admin.tenant_id, application_id)
+        await service.ensure_deployment_access_for_tenant(
+            session, current_admin.tenant_id, application_id, deployment_id
+        )
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc

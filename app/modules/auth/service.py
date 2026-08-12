@@ -225,6 +225,24 @@ class AuthService:
         self.validate_password(password)
 
         normalized_email = self.normalize_email(email)
+
+        # The configured bootstrap identity is RESERVED. `_backfill_task14` runs
+        # `UPDATE admin_users SET role='platform_admin' WHERE lower(email)=<bootstrap>`
+        # on every start, and `admin_bootstrap_email` has a well-known default. Without
+        # this guard, anyone could sign up as that address on a panel that has not seeded
+        # it (ADMIN_BOOTSTRAP_PASSWORD unset) and be handed platform_admin on the next
+        # restart — `ensure_bootstrap_admin` returns an existing row untouched, so the
+        # attacker would keep their own password too.
+        #
+        # Returns the same None sentinel as a duplicate email: the caller renders a
+        # non-distinguishing response, so this does not become an oracle for the
+        # platform's admin address.
+        from app.config import get_settings  # local import to avoid circular
+
+        if normalized_email == self.normalize_email(get_settings().admin_bootstrap_email):
+            logger.warning("signup refused: attempt to claim the reserved bootstrap admin email")
+            return None
+
         existing = await self.get_admin_by_email(normalized_email)
         if existing is not None:
             # Duplicate email — return None (sentinel) without creating anything.

@@ -4,12 +4,16 @@ from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse
 
 from app.models import AdminUser
-from app.routes.deps import require_admin, verify_csrf_token
+from app.routes.deps import require_platform_admin, verify_csrf_token
 from app.templating import build_templates
 
 templates = build_templates()
 router = APIRouter(prefix="/maintenance", tags=["maintenance"])
 
+# PLATFORM-ADMIN ONLY. Every command here targets the SHARED orchestrator over root
+# SSH and is global in blast radius — "down" takes every tenant's applications
+# offline, "cleanup:redis" flushes the shared cache. There is no tenant-scoped
+# variant of any of it, so the only correct guard is require_platform_admin.
 COOLIFY_SSH = "root@65.21.238.89"
 COOLIFY_CONTAINER = "coolify"
 
@@ -43,7 +47,7 @@ async def _run_artisan(command: str) -> tuple[int, str]:
 @router.get("")
 async def maintenance_page(
     request: Request,
-    current_admin: AdminUser = Depends(require_admin),
+    current_admin: AdminUser = Depends(require_platform_admin),
 ):
     return templates.TemplateResponse(
         request,
@@ -63,7 +67,7 @@ async def run_command(
     request: Request,
     command: str = Form(...),
     csrf_token: str = Form(...),
-    current_admin: AdminUser = Depends(require_admin),
+    current_admin: AdminUser = Depends(require_platform_admin),
 ):
     verify_csrf_token(request, csrf_token)
     if command not in ALLOWED_CMD_NAMES:

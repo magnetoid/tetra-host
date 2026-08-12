@@ -181,11 +181,45 @@ class ProjectsService:
         await self._ensure_tenant_access(session, tenant_id, application_id)
         return await self.client.list_deployments_for_application(application_id)
 
+    async def _ensure_deployment_belongs_to_application(
+        self, application_id: str, deployment_uuid: str,
+    ) -> None:
+        """Bind a deployment id to its parent application.
+
+        Coolify's deployment endpoints are FLAT — ``/api/v1/deployments/{uuid}`` and
+        ``/api/v1/deployments/{uuid}/cancel`` carry no application in the path — so
+        checking the caller owns ``application_id`` constrains NOTHING about which
+        deployment they then name. Without this, any tenant holding one application
+        could read, stream or cancel every deployment on the whole Coolify instance.
+
+        The only application-scoped listing Coolify offers is
+        ``/api/v1/deployments/applications/{uuid}``; membership in that list is what
+        makes the parent ownership check meaningful.
+
+        404, not 403 — a 403 would confirm the deployment exists to someone who has no
+        business knowing it does.
+        """
+        siblings = await self.client.list_deployments_for_application(application_id)
+        if not any(d.id == deployment_uuid for d in siblings):
+            raise ProviderAPIError(
+                service="Coolify", message="Deployment not found.", status_code=404
+            )
+
+    async def ensure_deployment_access_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None,
+        application_id: str, deployment_uuid: str,
+    ) -> None:
+        """Public guard for streaming endpoints, which must validate once up front
+        (the request DB session is not usable inside a long-lived response generator)."""
+        await self._ensure_tenant_access(session, tenant_id, application_id)
+        await self._ensure_deployment_belongs_to_application(application_id, deployment_uuid)
+
     async def get_deployment_for_tenant(
         self, session: AsyncSession, tenant_id: str | None,
         application_id: str, deployment_uuid: str,
     ) -> CoolifyDeployment | None:
         await self._ensure_tenant_access(session, tenant_id, application_id)
+        await self._ensure_deployment_belongs_to_application(application_id, deployment_uuid)
         return await self.client.get_deployment(deployment_uuid)
 
     async def cancel_deployment_for_tenant(
@@ -193,6 +227,7 @@ class ProjectsService:
         application_id: str, deployment_uuid: str,
     ) -> dict[str, object]:
         await self._ensure_tenant_access(session, tenant_id, application_id)
+        await self._ensure_deployment_belongs_to_application(application_id, deployment_uuid)
         return await self.client.cancel_deployment(deployment_uuid)
 
 
