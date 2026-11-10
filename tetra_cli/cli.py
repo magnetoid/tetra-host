@@ -10,7 +10,6 @@ from tetra_cli import __version__
 from tetra_cli.client import TetraClient, TetraError
 from tetra_cli.config import load_config, save_config
 
-
 # ── output helpers ────────────────────────────────────────────────────────
 
 def _use_color() -> bool:

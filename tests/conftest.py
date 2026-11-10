@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-
 os.environ.setdefault("APP_SECRET", "test-secret-key")
 os.environ.setdefault("APP_ENV", "development")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./data/test_tetra_host.db")

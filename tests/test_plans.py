@@ -1,11 +1,10 @@
 import asyncio
 
-from app.db import session_scope, init_db
+from app.db import init_db, session_scope
 from app.models import Plan, Tenant
 from app.models.admin import ROLE_OWNER
 from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING
 from app.modules.auth.service import AuthService
-
 
 # ---------------------------------------------------------------------------
 # Existing model tests (preserved)

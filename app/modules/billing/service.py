@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.models.billing import (
+    CHARGE_PENDING,
     RULE_FIXED_MARGIN,
     RULE_FIXED_PRICE,
     RULE_MARKUP_PERCENT,
-    CHARGE_PENDING,
     PricingRule,
     ResellerCharge,
 )

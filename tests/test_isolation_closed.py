@@ -16,7 +16,6 @@ from app.models.tenant_resource import (
 from app.services.cloudflare import CloudflareZone
 from app.services.tenant_resources import TenantResourceFilter
 
-
 # ---------------------------------------------------------------------------
 # Seed helpers
 # ---------------------------------------------------------------------------

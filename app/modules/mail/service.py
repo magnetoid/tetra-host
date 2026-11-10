@@ -12,7 +12,7 @@ import secrets
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import delete, or_, and_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings

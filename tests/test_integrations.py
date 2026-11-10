@@ -201,8 +201,8 @@ def test_provider_integrations_fall_back_gracefully_on_http_errors():
         async def get(self, url, headers):
             raise httpx.ConnectError('boom')
 
-    import app.services.mailcow as mail_module
     import app.services.cloudflare as cf_module
+    import app.services.mailcow as mail_module
     orig_mail = mail_module.httpx.AsyncClient
     orig_cf = cf_module.httpx.AsyncClient
     mail_module.httpx.AsyncClient = lambda timeout=20: FakeAsyncClient()

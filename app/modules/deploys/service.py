@@ -8,9 +8,9 @@ ENABLE_PROVIDER_ACTIONS.
 """
 
 import asyncio
-import time
 import json
 import logging
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from secrets import token_hex
 from typing import TYPE_CHECKING
@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import session_scope
+from app.models import AppEnvVar, DeployHook, PreviewEnv, TenantResource
 from app.models.deployment import (
     STATUS_BUILDING,
     STATUS_ERROR,
@@ -29,9 +30,8 @@ from app.models.deployment import (
     STATUS_READY,
     Deployment,
 )
-from app.models import AppEnvVar, DeployHook, PreviewEnv, TenantResource
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
-from app.services.builder import BuildError, Builder
+from app.services.builder import Builder, BuildError
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.limits import apply_resource_limits

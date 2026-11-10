@@ -20,7 +20,6 @@ from app.models import AdminUser, Tenant
 from app.models.tenant import TENANT_ACTIVE, TENANT_SUSPENDED
 from app.modules.auth.service import AuthService
 
-
 # ---------------------------------------------------------------------------
 # Seed helpers
 # ---------------------------------------------------------------------------

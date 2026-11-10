@@ -5,11 +5,15 @@ from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import inspect, text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.config import get_settings
 from app.db.base import Base
-
 
 # Repo root (…/app/db/session.py → parents[2]) so Alembic resolves regardless of
 # the process working directory (systemd runs with WorkingDirectory=/opt/tetra-host).

@@ -8,27 +8,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.contracts import (
-    AppComputeResponse,
-    AppComputeSample,
-    AppEnvVarRequest,
-    AppEnvVarSummary,
-    DeployHookCreated,
-    DeployHookRequest,
-    DeployHookSummary,
-    DomainRequest,
-    DomainSummary,
-    InfraServerCreateRequest,
-    InfraServerCreated,
-    InfraServerSummary,
+    AcceptInviteRequest,
     AccountUpdateRequest,
+    ActionResponse,
     AdminResponse,
     AdminSummary,
-    AppActionResponse,
-    AppInstallRequest,
-    AppTemplateSummary,
-    AuditEventSummary,
-    AuditLogResponse,
-    AuthResponse,
     AiChatRequest,
     AiChatResponse,
     AiChatUsage,
@@ -40,69 +24,69 @@ from app.api.contracts import (
     AiStatusResponse,
     AiUsageEventSummary,
     AiUsageReport,
-    CreditBalanceResponse,
-    CreditTopupRequest,
-    CreditTransactionSummary,
-    TenantCreditOverview,
-    CloudflarePlanSummary,
-    PlanActivateRequest,
-    PriceQuote,
-    PricingRuleRequest,
-    PricingRuleSummary,
-    ResellableServiceSummary,
-    ResellerChargeSummary,
-    ServiceActivateResponse,
-    ZoneSubscriptionSummary,
     ApiTokenCreated,
     ApiTokenSummary,
-    BuildDiagnosis,
-    CreateApiTokenRequest,
-    ErrorDiagnosis,
+    AppActionResponse,
+    AppComputeResponse,
+    AppComputeSample,
+    AppEnvVarRequest,
+    AppEnvVarSummary,
+    AppInstallRequest,
+    AppStorageCreateRequest,
+    AppStorageSummary,
+    AppTemplateSummary,
+    AuditEventSummary,
+    AuditLogResponse,
+    AuthResponse,
     BackupConfigSummary,
     BackupCreateRequest,
     BucketCreated,
     BucketProvisionRequest,
     BucketSummary,
+    BuildDiagnosis,
     CachePurgeRequest,
-    JobCreateRequest,
-    JobRunSummary,
-    JobUpdateRequest,
-    ScheduledJobSummary,
-    AcceptInviteRequest,
-    InviteCreateRequest,
-    InviteCreateResponse,
-    InvitePreviewResponse,
-    RoleChangeRequest,
-    TeamInviteSummary,
-    TeamMemberSummary,
-    TeamResponse,
-    SSOAuthorizeResponse,
-    SSOCallbackRequest,
-    SSOConfigRequest,
-    SSOConfigResponse,
+    CloudflarePlanSummary,
+    CreateApiTokenRequest,
+    CreateNotificationChannelRequest,
+    CreateUptimeMonitorRequest,
+    CreditBalanceResponse,
+    CreditTopupRequest,
+    CreditTransactionSummary,
+    DashboardMetrics,
+    DashboardResponse,
     DatabaseProvisionRequest,
     DatabaseSummary,
     DatabaseTargetOption,
     DatabaseTargets,
-    DashboardMetrics,
-    StatusComponent,
-    StatusResponse,
-    StorageStatusResponse,
-    DashboardResponse,
+    DeployHookCreated,
+    DeployHookRequest,
+    DeployHookSummary,
     DeploymentDetail,
     DeploymentLogLine,
     DeploymentStatus,
     DeployStartResponse,
+    DnsExportResponse,
+    DnsImportRequest,
     DNSRecordCreateRequest,
     DNSRecordSummary,
     DNSResponse,
-    DNSZoneSummary,
-    DnsExportResponse,
-    DnsImportRequest,
     DnssecUpdateRequest,
+    DNSZoneSummary,
+    DomainRequest,
+    DomainSummary,
     EnvVarCreateRequest,
+    ErrorDiagnosis,
     GitDeployRequest,
+    InfraServerCreated,
+    InfraServerCreateRequest,
+    InfraServerSummary,
     InstalledAppSummary,
+    InviteCreateRequest,
+    InviteCreateResponse,
+    InvitePreviewResponse,
+    JobCreateRequest,
+    JobRunSummary,
+    JobUpdateRequest,
     MailAliasCreateRequest,
     MailAliasSummary,
     MailAppPasswordCreateRequest,
@@ -123,95 +107,111 @@ from app.api.contracts import (
     MailRelayhostCreateResponse,
     MailRelayhostSummary,
     MailResponse,
+    NotificationChannelCreated,
+    NotificationChannelSummary,
+    NotificationTestResult,
     PasswordChangeRequest,
+    PlanActivateRequest,
     PlanCreateRequest,
     PlanSummary,
     PlanUpdateRequest,
     PlatformAiSummary,
-    RecentDeployment,
     PlatformOverview,
     PlatformResourceUsage,
     PlatformRevenue,
     PlatformTotals,
     PreviewSummary,
+    PriceQuote,
+    PricingRuleRequest,
+    PricingRuleSummary,
     ProjectAnalytics,
-    ProjectErrors,
-    ProviderSummary,
-    SignupRequest,
-    ActionResponse,
-    AppStorageCreateRequest,
-    AppStorageSummary,
     ProjectDeploymentSummary,
+    ProjectErrors,
     ProjectSummary,
     ProjectUpdateRequest,
+    ProviderSummary,
+    RecentDeployment,
+    ResellableServiceSummary,
+    ResellerChargeSummary,
+    RoleChangeRequest,
+    ScheduledJobSummary,
+    ServiceActivateResponse,
+    SignupRequest,
+    SSOAuthorizeResponse,
+    SSOCallbackRequest,
+    SSOConfigRequest,
+    SSOConfigResponse,
+    StatusComponent,
+    StatusResponse,
+    StorageStatusResponse,
+    TeamInviteSummary,
+    TeamMemberSummary,
+    TeamResponse,
     TenantAdminCreateRequest,
     TenantCreateRequest,
+    TenantCreditOverview,
     TenantResourceCreateRequest,
     TenantResourceSummary,
     TenantStatusCounts,
-    NotificationChannelCreated,
-    NotificationChannelSummary,
-    CreateNotificationChannelRequest,
-    CreateUptimeMonitorRequest,
-    NotificationTestResult,
     TenantSummary,
-    UptimeMonitorSummary,
     TwoFactorDisableRequest,
     TwoFactorEnableRequest,
     TwoFactorEnableResponse,
     TwoFactorSetupResponse,
     TwoFactorStatus,
+    UptimeMonitorSummary,
     UsageResponse,
     ZoneAnalytics,
     ZoneAnalyticsPoint,
     ZoneAnalyticsTotals,
     ZoneSettings,
     ZoneSettingUpdateRequest,
+    ZoneSubscriptionSummary,
 )
-from app.config import get_settings
 from app.api.security import create_api_token, read_api_token
-from app.services.api_tokens import ApiTokenService, looks_like_personal_token
-from app.services.notifications import NotificationService, TEST_EVENT
-from app.services.uptime import UptimeService
+from app.config import get_settings
 from app.db import get_db_session
 from app.models import AdminUser, ApiToken, Tenant, TenantResource
-from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
-from app.models.tenant_resource import RESOURCE_TYPE_APP, RESOURCE_TYPE_DATABASE
+from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
 from app.models.audit import AuditEvent
-from app.models.plan import Plan
-from app.modules.analytics.service import AnalyticsService
-from app.modules.apps.service import AppsService
-from app.modules.auth.service import AuthService
-from app.modules.databases.service import DatabasesService
-from app.modules.deploys.service import DeploysService
-from app.modules.domains.service import DomainsService
-from app.modules.dns.service import DnsService
-from app.modules.errors.service import ErrorsService
-from app.modules.plans.service import PlanService
 from app.models.billing import (
     MICRO_USD_PER_USD,
     AiUsageEvent,
     ResellerCharge,
     TenantCredit,
 )
+from app.models.plan import Plan
+from app.models.tenant import TENANT_ACTIVE, TENANT_PENDING, TENANT_REJECTED, TENANT_SUSPENDED
+from app.models.tenant_resource import (
+    RESOURCE_TYPE_APP,
+    RESOURCE_TYPE_DATABASE,
+    RESOURCE_TYPE_DNS_ZONE,
+)
+from app.modules.analytics.service import AnalyticsService
+from app.modules.apps.service import AppsService
+from app.modules.auth.service import AuthService
 from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
+from app.modules.databases.service import DatabasesService
+from app.modules.deploys.service import DeploysService
+from app.modules.dns.service import DnsService
+from app.modules.domains.service import DomainsService
+from app.modules.errors.service import ErrorsService
 from app.modules.jobs.service import JobError, JobsService
-from app.modules.team.service import TeamError, TeamService
-from app.modules.sso.service import SSOError, SSOService
-from app.modules.reseller.ai_service import AiResellerService
-from app.modules.reseller.storage_service import StorageService
-from app.modules.reseller.service import ResellerError, ResellerService
-from app.services.builder import BuildError
-from app.services.docker_engine import DockerEngineError
 from app.modules.mail.service import MailService
+from app.modules.plans.service import PlanService
 from app.modules.projects.service import ProjectsService
+from app.modules.reseller.ai_service import AiResellerService
+from app.modules.reseller.service import ResellerError, ResellerService
+from app.modules.reseller.storage_service import StorageService
+from app.modules.sso.service import SSOError, SSOService
+from app.modules.team.service import TeamError, TeamService
+from app.routes.deps import get_auth_service
+from app.services.api_tokens import ApiTokenService, looks_like_personal_token
+from app.services.builder import BuildError
 from app.services.cloudflare import CloudflareClient, count_bind_records
 from app.services.coolify import parse_deployment_log_lines
-from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
-from app.models.tenant_resource import RESOURCE_TYPE_DNS_ZONE
-from app.routes.deps import get_auth_service
-from app.services.http import ProviderAPIError
+from app.services.docker_engine import DockerEngineError
 from app.services.github_webhook import branch_from_ref, push_ref, verify_signature
 from app.services.hetzner import (
     DEFAULT_CLOUD_INIT,
@@ -219,8 +219,11 @@ from app.services.hetzner import (
     mailcow_cloud_init,
     normalize_server,
 )
+from app.services.http import ProviderAPIError
+from app.services.notifications import TEST_EVENT, NotificationService
 from app.services.quota import QuotaService
 from app.services.secrets import decrypt
+from app.services.uptime import UptimeService
 
 # Coolify deployment statuses that mean the build has stopped (terminal).
 _TERMINAL_DEPLOYMENT_STATES = {

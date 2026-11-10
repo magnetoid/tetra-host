@@ -18,13 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AdminUser, TenantInvite
 from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
-from app.modules.auth.service import AuthService
 from app.models.team import (
     INVITABLE_ROLES,
     INVITE_ACCEPTED,
     INVITE_PENDING,
     INVITE_REVOKED,
 )
+from app.modules.auth.service import AuthService
 
 logger = logging.getLogger(__name__)
 

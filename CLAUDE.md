@@ -9,6 +9,11 @@ infrastructure providers — **Coolify** (sites/apps), **Mailcow** (mail), **Clo
 **Hetzner Cloud** (own-infra compute provisioning), plus **Umami**/**GlitchTip** observability sidecars —
 behind a single admin/tenant surface.
 
+**Direction (ADR 0017, `docs/architecture/roadmap.md`):** the native **Tetra Engine** is the deploy
+backend; Coolify is transitional and is being migrated off — give Coolify code fixes only, no new
+Coolify-only features. Target tenancy is platform → reseller (hosting company) → customer → team member,
+with plugins toggled at runtime. Check the roadmap phase before starting structural work.
+
 The repo contains **two independent applications**:
 
 - `app/` — the primary backend: Python **FastAPI** + **Jinja2/HTMX** server-rendered panel. This is the mature, deployed app (systemd → `uvicorn app.main:app` on `127.0.0.1:8088`).
@@ -59,11 +64,13 @@ existing modules.
 
 A module typically has: `routes.py` (thin handlers), `service.py` (business/provider logic), `plugin.py`,
 and sometimes `schemas.py`. Registered plugins (order matters, see `load_plugins()`): `public`, `auth`,
-`dashboard`, `projects`, `databases`, `servers`, `mail`, `dns`, `domains`, `maintenance`, `plans`,
-`account`, `admin`.
+`dashboard`, `projects`, `databases`, `servers`, `mail`, `oidc`, `dns`, `domains`, `maintenance`, `plans`,
+`account`, `admin`. Plugins cannot yet be disabled at runtime and their boundary covers only the Jinja
+routes; all of `/api/v1` still lives in `app/api/routes.py` (roadmap phase 1 splits it per plugin, guarded
+by `tests/test_openapi_snapshot.py` — regenerate with `UPDATE_SNAPSHOTS=1` only for intended changes).
 
-**Not every module has a plugin.** Several modules are **service-only** — `apps`, `analytics`, `deploys`,
-`errors`, `reseller` (and the now-hollow `sites`) ship just a `service.py` with no `plugin.py`, consumed by
+**Not every module has a plugin.** Several modules are **service-only** — `apps`, `analytics`, `billing`,
+`deploys`, `errors`, `jobs`, `reseller`, `sso`, `team` ship just a `service.py` with no `plugin.py`, consumed by
 the `projects` plugin and by [app/api/routes.py](app/api/routes.py). `projects` is the **composite surface**:
 one plugin that renders sites/apps/deployments/metrics/errors as tabs (templates still live under
 `templates/sites/`). So "add a feature" means: a new plugin module when it needs its own nav entry + routes;
@@ -101,9 +108,13 @@ to async drivers (`sqlite+aiosqlite` / `postgresql+asyncpg`); production refuses
 
 **Persistence.** Async SQLAlchemy 2.0. Engine/session in [app/db/session.py](app/db/session.py) — use the
 `get_db_session` FastAPI dependency in routes, or `session_scope()` for background/lifespan work. Models in
-`app/models/` (`AdminUser`, `Tenant`, `TenantResource`, `AuditEvent`), re-exported from
-`app/models/__init__.py`. `init_db()` (called in lifespan) creates tables; Alembic is a dependency but
-migrations aren't the current workflow.
+`app/models/` (tenancy: `AdminUser`, `Tenant`, `TenantResource`, `TenantInvite`, `ApiToken`, `Plan`; engine:
+`Deployment`, `Domain`, `AppEnvVar`, `DeployHook`, `PreviewEnv`; plus billing, jobs, uptime, notifications,
+SSO and `AuditEvent`), re-exported from `app/models/__init__.py`. Schema today is a hybrid: `init_db()`
+runs `create_all` plus startup ALTERs/backfills in `app/db/session.py`, and Alembic (`alembic/versions/`)
+holds a no-op baseline plus later revisions. **New columns go in an Alembic migration, not the startup
+ALTERs** (see `docs/OPERATIONS.md`); roadmap phase 2 moves production to Postgres with migrations only.
+Production currently runs SQLite at `/opt/tetra-host/data/tetra_host.db`.
 
 **Multi-tenancy is a hard requirement, not a feature flag.** Data access, API responses, and admin behavior
 must isolate by tenant. The codebase is mid-migration from platform-global to tenant-aware — see

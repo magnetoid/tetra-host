@@ -1,0 +1,1905 @@
+{
+  "DELETE /api/v1/account/monitors/{monitor_id}": {
+    "operationId": "api_delete_monitor_api_v1_account_monitors__monitor_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:monitor_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/account/notifications/{channel_id}": {
+    "operationId": "api_delete_notification_api_v1_account_notifications__channel_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:channel_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/account/tokens/{token_id}": {
+    "operationId": "api_revoke_token_api_v1_account_tokens__token_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:token_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/ai/keys/{key_hash}": {
+    "operationId": "api_ai_revoke_key_api_v1_ai_keys__key_hash__delete",
+    "parameters": [
+      "header:authorization",
+      "path:key_hash!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/apps/{project}": {
+    "operationId": "api_apps_remove_api_v1_apps__project__delete",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "AppActionResponse"
+  },
+  "DELETE /api/v1/deploy-hooks/{hook_id}": {
+    "operationId": "api_delete_deploy_hook_api_v1_deploy_hooks__hook_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:hook_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/deploys/{project}/env/{key}": {
+    "operationId": "api_delete_deploy_env_api_v1_deploys__project__env__key__delete",
+    "parameters": [
+      "header:authorization",
+      "path:key!",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/dns/zones/{zone_id}/records/{record_id}": {
+    "operationId": "api_delete_dns_record_api_v1_dns_zones__zone_id__records__record_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:record_id!",
+      "path:zone_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/domains/{domain_id}": {
+    "operationId": "api_delete_domain_api_v1_domains__domain_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:domain_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/infra/servers/{server_id}": {
+    "operationId": "api_infra_destroy_api_v1_infra_servers__server_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:server_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/jobs/{job_id}": {
+    "operationId": "api_delete_job_api_v1_jobs__job_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:job_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/mail/aliases/{alias_id}": {
+    "operationId": "api_delete_mail_alias_api_v1_mail_aliases__alias_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:alias_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/mail/domains/{domain}": {
+    "operationId": "api_delete_mail_domain_api_v1_mail_domains__domain__delete",
+    "parameters": [
+      "header:authorization",
+      "path:domain!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/mail/mailboxes/{username}": {
+    "operationId": "api_delete_mailbox_api_v1_mail_mailboxes__username__delete",
+    "parameters": [
+      "header:authorization",
+      "path:username!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/mail/mailboxes/{username}/app-passwords/{app_passwd_id}": {
+    "operationId": "api_delete_app_password_api_v1_mail_mailboxes__username__app_passwords__app_passwd_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:app_passwd_id!",
+      "path:username!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/previews/{preview_id}": {
+    "operationId": "api_delete_preview_api_v1_previews__preview_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:preview_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/projects/{application_id}/envs/{env_uuid}": {
+    "operationId": "api_delete_env_api_v1_projects__application_id__envs__env_uuid__delete",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "path:env_uuid!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/projects/{application_id}/storages/{storage_uuid}": {
+    "operationId": "api_delete_app_storage_api_v1_projects__application_id__storages__storage_uuid__delete",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "path:storage_uuid!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "DELETE /api/v1/sso": {
+    "operationId": "api_delete_sso_api_v1_sso_delete",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/storage/buckets/{name}": {
+    "operationId": "api_delete_bucket_api_v1_storage_buckets__name__delete",
+    "parameters": [
+      "header:authorization",
+      "path:name!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/team/invites/{invite_id}": {
+    "operationId": "api_revoke_invite_api_v1_team_invites__invite_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:invite_id!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "DELETE /api/v1/team/members/{member_id}": {
+    "operationId": "api_remove_member_api_v1_team_members__member_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:member_id!"
+    ],
+    "request": null,
+    "response": "TeamMemberSummary"
+  },
+  "GET /": {
+    "operationId": "landing__get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /.well-known/openid-configuration": {
+    "operationId": "openid_configuration__well_known_openid_configuration_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /account": {
+    "operationId": "account_page_account_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /admin": {
+    "operationId": "admin_index_admin_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /api/v1/account/2fa": {
+    "operationId": "api_two_factor_status_api_v1_account_2fa_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "TwoFactorStatus"
+  },
+  "GET /api/v1/account/monitors": {
+    "operationId": "api_list_monitors_api_v1_account_monitors_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[UptimeMonitorSummary]"
+  },
+  "GET /api/v1/account/notifications": {
+    "operationId": "api_list_notifications_api_v1_account_notifications_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[NotificationChannelSummary]"
+  },
+  "GET /api/v1/account/tokens": {
+    "operationId": "api_list_tokens_api_v1_account_tokens_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[ApiTokenSummary]"
+  },
+  "GET /api/v1/admin": {
+    "operationId": "api_admin_api_v1_admin_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "AdminResponse"
+  },
+  "GET /api/v1/admin/overview": {
+    "operationId": "api_admin_overview_api_v1_admin_overview_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "PlatformOverview"
+  },
+  "GET /api/v1/ai/keys": {
+    "operationId": "api_ai_keys_api_v1_ai_keys_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[AiKeySummary]"
+  },
+  "GET /api/v1/ai/models": {
+    "operationId": "api_ai_models_api_v1_ai_models_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[AiModelSummary]"
+  },
+  "GET /api/v1/ai/status": {
+    "operationId": "api_ai_status_api_v1_ai_status_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "AiStatusResponse"
+  },
+  "GET /api/v1/ai/usage": {
+    "operationId": "api_ai_usage_api_v1_ai_usage_get",
+    "parameters": [
+      "header:authorization",
+      "query:days"
+    ],
+    "request": null,
+    "response": "AiUsageReport"
+  },
+  "GET /api/v1/apps": {
+    "operationId": "api_apps_installed_api_v1_apps_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[InstalledAppSummary]"
+  },
+  "GET /api/v1/apps/catalog": {
+    "operationId": "api_apps_catalog_api_v1_apps_catalog_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[AppTemplateSummary]"
+  },
+  "GET /api/v1/apps/{project}/compute": {
+    "operationId": "api_apps_compute_api_v1_apps__project__compute_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "AppComputeResponse"
+  },
+  "GET /api/v1/apps/{project}/logs": {
+    "operationId": "api_apps_logs_api_v1_apps__project__logs_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "GET /api/v1/audit": {
+    "operationId": "api_audit_log_api_v1_audit_get",
+    "parameters": [
+      "header:authorization",
+      "query:action",
+      "query:actor",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "AuditLogResponse"
+  },
+  "GET /api/v1/audit/export.csv": {
+    "operationId": "api_audit_log_csv_api_v1_audit_export_csv_get",
+    "parameters": [
+      "header:authorization",
+      "query:action",
+      "query:actor"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /api/v1/auth/invite": {
+    "operationId": "api_preview_invite_api_v1_auth_invite_get",
+    "parameters": [
+      "query:token!"
+    ],
+    "request": null,
+    "response": "InvitePreviewResponse"
+  },
+  "GET /api/v1/auth/me": {
+    "operationId": "api_me_api_v1_auth_me_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "AdminSummary"
+  },
+  "GET /api/v1/auth/sso/{slug}/authorize": {
+    "operationId": "api_sso_authorize_api_v1_auth_sso__slug__authorize_get",
+    "parameters": [
+      "path:slug!",
+      "query:redirect_uri!"
+    ],
+    "request": null,
+    "response": "SSOAuthorizeResponse"
+  },
+  "GET /api/v1/billing/charges": {
+    "operationId": "api_billing_charges_api_v1_billing_charges_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[ResellerChargeSummary]"
+  },
+  "GET /api/v1/billing/credits": {
+    "operationId": "api_billing_credits_api_v1_billing_credits_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "CreditBalanceResponse"
+  },
+  "GET /api/v1/billing/credits/overview": {
+    "operationId": "api_billing_credits_overview_api_v1_billing_credits_overview_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[TenantCreditOverview]"
+  },
+  "GET /api/v1/billing/pricing": {
+    "operationId": "api_billing_pricing_api_v1_billing_pricing_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[PricingRuleSummary]"
+  },
+  "GET /api/v1/billing/quote/{offering_key}": {
+    "operationId": "api_billing_quote_api_v1_billing_quote__offering_key__get",
+    "parameters": [
+      "header:authorization",
+      "path:offering_key!",
+      "query:wholesale_cents"
+    ],
+    "request": null,
+    "response": "PriceQuote"
+  },
+  "GET /api/v1/cloudflare/services": {
+    "operationId": "api_cf_services_api_v1_cloudflare_services_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[ResellableServiceSummary]"
+  },
+  "GET /api/v1/cloudflare/zones/{zone_id}/plans": {
+    "operationId": "api_cf_zone_plans_api_v1_cloudflare_zones__zone_id__plans_get",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[CloudflarePlanSummary]"
+  },
+  "GET /api/v1/cloudflare/zones/{zone_id}/subscription": {
+    "operationId": "api_cf_zone_subscription_api_v1_cloudflare_zones__zone_id__subscription_get",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": null,
+    "response": "ZoneSubscriptionSummary"
+  },
+  "GET /api/v1/dashboard": {
+    "operationId": "api_dashboard_api_v1_dashboard_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "DashboardResponse"
+  },
+  "GET /api/v1/databases": {
+    "operationId": "api_list_databases_api_v1_databases_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[DatabaseSummary]"
+  },
+  "GET /api/v1/databases/targets": {
+    "operationId": "api_database_targets_api_v1_databases_targets_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "DatabaseTargets"
+  },
+  "GET /api/v1/databases/{db_uuid}/backups": {
+    "operationId": "api_list_database_backups_api_v1_databases__db_uuid__backups_get",
+    "parameters": [
+      "header:authorization",
+      "path:db_uuid!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[BackupConfigSummary]"
+  },
+  "GET /api/v1/deploy-hooks": {
+    "operationId": "api_list_deploy_hooks_api_v1_deploy_hooks_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[DeployHookSummary]"
+  },
+  "GET /api/v1/deploys": {
+    "operationId": "api_list_deploys_api_v1_deploys_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[DeploymentStatus]"
+  },
+  "GET /api/v1/deploys/{deployment_id}": {
+    "operationId": "api_deploy_status_api_v1_deploys__deployment_id__get",
+    "parameters": [
+      "header:authorization",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": "DeploymentStatus"
+  },
+  "GET /api/v1/deploys/{deployment_id}/explain": {
+    "operationId": "api_explain_deploy_api_v1_deploys__deployment_id__explain_get",
+    "parameters": [
+      "header:authorization",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": "BuildDiagnosis"
+  },
+  "GET /api/v1/deploys/{deployment_id}/logs/stream": {
+    "operationId": "api_stream_deploy_logs_api_v1_deploys__deployment_id__logs_stream_get",
+    "parameters": [
+      "header:authorization",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /api/v1/deploys/{project}/env": {
+    "operationId": "api_list_deploy_env_api_v1_deploys__project__env_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[AppEnvVarSummary]"
+  },
+  "GET /api/v1/dns": {
+    "operationId": "api_dns_api_v1_dns_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "DNSResponse"
+  },
+  "GET /api/v1/dns/zones/{zone_id}/analytics": {
+    "operationId": "api_zone_analytics_api_v1_dns_zones__zone_id__analytics_get",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": null,
+    "response": "ZoneAnalytics"
+  },
+  "GET /api/v1/dns/zones/{zone_id}/export": {
+    "operationId": "api_export_dns_records_api_v1_dns_zones__zone_id__export_get",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": null,
+    "response": "DnsExportResponse"
+  },
+  "GET /api/v1/dns/zones/{zone_id}/settings": {
+    "operationId": "api_zone_settings_api_v1_dns_zones__zone_id__settings_get",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": null,
+    "response": "ZoneSettings"
+  },
+  "GET /api/v1/domains": {
+    "operationId": "api_list_domains_api_v1_domains_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset",
+      "query:project"
+    ],
+    "request": null,
+    "response": "list[DomainSummary]"
+  },
+  "GET /api/v1/edge/ask": {
+    "operationId": "api_edge_ask_api_v1_edge_ask_get",
+    "parameters": [
+      "query:domain"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "GET /api/v1/infra/servers": {
+    "operationId": "api_infra_servers_api_v1_infra_servers_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[InfraServerSummary]"
+  },
+  "GET /api/v1/jobs": {
+    "operationId": "api_list_jobs_api_v1_jobs_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[ScheduledJobSummary]"
+  },
+  "GET /api/v1/jobs/{job_id}/runs": {
+    "operationId": "api_job_runs_api_v1_jobs__job_id__runs_get",
+    "parameters": [
+      "header:authorization",
+      "path:job_id!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[JobRunSummary]"
+  },
+  "GET /api/v1/mail": {
+    "operationId": "api_mail_api_v1_mail_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "MailResponse"
+  },
+  "GET /api/v1/mail/aliases": {
+    "operationId": "api_mail_aliases_api_v1_mail_aliases_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[MailAliasSummary]"
+  },
+  "GET /api/v1/mail/domains/{domain}/dkim": {
+    "operationId": "api_mail_dkim_api_v1_mail_domains__domain__dkim_get",
+    "parameters": [
+      "header:authorization",
+      "path:domain!"
+    ],
+    "request": null,
+    "response": "MailDkimResponse"
+  },
+  "GET /api/v1/mail/mailboxes/{username}/app-passwords": {
+    "operationId": "api_list_app_passwords_api_v1_mail_mailboxes__username__app_passwords_get",
+    "parameters": [
+      "header:authorization",
+      "path:username!"
+    ],
+    "request": null,
+    "response": "list[MailAppPasswordSummary]"
+  },
+  "GET /api/v1/mail/quarantine": {
+    "operationId": "api_list_quarantine_api_v1_mail_quarantine_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[MailQuarantineItem]"
+  },
+  "GET /api/v1/mail/relayhosts": {
+    "operationId": "api_list_mail_relayhosts_api_v1_mail_relayhosts_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[MailRelayhostSummary]"
+  },
+  "GET /api/v1/plans": {
+    "operationId": "api_list_plans_api_v1_plans_get",
+    "parameters": [
+      "header:authorization",
+      "query:include_archived",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[PlanSummary]"
+  },
+  "GET /api/v1/previews": {
+    "operationId": "api_list_previews_api_v1_previews_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset",
+      "query:project"
+    ],
+    "request": null,
+    "response": "list[PreviewSummary]"
+  },
+  "GET /api/v1/projects": {
+    "operationId": "api_projects_api_v1_projects_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[ProjectSummary]"
+  },
+  "GET /api/v1/projects/{application_id}/analytics": {
+    "operationId": "api_project_analytics_api_v1_projects__application_id__analytics_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "query:period"
+    ],
+    "request": null,
+    "response": "ProjectAnalytics"
+  },
+  "GET /api/v1/projects/{application_id}/deployments": {
+    "operationId": "api_project_deployments_api_v1_projects__application_id__deployments_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[ProjectDeploymentSummary]"
+  },
+  "GET /api/v1/projects/{application_id}/deployments/{deployment_id}": {
+    "operationId": "api_deployment_detail_api_v1_projects__application_id__deployments__deployment_id__get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": "DeploymentDetail"
+  },
+  "GET /api/v1/projects/{application_id}/deployments/{deployment_id}/logs/stream": {
+    "operationId": "api_stream_deployment_logs_api_v1_projects__application_id__deployments__deployment_id__logs_stream_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /api/v1/projects/{application_id}/envs": {
+    "operationId": "api_project_envs_api_v1_projects__application_id__envs_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[object]"
+  },
+  "GET /api/v1/projects/{application_id}/errors": {
+    "operationId": "api_project_errors_api_v1_projects__application_id__errors_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": "ProjectErrors"
+  },
+  "GET /api/v1/projects/{application_id}/errors/{issue_id}/explain": {
+    "operationId": "api_explain_error_api_v1_projects__application_id__errors__issue_id__explain_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "path:issue_id!"
+    ],
+    "request": null,
+    "response": "ErrorDiagnosis"
+  },
+  "GET /api/v1/projects/{application_id}/logs": {
+    "operationId": "api_project_logs_api_v1_projects__application_id__logs_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "query:lines"
+    ],
+    "request": null,
+    "response": "object"
+  },
+  "GET /api/v1/projects/{application_id}/storages": {
+    "operationId": "api_list_app_storages_api_v1_projects__application_id__storages_get",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[AppStorageSummary]"
+  },
+  "GET /api/v1/sso": {
+    "operationId": "api_get_sso_api_v1_sso_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "SSOConfigResponse"
+  },
+  "GET /api/v1/status": {
+    "operationId": "api_status_api_v1_status_get",
+    "parameters": [],
+    "request": null,
+    "response": "StatusResponse"
+  },
+  "GET /api/v1/storage/buckets": {
+    "operationId": "api_list_buckets_api_v1_storage_buckets_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[BucketSummary]"
+  },
+  "GET /api/v1/storage/status": {
+    "operationId": "api_storage_status_api_v1_storage_status_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "StorageStatusResponse"
+  },
+  "GET /api/v1/team": {
+    "operationId": "api_team_api_v1_team_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "TeamResponse"
+  },
+  "GET /api/v1/tenants": {
+    "operationId": "api_list_tenants_api_v1_tenants_get",
+    "parameters": [
+      "header:authorization",
+      "query:limit",
+      "query:offset"
+    ],
+    "request": null,
+    "response": "list[TenantSummary]"
+  },
+  "GET /api/v1/usage": {
+    "operationId": "api_usage_api_v1_usage_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "UsageResponse"
+  },
+  "GET /auth/login": {
+    "operationId": "login_form_auth_login_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /dashboard": {
+    "operationId": "index_dashboard_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /databases": {
+    "operationId": "list_databases_databases_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /dns": {
+    "operationId": "dns_index_dns_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /graphql": {
+    "operationId": "handle_http_get_graphql_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /health": {
+    "operationId": "health_health_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /mail": {
+    "operationId": "mail_index_mail_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /maintenance": {
+    "operationId": "maintenance_page_maintenance_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /oidc/authorize": {
+    "operationId": "authorize_oidc_authorize_get",
+    "parameters": [
+      "query:client_id!",
+      "query:nonce",
+      "query:redirect_uri!",
+      "query:response_type",
+      "query:scope",
+      "query:state"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /oidc/jwks": {
+    "operationId": "jwks_oidc_jwks_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /oidc/launch": {
+    "operationId": "launch_oidc_launch_get",
+    "parameters": [
+      "query:mailbox!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /oidc/userinfo": {
+    "operationId": "userinfo_oidc_userinfo_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /projects": {
+    "operationId": "list_projects_projects_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /projects/{application_id}": {
+    "operationId": "project_detail_projects__application_id__get",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /projects/{application_id}/logs": {
+    "operationId": "project_logs_partial_projects__application_id__logs_get",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "GET /ready": {
+    "operationId": "ready_ready_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /servers": {
+    "operationId": "list_servers_servers_get",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "GET /servers/{server_id}": {
+    "operationId": "server_detail_servers__server_id__get",
+    "parameters": [
+      "path:server_id!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "PATCH /api/v1/account": {
+    "operationId": "api_account_update_api_v1_account_patch",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "AccountUpdateRequest",
+    "response": "AdminSummary"
+  },
+  "PATCH /api/v1/ai/keys/{key_hash}": {
+    "operationId": "api_ai_update_key_api_v1_ai_keys__key_hash__patch",
+    "parameters": [
+      "header:authorization",
+      "path:key_hash!"
+    ],
+    "request": "AiKeyUpdateRequest",
+    "response": "AiKeySummary"
+  },
+  "PATCH /api/v1/dns/zones/{zone_id}/dnssec": {
+    "operationId": "api_update_dnssec_api_v1_dns_zones__zone_id__dnssec_patch",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": "DnssecUpdateRequest",
+    "response": "ActionResponse"
+  },
+  "PATCH /api/v1/dns/zones/{zone_id}/settings": {
+    "operationId": "api_update_zone_setting_api_v1_dns_zones__zone_id__settings_patch",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": "ZoneSettingUpdateRequest",
+    "response": "ActionResponse"
+  },
+  "PATCH /api/v1/jobs/{job_id}": {
+    "operationId": "api_update_job_api_v1_jobs__job_id__patch",
+    "parameters": [
+      "header:authorization",
+      "path:job_id!"
+    ],
+    "request": "JobUpdateRequest",
+    "response": "ScheduledJobSummary"
+  },
+  "PATCH /api/v1/mail/mailboxes/{username}": {
+    "operationId": "api_edit_mailbox_api_v1_mail_mailboxes__username__patch",
+    "parameters": [
+      "header:authorization",
+      "path:username!"
+    ],
+    "request": "MailboxEditRequest",
+    "response": "ActionResponse"
+  },
+  "PATCH /api/v1/plans/{plan_id}": {
+    "operationId": "api_update_plan_api_v1_plans__plan_id__patch",
+    "parameters": [
+      "header:authorization",
+      "path:plan_id!"
+    ],
+    "request": "PlanUpdateRequest",
+    "response": "PlanSummary"
+  },
+  "PATCH /api/v1/projects/{application_id}": {
+    "operationId": "api_update_project_api_v1_projects__application_id__patch",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": "ProjectUpdateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /account/password": {
+    "operationId": "change_password_account_password_post",
+    "parameters": [],
+    "request": "Body_change_password_account_password_post",
+    "response": null
+  },
+  "POST /account/profile": {
+    "operationId": "update_profile_account_profile_post",
+    "parameters": [],
+    "request": "Body_update_profile_account_profile_post",
+    "response": null
+  },
+  "POST /admin/admins": {
+    "operationId": "create_tenant_admin_admin_admins_post",
+    "parameters": [],
+    "request": "Body_create_tenant_admin_admin_admins_post",
+    "response": null
+  },
+  "POST /admin/resources": {
+    "operationId": "create_tenant_resource_admin_resources_post",
+    "parameters": [],
+    "request": "Body_create_tenant_resource_admin_resources_post",
+    "response": null
+  },
+  "POST /admin/resources/{resource_id}/delete": {
+    "operationId": "delete_tenant_resource_admin_resources__resource_id__delete_post",
+    "parameters": [
+      "path:resource_id!"
+    ],
+    "request": "Body_delete_tenant_resource_admin_resources__resource_id__delete_post",
+    "response": null
+  },
+  "POST /admin/tenants": {
+    "operationId": "create_tenant_admin_tenants_post",
+    "parameters": [],
+    "request": "Body_create_tenant_admin_tenants_post",
+    "response": null
+  },
+  "POST /admin/tenants/{tenant_slug}/activate": {
+    "operationId": "activate_tenant_admin_tenants__tenant_slug__activate_post",
+    "parameters": [
+      "path:tenant_slug!"
+    ],
+    "request": "Body_activate_tenant_admin_tenants__tenant_slug__activate_post",
+    "response": null
+  },
+  "POST /admin/tenants/{tenant_slug}/deactivate": {
+    "operationId": "deactivate_tenant_admin_tenants__tenant_slug__deactivate_post",
+    "parameters": [
+      "path:tenant_slug!"
+    ],
+    "request": "Body_deactivate_tenant_admin_tenants__tenant_slug__deactivate_post",
+    "response": null
+  },
+  "POST /api/v1/account/2fa/disable": {
+    "operationId": "api_two_factor_disable_api_v1_account_2fa_disable_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "TwoFactorDisableRequest",
+    "response": null
+  },
+  "POST /api/v1/account/2fa/enable": {
+    "operationId": "api_two_factor_enable_api_v1_account_2fa_enable_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "TwoFactorEnableRequest",
+    "response": "TwoFactorEnableResponse"
+  },
+  "POST /api/v1/account/2fa/setup": {
+    "operationId": "api_two_factor_setup_api_v1_account_2fa_setup_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "TwoFactorSetupResponse"
+  },
+  "POST /api/v1/account/monitors": {
+    "operationId": "api_create_monitor_api_v1_account_monitors_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "CreateUptimeMonitorRequest",
+    "response": "UptimeMonitorSummary"
+  },
+  "POST /api/v1/account/monitors/{monitor_id}/check": {
+    "operationId": "api_check_monitor_api_v1_account_monitors__monitor_id__check_post",
+    "parameters": [
+      "header:authorization",
+      "path:monitor_id!"
+    ],
+    "request": null,
+    "response": "UptimeMonitorSummary"
+  },
+  "POST /api/v1/account/notifications": {
+    "operationId": "api_create_notification_api_v1_account_notifications_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "CreateNotificationChannelRequest",
+    "response": "NotificationChannelCreated"
+  },
+  "POST /api/v1/account/notifications/{channel_id}/test": {
+    "operationId": "api_test_notification_api_v1_account_notifications__channel_id__test_post",
+    "parameters": [
+      "header:authorization",
+      "path:channel_id!"
+    ],
+    "request": null,
+    "response": "NotificationTestResult"
+  },
+  "POST /api/v1/account/password": {
+    "operationId": "api_account_password_api_v1_account_password_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "PasswordChangeRequest",
+    "response": "object"
+  },
+  "POST /api/v1/account/tokens": {
+    "operationId": "api_create_token_api_v1_account_tokens_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "CreateApiTokenRequest",
+    "response": "ApiTokenCreated"
+  },
+  "POST /api/v1/ai/chat": {
+    "operationId": "api_ai_chat_api_v1_ai_chat_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "AiChatRequest",
+    "response": "AiChatResponse"
+  },
+  "POST /api/v1/ai/keys": {
+    "operationId": "api_ai_provision_key_api_v1_ai_keys_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "AiKeyProvisionRequest",
+    "response": "AiKeyCreated"
+  },
+  "POST /api/v1/apps/install": {
+    "operationId": "api_apps_install_api_v1_apps_install_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "AppInstallRequest",
+    "response": "AppActionResponse"
+  },
+  "POST /api/v1/apps/{project}/start": {
+    "operationId": "api_apps_start_api_v1_apps__project__start_post",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "AppActionResponse"
+  },
+  "POST /api/v1/apps/{project}/stop": {
+    "operationId": "api_apps_stop_api_v1_apps__project__stop_post",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "AppActionResponse"
+  },
+  "POST /api/v1/auth/accept-invite": {
+    "operationId": "api_accept_invite_api_v1_auth_accept_invite_post",
+    "parameters": [],
+    "request": "AcceptInviteRequest",
+    "response": "AuthResponse"
+  },
+  "POST /api/v1/auth/login": {
+    "operationId": "api_login_api_v1_auth_login_post",
+    "parameters": [],
+    "request": "object",
+    "response": "AuthResponse"
+  },
+  "POST /api/v1/auth/signup": {
+    "operationId": "api_signup_api_v1_auth_signup_post",
+    "parameters": [],
+    "request": "SignupRequest",
+    "response": "AuthResponse"
+  },
+  "POST /api/v1/auth/sso/callback": {
+    "operationId": "api_sso_callback_api_v1_auth_sso_callback_post",
+    "parameters": [],
+    "request": "SSOCallbackRequest",
+    "response": "AuthResponse"
+  },
+  "POST /api/v1/billing/credits": {
+    "operationId": "api_billing_topup_api_v1_billing_credits_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "CreditTopupRequest",
+    "response": "CreditBalanceResponse"
+  },
+  "POST /api/v1/cloudflare/zones/{zone_id}/services/{service_key}/activate": {
+    "operationId": "api_cf_activate_service_api_v1_cloudflare_zones__zone_id__services__service_key__activate_post",
+    "parameters": [
+      "header:authorization",
+      "path:service_key!",
+      "path:zone_id!"
+    ],
+    "request": null,
+    "response": "ServiceActivateResponse"
+  },
+  "POST /api/v1/cloudflare/zones/{zone_id}/subscription": {
+    "operationId": "api_cf_activate_plan_api_v1_cloudflare_zones__zone_id__subscription_post",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": "PlanActivateRequest",
+    "response": "ZoneSubscriptionSummary"
+  },
+  "POST /api/v1/databases": {
+    "operationId": "api_provision_database_api_v1_databases_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "DatabaseProvisionRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/databases/{db_uuid}/backups": {
+    "operationId": "api_create_database_backup_api_v1_databases__db_uuid__backups_post",
+    "parameters": [
+      "header:authorization",
+      "path:db_uuid!"
+    ],
+    "request": "BackupCreateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/deploy-hooks": {
+    "operationId": "api_create_deploy_hook_api_v1_deploy_hooks_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "DeployHookRequest",
+    "response": "DeployHookCreated"
+  },
+  "POST /api/v1/deploys/git": {
+    "operationId": "api_deploy_git_api_v1_deploys_git_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "GitDeployRequest",
+    "response": "DeployStartResponse"
+  },
+  "POST /api/v1/deploys/{deployment_id}/rollback": {
+    "operationId": "api_rollback_deploy_api_v1_deploys__deployment_id__rollback_post",
+    "parameters": [
+      "header:authorization",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": "DeployStartResponse"
+  },
+  "POST /api/v1/deploys/{project}/env": {
+    "operationId": "api_set_deploy_env_api_v1_deploys__project__env_post",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": "AppEnvVarRequest",
+    "response": "list[AppEnvVarSummary]"
+  },
+  "POST /api/v1/dns/zones/{zone_id}/import": {
+    "operationId": "api_import_dns_records_api_v1_dns_zones__zone_id__import_post",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": "DnsImportRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/dns/zones/{zone_id}/purge": {
+    "operationId": "api_purge_cache_api_v1_dns_zones__zone_id__purge_post",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": "CachePurgeRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/dns/zones/{zone_id}/records": {
+    "operationId": "api_create_dns_record_api_v1_dns_zones__zone_id__records_post",
+    "parameters": [
+      "header:authorization",
+      "path:zone_id!"
+    ],
+    "request": "DNSRecordCreateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/domains": {
+    "operationId": "api_add_domain_api_v1_domains_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "DomainRequest",
+    "response": "DomainSummary"
+  },
+  "POST /api/v1/domains/{domain_id}/verify": {
+    "operationId": "api_verify_domain_api_v1_domains__domain_id__verify_post",
+    "parameters": [
+      "header:authorization",
+      "path:domain_id!"
+    ],
+    "request": null,
+    "response": "DomainSummary"
+  },
+  "POST /api/v1/infra/servers": {
+    "operationId": "api_infra_provision_api_v1_infra_servers_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "InfraServerCreateRequest",
+    "response": "InfraServerCreated"
+  },
+  "POST /api/v1/jobs": {
+    "operationId": "api_create_job_api_v1_jobs_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "JobCreateRequest",
+    "response": "ScheduledJobSummary"
+  },
+  "POST /api/v1/mail/aliases": {
+    "operationId": "api_create_mail_alias_api_v1_mail_aliases_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "MailAliasCreateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/mail/domains": {
+    "operationId": "api_create_mail_domain_api_v1_mail_domains_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "MailDomainCreateRequest",
+    "response": "MailDomainCreateResponse"
+  },
+  "POST /api/v1/mail/mailboxes": {
+    "operationId": "api_create_mailbox_api_v1_mail_mailboxes_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "MailboxCreateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/mail/mailboxes/{username}/app-passwords": {
+    "operationId": "api_create_app_password_api_v1_mail_mailboxes__username__app_passwords_post",
+    "parameters": [
+      "header:authorization",
+      "path:username!"
+    ],
+    "request": "MailAppPasswordCreateRequest",
+    "response": "MailAppPasswordCreateResponse"
+  },
+  "POST /api/v1/mail/quarantine/actions": {
+    "operationId": "api_quarantine_action_api_v1_mail_quarantine_actions_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "MailQuarantineActionRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/mail/quarantine/delete": {
+    "operationId": "api_quarantine_delete_api_v1_mail_quarantine_delete_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "MailQuarantineDeleteRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/mail/relayhosts": {
+    "operationId": "api_create_mail_relayhost_api_v1_mail_relayhosts_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "MailRelayhostCreateRequest",
+    "response": "MailRelayhostCreateResponse"
+  },
+  "POST /api/v1/plans": {
+    "operationId": "api_create_plan_api_v1_plans_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "PlanCreateRequest",
+    "response": "PlanSummary"
+  },
+  "POST /api/v1/plans/{plan_id}/archive": {
+    "operationId": "api_archive_plan_api_v1_plans__plan_id__archive_post",
+    "parameters": [
+      "header:authorization",
+      "path:plan_id!"
+    ],
+    "request": null,
+    "response": "PlanSummary"
+  },
+  "POST /api/v1/projects/{application_id}/deploy": {
+    "operationId": "api_deploy_project_api_v1_projects__application_id__deploy_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/projects/{application_id}/deployments/{deployment_id}/cancel": {
+    "operationId": "api_cancel_deployment_api_v1_projects__application_id__deployments__deployment_id__cancel_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!",
+      "path:deployment_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/projects/{application_id}/envs": {
+    "operationId": "api_create_env_api_v1_projects__application_id__envs_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": "EnvVarCreateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/projects/{application_id}/restart": {
+    "operationId": "api_restart_project_api_v1_projects__application_id__restart_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/projects/{application_id}/start": {
+    "operationId": "api_start_project_api_v1_projects__application_id__start_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/projects/{application_id}/stop": {
+    "operationId": "api_stop_project_api_v1_projects__application_id__stop_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": null,
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/projects/{application_id}/storages": {
+    "operationId": "api_create_app_storage_api_v1_projects__application_id__storages_post",
+    "parameters": [
+      "header:authorization",
+      "path:application_id!"
+    ],
+    "request": "AppStorageCreateRequest",
+    "response": "ActionResponse"
+  },
+  "POST /api/v1/storage/buckets": {
+    "operationId": "api_provision_bucket_api_v1_storage_buckets_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "BucketProvisionRequest",
+    "response": "BucketCreated"
+  },
+  "POST /api/v1/team/invites": {
+    "operationId": "api_create_invite_api_v1_team_invites_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "InviteCreateRequest",
+    "response": "InviteCreateResponse"
+  },
+  "POST /api/v1/team/members/{member_id}/role": {
+    "operationId": "api_change_member_role_api_v1_team_members__member_id__role_post",
+    "parameters": [
+      "header:authorization",
+      "path:member_id!"
+    ],
+    "request": "RoleChangeRequest",
+    "response": "TeamMemberSummary"
+  },
+  "POST /api/v1/tenant-admins": {
+    "operationId": "api_create_tenant_admin_api_v1_tenant_admins_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "TenantAdminCreateRequest",
+    "response": "AdminSummary"
+  },
+  "POST /api/v1/tenant-resources": {
+    "operationId": "api_create_tenant_resource_api_v1_tenant_resources_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "TenantResourceCreateRequest",
+    "response": "TenantResourceSummary"
+  },
+  "POST /api/v1/tenants": {
+    "operationId": "api_create_tenant_api_v1_tenants_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "TenantCreateRequest",
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/tenants/{tenant_slug}/activate": {
+    "operationId": "api_activate_tenant_api_v1_tenants__tenant_slug__activate_post",
+    "parameters": [
+      "header:authorization",
+      "path:tenant_slug!"
+    ],
+    "request": null,
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/tenants/{tenant_slug}/approve": {
+    "operationId": "api_approve_tenant_api_v1_tenants__tenant_slug__approve_post",
+    "parameters": [
+      "header:authorization",
+      "path:tenant_slug!"
+    ],
+    "request": null,
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/tenants/{tenant_slug}/deactivate": {
+    "operationId": "api_deactivate_tenant_api_v1_tenants__tenant_slug__deactivate_post",
+    "parameters": [
+      "header:authorization",
+      "path:tenant_slug!"
+    ],
+    "request": null,
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/tenants/{tenant_slug}/reactivate": {
+    "operationId": "api_reactivate_tenant_api_v1_tenants__tenant_slug__reactivate_post",
+    "parameters": [
+      "header:authorization",
+      "path:tenant_slug!"
+    ],
+    "request": null,
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/tenants/{tenant_slug}/reject": {
+    "operationId": "api_reject_tenant_api_v1_tenants__tenant_slug__reject_post",
+    "parameters": [
+      "header:authorization",
+      "path:tenant_slug!"
+    ],
+    "request": null,
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/tenants/{tenant_slug}/suspend": {
+    "operationId": "api_suspend_tenant_api_v1_tenants__tenant_slug__suspend_post",
+    "parameters": [
+      "header:authorization",
+      "path:tenant_slug!"
+    ],
+    "request": null,
+    "response": "TenantSummary"
+  },
+  "POST /api/v1/webhooks/github/{hook_id}": {
+    "operationId": "api_github_webhook_api_v1_webhooks_github__hook_id__post",
+    "parameters": [
+      "path:hook_id!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "POST /auth/login": {
+    "operationId": "login_auth_login_post",
+    "parameters": [],
+    "request": "Body_login_auth_login_post",
+    "response": null
+  },
+  "POST /auth/logout": {
+    "operationId": "logout_auth_logout_post",
+    "parameters": [],
+    "request": "Body_logout_auth_logout_post",
+    "response": null
+  },
+  "POST /databases/{db_id}/restart": {
+    "operationId": "restart_database_databases__db_id__restart_post",
+    "parameters": [
+      "path:db_id!"
+    ],
+    "request": "Body_restart_database_databases__db_id__restart_post",
+    "response": null
+  },
+  "POST /databases/{db_id}/start": {
+    "operationId": "start_database_databases__db_id__start_post",
+    "parameters": [
+      "path:db_id!"
+    ],
+    "request": "Body_start_database_databases__db_id__start_post",
+    "response": null
+  },
+  "POST /databases/{db_id}/stop": {
+    "operationId": "stop_database_databases__db_id__stop_post",
+    "parameters": [
+      "path:db_id!"
+    ],
+    "request": "Body_stop_database_databases__db_id__stop_post",
+    "response": null
+  },
+  "POST /dns/records/create": {
+    "operationId": "create_dns_record_dns_records_create_post",
+    "parameters": [],
+    "request": "Body_create_dns_record_dns_records_create_post",
+    "response": null
+  },
+  "POST /dns/records/{record_id}/delete": {
+    "operationId": "delete_dns_record_dns_records__record_id__delete_post",
+    "parameters": [
+      "path:record_id!"
+    ],
+    "request": "Body_delete_dns_record_dns_records__record_id__delete_post",
+    "response": null
+  },
+  "POST /dns/records/{record_id}/edit": {
+    "operationId": "edit_dns_record_dns_records__record_id__edit_post",
+    "parameters": [
+      "path:record_id!"
+    ],
+    "request": "Body_edit_dns_record_dns_records__record_id__edit_post",
+    "response": null
+  },
+  "POST /graphql": {
+    "operationId": "handle_http_post_graphql_post",
+    "parameters": [],
+    "request": null,
+    "response": null
+  },
+  "POST /maintenance/run": {
+    "operationId": "run_command_maintenance_run_post",
+    "parameters": [],
+    "request": "Body_run_command_maintenance_run_post",
+    "response": null
+  },
+  "POST /oidc/token": {
+    "operationId": "token_oidc_token_post",
+    "parameters": [],
+    "request": "Body_token_oidc_token_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/deploy": {
+    "operationId": "deploy_project_projects__application_id__deploy_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_deploy_project_projects__application_id__deploy_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/deployments/{deployment_id}/cancel": {
+    "operationId": "cancel_deployment_projects__application_id__deployments__deployment_id__cancel_post",
+    "parameters": [
+      "path:application_id!",
+      "path:deployment_id!"
+    ],
+    "request": "Body_cancel_deployment_projects__application_id__deployments__deployment_id__cancel_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/envs/create": {
+    "operationId": "create_env_projects__application_id__envs_create_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_create_env_projects__application_id__envs_create_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/envs/{env_uuid}/delete": {
+    "operationId": "delete_env_projects__application_id__envs__env_uuid__delete_post",
+    "parameters": [
+      "path:application_id!",
+      "path:env_uuid!"
+    ],
+    "request": "Body_delete_env_projects__application_id__envs__env_uuid__delete_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/execute": {
+    "operationId": "execute_command_projects__application_id__execute_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_execute_command_projects__application_id__execute_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/restart": {
+    "operationId": "restart_project_projects__application_id__restart_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_restart_project_projects__application_id__restart_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/settings": {
+    "operationId": "update_settings_projects__application_id__settings_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_update_settings_projects__application_id__settings_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/start": {
+    "operationId": "start_project_projects__application_id__start_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_start_project_projects__application_id__start_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/stop": {
+    "operationId": "stop_project_projects__application_id__stop_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_stop_project_projects__application_id__stop_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/storages/create": {
+    "operationId": "create_storage_projects__application_id__storages_create_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_create_storage_projects__application_id__storages_create_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/storages/update": {
+    "operationId": "update_storage_projects__application_id__storages_update_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_update_storage_projects__application_id__storages_update_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/storages/{storage_uuid}/delete": {
+    "operationId": "delete_storage_projects__application_id__storages__storage_uuid__delete_post",
+    "parameters": [
+      "path:application_id!",
+      "path:storage_uuid!"
+    ],
+    "request": "Body_delete_storage_projects__application_id__storages__storage_uuid__delete_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/tasks/create": {
+    "operationId": "create_task_projects__application_id__tasks_create_post",
+    "parameters": [
+      "path:application_id!"
+    ],
+    "request": "Body_create_task_projects__application_id__tasks_create_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/tasks/{task_uuid}/delete": {
+    "operationId": "delete_task_projects__application_id__tasks__task_uuid__delete_post",
+    "parameters": [
+      "path:application_id!",
+      "path:task_uuid!"
+    ],
+    "request": "Body_delete_task_projects__application_id__tasks__task_uuid__delete_post",
+    "response": null
+  },
+  "POST /projects/{application_id}/tasks/{task_uuid}/update": {
+    "operationId": "update_task_projects__application_id__tasks__task_uuid__update_post",
+    "parameters": [
+      "path:application_id!",
+      "path:task_uuid!"
+    ],
+    "request": "Body_update_task_projects__application_id__tasks__task_uuid__update_post",
+    "response": null
+  },
+  "POST /servers/{server_id}/validate": {
+    "operationId": "validate_server_servers__server_id__validate_post",
+    "parameters": [
+      "path:server_id!"
+    ],
+    "request": "Body_validate_server_servers__server_id__validate_post",
+    "response": null
+  },
+  "PUT /api/v1/billing/pricing/{offering_key}": {
+    "operationId": "api_billing_set_pricing_api_v1_billing_pricing__offering_key__put",
+    "parameters": [
+      "header:authorization",
+      "path:offering_key!"
+    ],
+    "request": "PricingRuleRequest",
+    "response": "PricingRuleSummary"
+  },
+  "PUT /api/v1/dns/zones/{zone_id}/records/{record_id}": {
+    "operationId": "api_update_dns_record_api_v1_dns_zones__zone_id__records__record_id__put",
+    "parameters": [
+      "header:authorization",
+      "path:record_id!",
+      "path:zone_id!"
+    ],
+    "request": "DNSRecordCreateRequest",
+    "response": "ActionResponse"
+  },
+  "PUT /api/v1/sso": {
+    "operationId": "api_put_sso_api_v1_sso_put",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "SSOConfigRequest",
+    "response": "SSOConfigResponse"
+  }
+}

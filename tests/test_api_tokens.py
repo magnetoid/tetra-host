@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.db import session_scope
 from app.models import AdminUser
-from app.services.api_tokens import ApiTokenService, TOKEN_PREFIX, hash_token
+from app.services.api_tokens import TOKEN_PREFIX, ApiTokenService, hash_token
 
 
 def _login(client: TestClient) -> dict[str, str]:

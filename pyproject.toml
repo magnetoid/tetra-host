@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0.0", "ruff>=0.6.0"]
+dev = ["pytest>=8.0.0", "ruff>=0.17,<0.18"]
 
 [project.scripts]
 tetra = "tetra_cli.cli:main"
@@ -43,4 +43,7 @@ line-length = 100
 #   B006   — mutable default arguments
 #   RUF006 — asyncio.create_task() whose result is discarded (GC-mid-run risk;
 #            see app/modules/deploys/service.py::_spawn_background)
+# Pin the rule set explicitly: newer ruff releases widened the default selection,
+# which turned CI red on main without any code change.
+select = ["E4", "E7", "E9", "F", "I"]
 extend-select = ["B006", "RUF006"]

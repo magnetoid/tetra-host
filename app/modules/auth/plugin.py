@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from app.plugins import PluginMeta
 from app.modules.auth.routes import router
+from app.plugins import PluginMeta
 
 
 class AuthPlugin:

@@ -24,7 +24,7 @@ import json
 from secrets import token_hex
 
 from app.config import get_settings
-from app.services.build_diagnostics import Diagnosis, _CONFIDENCE  # one shared shape
+from app.services.build_diagnostics import _CONFIDENCE, Diagnosis  # one shared shape
 
 _MAX_FIELD_CHARS = 4_000  # title/culprit are short; cap defensively
 

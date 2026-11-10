@@ -9,7 +9,6 @@ from app.models import AdminUser, AppEnvVar, Plan, Tenant
 from app.modules.auth.service import AuthService
 from app.modules.deploys.service import compose_for_image
 
-
 # ── Injection (pure) ───────────────────────────────────────────────────────
 
 

@@ -12,7 +12,6 @@ from app.services.coolify import (
     parse_deployment_log_lines,
 )
 
-
 # ── Pure helpers ──────────────────────────────────────────────────────────
 
 
