@@ -326,3 +326,27 @@ def test_api_is_platform_admin_only(client: TestClient):
         "/api/v1/importers/coolify", headers=headers, json={"app_uuid": "NOT A UUID", "project": "x"}
     )
     assert bad.status_code == 422
+
+
+def test_never_built_worker_is_left_out_of_both_stacks(actions_on):
+    fake = FakeHost()
+    fake.images.discard(f"{UUID}_mtio-mailer:abc123")  # Coolify never built it
+    importer = _importer(fake)
+
+    async def main():
+        tenant_id = await _tenant_id()
+        run_id = await _plan(importer, tenant_id)
+        planned = await _run(run_id)
+        await _act(importer, tenant_id, run_id, "stage")
+        await _act(importer, tenant_id, run_id, "cutover")
+        live = await _run(run_id)
+        await close_db()
+        return planned, live
+
+    planned, live = asyncio.run(main())
+    assert planned.summary["skip"] == ["mtio-mailer"]
+    assert planned.summary["stage_exclude"] == []
+    assert "mtio-mailer" not in planned.summary["image_overrides"]
+    assert any("never built" in w for w in planned.summary["warnings"])
+    assert live.state == IMPORT_LIVE, live.log
+    assert "mtio-mailer" not in yaml.safe_load(fake.stacks["mtio"])["services"]

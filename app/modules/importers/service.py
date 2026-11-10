@@ -178,7 +178,10 @@ class CoolifyImporter:
             project=f"{project}-staging" if stage else project,
             files_dir=self._files_dir(project),
             port_offset=STAGE_PORT_OFFSET if stage else 0,
-            exclude=run_like.get("stage_exclude", []) if stage else (),
+            exclude=sorted(
+                set(run_like.get("skip", []))
+                | (set(run_like.get("stage_exclude", [])) if stage else set())
+            ),
             image_overrides=run_like.get("image_overrides") or {},
         )
 
@@ -212,11 +215,24 @@ class CoolifyImporter:
             _, first = self._build(base, compose_text, env_text, stage=False)
         except ComposeImportError as exc:
             raise ImporterError(str(exc), 422) from exc
+        # A locally built image that is missing means Coolify never built or ran that
+        # service. A background worker in that state is not part of the live app, so it
+        # is left out of both stacks; anything else is a hard stop.
+        skip: list[str] = []
+        built: dict[str, str] = {}
+        for svc, ref in first.locally_built.items():
+            if await self.host.image_exists(ref):
+                built[svc] = ref
+            elif svc in first.background:
+                skip.append(svc)
+            else:
+                raise ImporterError(f"Image {ref} for {svc} is not on this host.", 422)
         exclude = sorted(stage_exclude) if stage_exclude is not None else first.background
-        overrides = {
-            svc: _imported_tag(project, svc, ref) for svc, ref in first.locally_built.items()
+        exclude = [svc for svc in exclude if svc not in skip]
+        overrides = {svc: _imported_tag(project, svc, ref) for svc, ref in built.items()}
+        run_like = {
+            **base, "skip": sorted(skip), "stage_exclude": exclude, "image_overrides": overrides,
         }
-        run_like = {**base, "stage_exclude": exclude, "image_overrides": overrides}
         try:
             _, prod = self._build(run_like, compose_text, env_text, stage=False)
             _, staged = self._build(run_like, compose_text, env_text, stage=True)
@@ -224,9 +240,11 @@ class CoolifyImporter:
             raise ImporterError(str(exc), 422) from exc
 
         warnings = list(prod.warnings)
-        for svc, ref in first.locally_built.items():
-            if not await self.host.image_exists(ref):
-                raise ImporterError(f"Image {ref} for {svc} is not on this host.", 422)
+        for svc in skip:
+            warnings.append(
+                f"{svc}: never built or run by Coolify (no image on this host); left out of "
+                "the import, as it is not part of the running app today"
+            )
         for svc, ref in prod.images.items():
             if svc not in prod.locally_built and not await self.host.image_exists(ref):
                 warnings.append(f"{svc}: image {ref} is not local and will be pulled")
@@ -265,7 +283,7 @@ class CoolifyImporter:
             "stage_port_offset": STAGE_PORT_OFFSET,
             "services": prod.services,
             "background": first.background,
-            "locally_built": first.locally_built,
+            "locally_built": built,
             "ports": [
                 {
                     "service": p.service,
