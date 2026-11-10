@@ -1091,3 +1091,64 @@ def test_client_sso_set_and_get_paths():
     client.sso_get()
     assert seen["PUT"] == "/api/v1/sso"
     assert seen["GET"] == "/api/v1/sso"
+
+
+# ── import (Coolify → engine) ─────────────────────────────────────────────
+
+
+def test_main_import_coolify_posts_plan(monkeypatch, capsys):
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={
+            "id": "run-1", "project": "mtio", "state": "planned", "source": "coolify",
+            "source_ref": "abc", "error": "", "log": "",
+            "summary": {"services": ["web", "db"], "stage_exclude": ["mailer"],
+                        "ports": [{"service": "web", "host_port": 9140, "container_port": 80}],
+                        "volumes": [{"source": "abc_db", "target": "mtio_db"}], "warnings": []},
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    code = main(["import", "coolify", "abc123", "--project", "mtio", "--stage-exclude", "mailer, x"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert seen["path"] == "/api/v1/importers/coolify"
+    assert seen["body"] == {"app_uuid": "abc123", "project": "mtio", "stage_exclude": ["mailer", "x"]}
+    assert "port 9140 -> web:80" in out
+    assert "tetra import stage run-1" in out
+
+
+def test_main_import_cutover_needs_yes(monkeypatch, capsys):
+    called = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        called.append(request.url.path)
+        return httpx.Response(200, json={"id": "run-1"})
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    assert main(["import", "cutover", "run-1"]) == 1
+    assert called == []
+    assert main(["import", "cutover", "run-1", "--yes"]) == 0
+    assert called == ["/api/v1/importers/runs/run-1/cutover"]
+
+
+def test_main_import_stage_follow_streams_log(monkeypatch, capsys):
+    states = iter(["staging", "staged"])
+    logs = iter(["copying volumes\n", "copying volumes\nstaged ok\n"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "run-1", "state": "staging"})
+        return httpx.Response(200, json={
+            "id": "run-1", "project": "mtio", "state": next(states), "log": next(logs),
+            "source": "coolify", "source_ref": "abc", "error": "", "summary": {},
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    assert main(["import", "stage", "run-1", "--follow"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("copying volumes") == 1
+    assert "staged ok" in out

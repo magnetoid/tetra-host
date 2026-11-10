@@ -972,6 +972,108 @@ def cmd_tenants_reactivate(args: argparse.Namespace) -> int:
     return _cmd_tenant_action("reactivate", args)
 
 
+IMPORT_BUSY = {"staging", "cutting_over", "rolling_back"}
+
+
+def _print_import_run(run: dict) -> None:
+    print(
+        c(run.get("project", ""), "1")
+        + f"  {status_color(run.get('state', ''))}  id={run.get('id', '')}"
+        + f"  source={run.get('source', '')}:{run.get('source_ref', '')}"
+    )
+    summary = run.get("summary") or {}
+    if summary.get("services"):
+        print(f"  services: {', '.join(summary['services'])}")
+    if summary.get("stage_exclude"):
+        print(f"  left out of the trial copy: {', '.join(summary['stage_exclude'])}")
+    for port in summary.get("ports", []):
+        print(f"  port {port.get('host_port')} -> {port.get('service')}:{port.get('container_port')}")
+    for vol in summary.get("volumes", []):
+        print(f"  volume {vol.get('source')} -> {vol.get('target')}")
+    for warning in summary.get("warnings", []):
+        print(c(f"  ! {warning}", "33"))
+    if run.get("error"):
+        print(c(f"  error: {run['error']}", "31"))
+
+
+def _follow_import(client: TetraClient, run_id: str) -> dict:
+    import time
+
+    shown = 0
+    while True:
+        run = client.import_run(run_id)
+        log = run.get("log", "") or ""
+        if len(log) > shown:
+            sys.stdout.write(log[shown:])
+            sys.stdout.flush()
+            shown = len(log)
+        if run.get("state") not in IMPORT_BUSY:
+            return run
+        time.sleep(2)
+
+
+def cmd_import_list(args: argparse.Namespace) -> int:
+    runs = client_from_config().import_runs()
+    rows = [
+        [r.get("id", "")[:8], r.get("project", ""), status_color(r.get("state", "")),
+         f"{r.get('source', '')}:{r.get('source_ref', '')}", r.get("updated_at", "")[:19]]
+        for r in runs
+    ]
+    print_table(["ID", "PROJECT", "STATE", "SOURCE", "UPDATED"], rows)
+    return 0
+
+
+def cmd_import_show(args: argparse.Namespace) -> int:
+    run = client_from_config().import_run(args.run_id)
+    _print_import_run(run)
+    if args.log and run.get("log"):
+        print(c("\nLog", "1"))
+        print(run["log"])
+    return 0
+
+
+def cmd_import_coolify(args: argparse.Namespace) -> int:
+    exclude = None
+    if args.stage_exclude is not None:
+        exclude = [s.strip() for s in args.stage_exclude.split(",") if s.strip()]
+    run = client_from_config().import_coolify(args.app_uuid, args.project, exclude)
+    print(c("✓", "32") + " import planned (nothing on the host has changed yet)")
+    _print_import_run(run)
+    print(c(f"\nNext: tetra import stage {run.get('id', '')} --follow", "90"))
+    return 0
+
+
+def _cmd_import_action(action: str, args: argparse.Namespace) -> int:
+    if action != "stage" and not args.yes:
+        what = {
+            "cutover": "stops the Coolify app and moves live traffic to the engine copy",
+            "rollback": "stops the engine copy and restarts the Coolify app",
+        }[action]
+        print(f"Refusing to {action} without --yes ({what}).")
+        return 1
+    client = client_from_config()
+    run = client.import_action(args.run_id, action)
+    print(c("✓", "32") + f" {action} started  id={run.get('id', args.run_id)}")
+    if args.follow:
+        run = _follow_import(client, args.run_id)
+        print()
+        _print_import_run(run)
+        return 0 if run.get("state") != "failed" else 1
+    return 0
+
+
+def cmd_import_stage(args: argparse.Namespace) -> int:
+    return _cmd_import_action("stage", args)
+
+
+def cmd_import_cutover(args: argparse.Namespace) -> int:
+    return _cmd_import_action("cutover", args)
+
+
+def cmd_import_rollback(args: argparse.Namespace) -> int:
+    return _cmd_import_action("rollback", args)
+
+
 def cmd_admin_overview(args: argparse.Namespace) -> int:
     data = client_from_config().admin_overview()
     ts = data.get("tenant_status", {})
@@ -2362,6 +2464,34 @@ def build_parser() -> argparse.ArgumentParser:
     admin.add_parser(
         "overview", help="platform command center: counts, pending approvals, recent activity"
     ).set_defaults(func=cmd_admin_overview)
+
+    imports = sub.add_parser(
+        "import", help="move existing Coolify apps onto the Tetra Engine (platform-admin)"
+    ).add_subparsers(dest="import_cmd", required=True)
+    imports.add_parser("list", help="list import runs").set_defaults(func=cmd_import_list)
+    sp = imports.add_parser("show", help="show an import run")
+    sp.add_argument("run_id")
+    sp.add_argument("--log", action="store_true", help="print the step log")
+    sp.set_defaults(func=cmd_import_show)
+    sp = imports.add_parser("coolify", help="plan importing a Coolify app (read-only)")
+    sp.add_argument("app_uuid", help="Coolify application uuid")
+    sp.add_argument("--project", required=True, help="engine project name for the imported stack")
+    sp.add_argument(
+        "--stage-exclude",
+        help="comma-separated services to leave out of the trial copy (default: background workers)",
+    )
+    sp.set_defaults(func=cmd_import_coolify)
+    for _action, _help in (
+        ("stage", "start a trial copy on shifted ports; the Coolify app keeps serving"),
+        ("cutover", "stop the Coolify app and serve from the engine on the same ports"),
+        ("rollback", "stop the engine stack and restart the Coolify app"),
+    ):
+        _sp = imports.add_parser(_action, help=_help)
+        _sp.add_argument("run_id")
+        _sp.add_argument("--follow", action="store_true", help="stream the step log until done")
+        if _action != "stage":
+            _sp.add_argument("--yes", action="store_true")
+        _sp.set_defaults(func=globals()[f"cmd_import_{_action}"])
 
     return p
 

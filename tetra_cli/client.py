@@ -597,6 +597,24 @@ class TetraClient:
     def admin_overview(self) -> Any:
         return self._request("GET", "/admin/overview")
 
+    # ── Importers (platform admin) ────────────────────────────────────────
+    def import_runs(self) -> list[dict]:
+        return self._request("GET", "/importers/runs")
+
+    def import_run(self, run_id: str) -> Any:
+        return self._request("GET", f"/importers/runs/{run_id}")
+
+    def import_coolify(
+        self, app_uuid: str, project: str, stage_exclude: list[str] | None = None
+    ) -> Any:
+        body: dict[str, Any] = {"app_uuid": app_uuid, "project": project}
+        if stage_exclude is not None:
+            body["stage_exclude"] = stage_exclude
+        return self._request("POST", "/importers/coolify", json_body=body)
+
+    def import_action(self, run_id: str, action: str) -> Any:
+        return self._request("POST", f"/importers/runs/{run_id}/{action}")
+
     # ── Databases ─────────────────────────────────────────────────────────
     def databases(self) -> list[dict]:
         return self._request("GET", "/databases")

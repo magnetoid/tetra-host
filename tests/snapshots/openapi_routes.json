@@ -622,6 +622,23 @@
     "request": null,
     "response": "object"
   },
+  "GET /api/v1/importers/runs": {
+    "operationId": "api_list_import_runs_api_v1_importers_runs_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[ImportRunSummary]"
+  },
+  "GET /api/v1/importers/runs/{run_id}": {
+    "operationId": "api_get_import_run_api_v1_importers_runs__run_id__get",
+    "parameters": [
+      "header:authorization",
+      "path:run_id!"
+    ],
+    "request": null,
+    "response": "ImportRunDetail"
+  },
   "GET /api/v1/infra/servers": {
     "operationId": "api_infra_servers_api_v1_infra_servers_get",
     "parameters": [
@@ -1400,6 +1417,24 @@
     ],
     "request": null,
     "response": "DomainSummary"
+  },
+  "POST /api/v1/importers/coolify": {
+    "operationId": "api_plan_coolify_import_api_v1_importers_coolify_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "CoolifyImportRequest",
+    "response": "ImportRunDetail"
+  },
+  "POST /api/v1/importers/runs/{run_id}/{action}": {
+    "operationId": "api_import_action_api_v1_importers_runs__run_id___action__post",
+    "parameters": [
+      "header:authorization",
+      "path:action!",
+      "path:run_id!"
+    ],
+    "request": null,
+    "response": "ImportRunDetail"
   },
   "POST /api/v1/infra/servers": {
     "operationId": "api_infra_provision_api_v1_infra_servers_post",

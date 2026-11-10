@@ -39,6 +39,13 @@ class Settings(BaseSettings):
 
     coolify_url: str = ""
     coolify_token: str = ""
+    # Importers (Coolify → Tetra Engine). COOLIFY_DATA_DIR is Coolify's on-host data root
+    # (apps live in <dir>/applications/<uuid>); ENGINE_STACKS_DIR holds files an imported
+    # stack bind-mounts (empty = <repo>/data/stacks). The helper image does the root-only
+    # file and volume copies.
+    coolify_data_dir: str = "/data/coolify"
+    engine_stacks_dir: str = ""
+    import_helper_image: str = "alpine:3.20"
     mailcow_url: str = ""
     mailcow_api_key: str = ""
     # Verify Mailcow's TLS cert. Set false when Mailcow runs on a self-signed
