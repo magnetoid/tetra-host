@@ -1074,6 +1074,115 @@ def cmd_import_rollback(args: argparse.Namespace) -> int:
     return _cmd_import_action("rollback", args)
 
 
+def _app_rows(apps: list[dict], with_team: bool = False) -> list[list[str]]:
+    rows = []
+    for a in apps:
+        row = [a.get("id", "")[:8], a.get("name", ""), a.get("driver", ""),
+               f"{a['project']['slug']}/{a['environment']['slug']}", a.get("domain", "") or "—"]
+        rows.append(([a["team"]["slug"]] if with_team else []) + row)
+    return rows
+
+
+def cmd_teams(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    if args.team:
+        t = client.team_detail(args.team)
+        counts = t.get("counts", {})
+        print(f"{c(t.get('name', ''), '1')}  ({t.get('slug', '')})  {status_color(t.get('status', ''))}")
+        print(f"  projects {counts.get('projects', 0)} · environments {counts.get('environments', 0)}"
+              f" · apps {counts.get('apps', 0)} · members {counts.get('members', 0)}")
+        return 0
+    print_table(["SLUG", "NAME", "ID"], [[t["slug"], t["name"], t["id"]] for t in client.teams()])
+    return 0
+
+
+def _default_team(client: TetraClient, team: str | None) -> str:
+    if team:
+        return team
+    teams = client.teams()
+    if len(teams) != 1:
+        raise TetraError("You can see several teams; pass --team <slug>.")
+    return teams[0]["slug"]
+
+
+def cmd_projects_list(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    team = _default_team(client, args.team)
+    rows = [[p["slug"], p["name"], str(p["environments"]), str(p["apps"])]
+            for p in client.team_projects(team)]
+    print_table(["SLUG", "NAME", "ENVS", "APPS"], rows)
+    return 0
+
+
+def cmd_projects_create(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    p = client.create_team_project(_default_team(client, args.team), args.name, args.slug)
+    print(c("✓", "32") + f" project {p['slug']} created (with a production environment)")
+    return 0
+
+
+def cmd_projects_rename(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    client.rename_team_project(_default_team(client, args.team), args.project, args.name)
+    print(c("✓", "32") + f" project {args.project} renamed to {args.name}")
+    return 0
+
+
+def cmd_projects_delete(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print(f"Refusing to delete project {args.project} without --yes.")
+        return 1
+    client = client_from_config()
+    client.delete_team_project(_default_team(client, args.team), args.project)
+    print(c("✓", "32") + f" project {args.project} deleted")
+    return 0
+
+
+def cmd_envs_list(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    envs = client.environments(_default_team(client, args.team), args.project)
+    print_table(["SLUG", "NAME", "KIND", "APPS", "ID"],
+                [[e["slug"], e["name"], e["kind"], str(e["apps"]), e["id"]] for e in envs])
+    return 0
+
+
+def cmd_envs_create(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    e = client.create_environment(
+        _default_team(client, args.team), args.project, args.name, args.kind, args.slug
+    )
+    print(c("✓", "32") + f" environment {e['slug']} ({e['kind']}) created  id={e['id']}")
+    return 0
+
+
+def cmd_envs_delete(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print(f"Refusing to delete environment {args.environment} without --yes.")
+        return 1
+    client = client_from_config()
+    client.delete_environment(_default_team(client, args.team), args.project, args.environment)
+    print(c("✓", "32") + f" environment {args.environment} deleted")
+    return 0
+
+
+def cmd_workspace_apps(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    headers = ["ID", "NAME", "DRIVER", "PROJECT/ENV", "DOMAIN"]
+    if args.all:
+        print_table(["TEAM", *headers], _app_rows(client.platform_apps(), with_team=True))
+        return 0
+    apps = client.team_apps(_default_team(client, args.team), args.project, args.environment)
+    print_table(headers, _app_rows(apps))
+    return 0
+
+
+def cmd_workspace_move(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    a = client.move_app(_default_team(client, args.team), args.app_id, args.environment_id)
+    print(c("✓", "32") + f" {a['name']} is now in {a['project']['slug']}/{a['environment']['slug']}")
+    return 0
+
+
 def cmd_admin_overview(args: argparse.Namespace) -> int:
     data = client_from_config().admin_overview()
     ts = data.get("tenant_status", {})
@@ -2464,6 +2573,68 @@ def build_parser() -> argparse.ArgumentParser:
     admin.add_parser(
         "overview", help="platform command center: counts, pending approvals, recent activity"
     ).set_defaults(func=cmd_admin_overview)
+
+    sp = sub.add_parser("teams", help="list the teams you can see, or show one")
+    sp.add_argument("team", nargs="?", help="team slug or id")
+    sp.set_defaults(func=cmd_teams)
+
+    projects = sub.add_parser(
+        "project", help="team projects in the hierarchy (`tetra projects` lists Coolify apps)"
+    ).add_subparsers(dest="project_cmd", required=True)
+    sp = projects.add_parser("list", help="list a team's projects")
+    sp.add_argument("--team")
+    sp.set_defaults(func=cmd_projects_list)
+    sp = projects.add_parser("create", help="create a project (gets a production environment)")
+    sp.add_argument("name")
+    sp.add_argument("--slug")
+    sp.add_argument("--team")
+    sp.set_defaults(func=cmd_projects_create)
+    sp = projects.add_parser("rename", help="rename a project")
+    sp.add_argument("project")
+    sp.add_argument("name")
+    sp.add_argument("--team")
+    sp.set_defaults(func=cmd_projects_rename)
+    sp = projects.add_parser("delete", help="delete an empty project")
+    sp.add_argument("project")
+    sp.add_argument("--team")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_projects_delete)
+
+    envs = sub.add_parser(
+        "environment", help="project environments (`tetra env` manages env vars)"
+    ).add_subparsers(dest="environment_cmd", required=True)
+    sp = envs.add_parser("list", help="list a project's environments")
+    sp.add_argument("project")
+    sp.add_argument("--team")
+    sp.set_defaults(func=cmd_envs_list)
+    sp = envs.add_parser("create", help="create an environment")
+    sp.add_argument("project")
+    sp.add_argument("name")
+    sp.add_argument("--kind", choices=["production", "staging", "preview"], default="staging")
+    sp.add_argument("--slug")
+    sp.add_argument("--team")
+    sp.set_defaults(func=cmd_envs_create)
+    sp = envs.add_parser("delete", help="delete an environment with no apps")
+    sp.add_argument("project")
+    sp.add_argument("environment")
+    sp.add_argument("--team")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_envs_delete)
+
+    workspace = sub.add_parser(
+        "workspace", help="apps placed in the team → project → environment hierarchy"
+    ).add_subparsers(dest="workspace_cmd", required=True)
+    sp = workspace.add_parser("apps", help="list apps with their project and environment")
+    sp.add_argument("--team")
+    sp.add_argument("--project")
+    sp.add_argument("--environment")
+    sp.add_argument("--all", action="store_true", help="every team's apps (platform-admin)")
+    sp.set_defaults(func=cmd_workspace_apps)
+    sp = workspace.add_parser("move", help="move an app to another environment")
+    sp.add_argument("app_id")
+    sp.add_argument("environment_id")
+    sp.add_argument("--team")
+    sp.set_defaults(func=cmd_workspace_move)
 
     imports = sub.add_parser(
         "import", help="move existing Coolify apps onto the Tetra Engine (platform-admin)"

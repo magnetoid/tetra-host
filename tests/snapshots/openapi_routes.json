@@ -201,6 +201,27 @@
     "request": null,
     "response": "TeamMemberSummary"
   },
+  "DELETE /api/v1/teams/{team}/projects/{project}": {
+    "operationId": "api_delete_team_project_api_v1_teams__team__projects__project__delete",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "path:team!"
+    ],
+    "request": null,
+    "response": null
+  },
+  "DELETE /api/v1/teams/{team}/projects/{project}/environments/{environment}": {
+    "operationId": "api_delete_project_environment_api_v1_teams__team__projects__project__environments__environment__delete",
+    "parameters": [
+      "header:authorization",
+      "path:environment!",
+      "path:project!",
+      "path:team!"
+    ],
+    "request": null,
+    "response": null
+  },
   "GET /": {
     "operationId": "landing__get",
     "parameters": [],
@@ -737,6 +758,14 @@
     "request": null,
     "response": "list[PlanSummary]"
   },
+  "GET /api/v1/platform/apps": {
+    "operationId": "api_list_platform_apps_api_v1_platform_apps_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[WorkspaceAppOut]"
+  },
   "GET /api/v1/previews": {
     "operationId": "api_list_previews_api_v1_previews_get",
     "parameters": [
@@ -889,6 +918,63 @@
     ],
     "request": null,
     "response": "TeamResponse"
+  },
+  "GET /api/v1/teams": {
+    "operationId": "api_list_teams_api_v1_teams_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[TeamRef]"
+  },
+  "GET /api/v1/teams/{team}": {
+    "operationId": "api_get_team_api_v1_teams__team__get",
+    "parameters": [
+      "header:authorization",
+      "path:team!"
+    ],
+    "request": null,
+    "response": "TeamDetail"
+  },
+  "GET /api/v1/teams/{team}/apps": {
+    "operationId": "api_list_team_apps_api_v1_teams__team__apps_get",
+    "parameters": [
+      "header:authorization",
+      "path:team!",
+      "query:environment",
+      "query:project"
+    ],
+    "request": null,
+    "response": "list[WorkspaceAppOut]"
+  },
+  "GET /api/v1/teams/{team}/projects": {
+    "operationId": "api_list_team_projects_api_v1_teams__team__projects_get",
+    "parameters": [
+      "header:authorization",
+      "path:team!"
+    ],
+    "request": null,
+    "response": "list[ProjectOut]"
+  },
+  "GET /api/v1/teams/{team}/projects/{project}": {
+    "operationId": "api_get_team_project_api_v1_teams__team__projects__project__get",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "path:team!"
+    ],
+    "request": null,
+    "response": "ProjectOut"
+  },
+  "GET /api/v1/teams/{team}/projects/{project}/environments": {
+    "operationId": "api_list_project_environments_api_v1_teams__team__projects__project__environments_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "path:team!"
+    ],
+    "request": null,
+    "response": "list[EnvironmentOut]"
   },
   "GET /api/v1/tenants": {
     "operationId": "api_list_tenants_api_v1_tenants_get",
@@ -1101,6 +1187,16 @@
     ],
     "request": "ProjectUpdateRequest",
     "response": "ActionResponse"
+  },
+  "PATCH /api/v1/teams/{team}/projects/{project}": {
+    "operationId": "api_update_team_project_api_v1_teams__team__projects__project__patch",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "path:team!"
+    ],
+    "request": "WorkspaceProjectUpdate",
+    "response": "ProjectRef"
   },
   "POST /account/password": {
     "operationId": "change_password_account_password_post",
@@ -1614,6 +1710,35 @@
     ],
     "request": "RoleChangeRequest",
     "response": "TeamMemberSummary"
+  },
+  "POST /api/v1/teams/{team}/apps/{app_id}/move": {
+    "operationId": "api_move_team_app_api_v1_teams__team__apps__app_id__move_post",
+    "parameters": [
+      "header:authorization",
+      "path:app_id!",
+      "path:team!"
+    ],
+    "request": "WorkspaceAppMove",
+    "response": "WorkspaceAppOut"
+  },
+  "POST /api/v1/teams/{team}/projects": {
+    "operationId": "api_create_team_project_api_v1_teams__team__projects_post",
+    "parameters": [
+      "header:authorization",
+      "path:team!"
+    ],
+    "request": "WorkspaceProjectCreate",
+    "response": "ProjectOut"
+  },
+  "POST /api/v1/teams/{team}/projects/{project}/environments": {
+    "operationId": "api_create_project_environment_api_v1_teams__team__projects__project__environments_post",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "path:team!"
+    ],
+    "request": "WorkspaceEnvironmentCreate",
+    "response": "EnvironmentOut"
   },
   "POST /api/v1/tenant-admins": {
     "operationId": "api_create_tenant_admin_api_v1_tenant_admins_post",

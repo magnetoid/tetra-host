@@ -93,6 +93,58 @@ _TOOLS: list[dict[str, Any]] = [
         "write": False,
         "handler": lambda c, a: c.explain_error(a["application_id"], a["issue_id"]),
     },
+    # Workspace hierarchy (team → project → environment → app). Read-only by design:
+    # creating, moving and deleting stays with the dashboard and CLI (ADR 0012), and the
+    # platform-wide app list is an admin surface, so it is not exposed either.
+    {
+        "name": "list_teams",
+        "description": "Teams the caller can see (their own; platform admins see all).",
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.teams(),
+    },
+    {
+        "name": "get_team",
+        "description": "One team with counts of projects, environments, apps and members.",
+        "inputSchema": _schema({"team": {"type": "string", "description": "Team slug or id"}}, ["team"]),
+        "write": False,
+        "handler": lambda c, a: c.team_detail(a["team"]),
+    },
+    {
+        "name": "list_team_projects",
+        "description": "A team's projects with environment and app counts.",
+        "inputSchema": _schema({"team": {"type": "string", "description": "Team slug or id"}}, ["team"]),
+        "write": False,
+        "handler": lambda c, a: c.team_projects(a["team"]),
+    },
+    {
+        "name": "list_environments",
+        "description": "A project's environments (production, staging, preview) with app counts.",
+        "inputSchema": _schema(
+            {
+                "team": {"type": "string", "description": "Team slug or id"},
+                "project": {"type": "string", "description": "Project slug or id"},
+            },
+            ["team", "project"],
+        ),
+        "write": False,
+        "handler": lambda c, a: c.environments(a["team"], a["project"]),
+    },
+    {
+        "name": "list_team_apps",
+        "description": "A team's apps with their project, environment, driver (engine or "
+                       "coolify) and domain; optionally narrowed to a project/environment.",
+        "inputSchema": _schema(
+            {
+                "team": {"type": "string", "description": "Team slug or id"},
+                "project": {"type": "string", "description": "Project slug (optional)"},
+                "environment": {"type": "string", "description": "Environment slug (needs project)"},
+            },
+            ["team"],
+        ),
+        "write": False,
+        "handler": lambda c, a: c.team_apps(a["team"], a.get("project"), a.get("environment")),
+    },
     {
         "name": "list_api_tokens",
         "description": "List the caller's personal API tokens (metadata only — no secrets). "

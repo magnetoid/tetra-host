@@ -1152,3 +1152,63 @@ def test_main_import_stage_follow_streams_log(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert out.count("copying volumes") == 1
     assert "staged ok" in out
+
+
+# ── workspace hierarchy ───────────────────────────────────────────────────
+
+
+def test_client_workspace_methods_build_requests():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, dict(request.url.params),
+                     request.content and json.loads(request.content)))
+        return httpx.Response(200, json={})
+
+    client = make_client(handler)
+    client.create_team_project("alpha", "Shop", slug="shop")
+    client.create_environment("alpha", "shop", "Staging")
+    client.team_apps("alpha", project="shop", environment="staging")
+    client.team_apps("alpha")
+    client.move_app("alpha", "a1", "e1")
+    client.platform_apps()
+    assert seen == [
+        ("POST", "/api/v1/teams/alpha/projects", {}, {"name": "Shop", "slug": "shop"}),
+        ("POST", "/api/v1/teams/alpha/projects/shop/environments", {},
+         {"name": "Staging", "kind": "staging"}),
+        ("GET", "/api/v1/teams/alpha/apps", {"project": "shop", "environment": "staging"}, b""),
+        ("GET", "/api/v1/teams/alpha/apps", {}, b""),
+        ("POST", "/api/v1/teams/alpha/apps/a1/move", {}, {"environment_id": "e1"}),
+        ("GET", "/api/v1/platform/apps", {}, b""),
+    ]
+
+
+def _workspace_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/api/v1/teams":
+        return httpx.Response(200, json=[{"id": "t1", "slug": "alpha", "name": "Alpha"}])
+    if request.url.path == "/api/v1/teams/alpha/apps":
+        return httpx.Response(200, json=[{
+            "id": "app-123456789", "name": "shop", "driver": "engine", "domain": "shop.test",
+            "team": {"slug": "alpha"}, "project": {"slug": "shop"},
+            "environment": {"slug": "production"},
+        }])
+    raise AssertionError(f"unexpected {request.url.path}")
+
+
+def test_main_workspace_apps_defaults_to_only_team(monkeypatch, capsys):
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_workspace_handler))
+    assert main(["workspace", "apps"]) == 0
+    out = capsys.readouterr().out
+    assert "shop/production" in out and "engine" in out and "shop.test" in out
+
+
+def test_main_project_delete_needs_yes(monkeypatch, capsys):
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_workspace_handler))
+    assert main(["project", "delete", "shop"]) == 1
+    assert "--yes" in capsys.readouterr().out
+
+
+def test_legacy_projects_command_still_parses():
+    assert build_parser().parse_args(["projects"]).func.__name__ == "cmd_projects"

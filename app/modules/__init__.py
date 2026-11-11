@@ -13,6 +13,7 @@ from app.modules.plans.plugin import PlansPlugin
 from app.modules.projects.plugin import ProjectsPlugin
 from app.modules.public.plugin import PublicPlugin
 from app.modules.servers.plugin import ServersPlugin
+from app.modules.workspaces.plugin import WorkspacesPlugin
 from app.plugins import registry
 
 
@@ -33,3 +34,4 @@ def load_plugins() -> None:
     registry.add(AccountPlugin())
     registry.add(AdminPlugin())
     registry.add(ImportersPlugin())
+    registry.add(WorkspacesPlugin())
