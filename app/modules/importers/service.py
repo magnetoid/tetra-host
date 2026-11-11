@@ -14,6 +14,13 @@ Flow for one Coolify compose application (roadmap phase 4):
 4. **rollback** (during the soak): stop ``<project>``, start the Coolify containers.
    Writes made on the engine after cutover are not copied back.
 
+Apps that Coolify serves only through its Traefik proxy (no host port) are **routed**:
+the plan gives each routed service a free loopback port, the live answer is read through
+Traefik with the app's Host header, and the engine copy is compared on its own port with
+the same header. After cutover the box's nginx must be pointed at that port; the panel
+cannot write ``/etc/nginx`` (``ProtectSystem=full``), so the run records the exact change
+(``summary.routes``) and it is applied as an ops step until the engine edge does it.
+
 Coolify's own start/stop API is deliberately not used: stopping through Coolify removes
 the containers, which would turn a seconds-long rollback into a rebuild.
 """
@@ -50,7 +57,7 @@ from app.models.import_run import (
 )
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP, TenantResource
 from app.modules.importers.compose import ComposeImportError, ImportPlan, build_stack
-from app.modules.importers.host import HostOps, probe_port
+from app.modules.importers.host import HostOps, probe_port, probe_upstream
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.http import ProviderAPIError
 from app.services.secrets import decrypt, encrypt
@@ -58,6 +65,8 @@ from app.services.secrets import decrypt, encrypt
 logger = logging.getLogger(__name__)
 
 STAGE_PORT_OFFSET = 10000
+# Loopback ports handed to routed services (stage copies use these + STAGE_PORT_OFFSET).
+ROUTE_PORT_RANGE = range(9200, 9900)
 BUILDER_IMPORT = "import"
 _UUID_RE = re.compile(r"^[a-z0-9]{6,64}$")
 
@@ -75,7 +84,8 @@ _BUSY_STATE = {
     ACTION_ROLLBACK: IMPORT_ROLLING_BACK,
 }
 
-Probe = Callable[[int], Awaitable[str]]
+Probe = Callable[..., Awaitable[str]]  # (port, *, vhost=None) -> answer
+UpstreamProbe = Callable[[str, str], Awaitable[str]]  # (proxy_url, vhost) -> answer
 Sleep = Callable[[float], Awaitable[None]]
 SessionFactory = Callable[[], Any]
 
@@ -119,6 +129,7 @@ class CoolifyImporter:
         engine: DockerEngine | None = None,
         coolify: Any = None,
         probe: Probe = probe_port,
+        upstream_probe: UpstreamProbe = probe_upstream,
         sleep: Sleep = asyncio.sleep,
         session_factory: SessionFactory = session_scope,
         stacks_dir: str | None = None,
@@ -131,6 +142,7 @@ class CoolifyImporter:
         self.host = HostOps(self.engine, helper_image=settings.import_helper_image)
         self.coolify = coolify
         self.probe = probe
+        self.upstream_probe = upstream_probe
         self.sleep = sleep
         self.session_factory = session_factory
         self.stacks_dir = stacks_dir or default_stacks_dir()
@@ -183,6 +195,7 @@ class CoolifyImporter:
                 | (set(run_like.get("stage_exclude", [])) if stage else set())
             ),
             image_overrides=run_like.get("image_overrides") or {},
+            publish={r["service"]: int(r["host_port"]) for r in run_like.get("routes") or []},
         )
 
     async def plan(
@@ -210,8 +223,13 @@ class CoolifyImporter:
         except DockerEngineError as exc:
             raise ImporterError(f"Could not read the Coolify app files: {exc.message}", 502) from exc
 
-        base = {"project": project, "source_project": app_uuid, "source_dir": source_dir}
+        base: dict[str, Any] = {
+            "project": project, "source_project": app_uuid, "source_dir": source_dir,
+        }
         try:
+            _, detected = self._build(base, compose_text, env_text, stage=False)
+            if detected.routes:
+                base["routes"] = await self._allocate_routes(session, detected)
             _, first = self._build(base, compose_text, env_text, stage=False)
         except ComposeImportError as exc:
             raise ImporterError(str(exc), 422) from exc
@@ -264,6 +282,21 @@ class CoolifyImporter:
                 }
             )
 
+        if base.get("routes"):
+            proxy = await self.host.coolify_proxy_url()
+            if proxy is None:
+                raise ImporterError(
+                    "This app is served through Coolify's proxy, but coolify-proxy has no "
+                    "loopback HTTPS port to read the live answer from.", 422,
+                )
+            base["coolify_proxy"] = proxy
+            run_like["coolify_proxy"] = proxy
+            for route in base["routes"]:
+                warnings.append(
+                    f"{route['service']} is served through Coolify's proxy; after cutover point "
+                    f"nginx for {', '.join(route['hosts'])} at http://127.0.0.1:{route['host_port']}"
+                )
+
         coolify_info = await self._coolify_info(app_uuid)
         if coolify_info.get("auto_deploy"):
             warnings.append(
@@ -315,6 +348,34 @@ class CoolifyImporter:
         )
         await session.flush()
         return run
+
+    async def _allocate_routes(self, session: AsyncSession, detected: ImportPlan) -> list[dict[str, Any]]:
+        """Pick a free loopback port (and stage port) for every routed service."""
+        taken: set[int] = set()
+        for summary in await session.scalars(
+            select(ImportRun.summary).where(ImportRun.state != IMPORT_ROLLED_BACK)
+        ):
+            for route in (summary or {}).get("routes") or []:
+                taken.add(int(route["host_port"]))
+        routes: list[dict[str, Any]] = []
+        for route in detected.routes:
+            for port in ROUTE_PORT_RANGE:
+                if port in taken:
+                    continue
+                if await self.probe(port) == "closed" and await self.probe(port + STAGE_PORT_OFFSET) == "closed":
+                    taken.add(port)
+                    routes.append(
+                        {
+                            "service": route.service,
+                            "container_port": route.container_port,
+                            "host_port": port,
+                            "hosts": list(route.hosts),
+                        }
+                    )
+                    break
+            else:
+                raise ImporterError("No free loopback port for a routed service.", 503)
+        return routes
 
     async def _ensure_free(
         self, session: AsyncSession, tenant_id: str, app_uuid: str, project: str
@@ -406,21 +467,48 @@ class CoolifyImporter:
         data = json.loads(decrypt(run.secret_blob))
         return data["compose"], data["env"]
 
+    @staticmethod
+    def _vhosts(run: ImportRun) -> dict[int, str]:
+        """Routed host port → the hostname to send when probing it."""
+        return {int(r["host_port"]): r["hosts"][0] for r in run.summary.get("routes") or []}
+
     def _probe_ports(self, run: ImportRun) -> list[int]:
         return sorted({int(p["host_port"]) for p in run.summary.get("ports", [])})
 
-    async def _snapshot(self, ports: list[int], offset: int = 0) -> dict[str, str]:
-        return {str(port): await self.probe(port + offset) for port in ports}
+    async def _snapshot(self, run: ImportRun, offset: int = 0) -> dict[str, str]:
+        """What each published port answers directly (routed ports with their Host header)."""
+        vhosts = self._vhosts(run)
+        out: dict[str, str] = {}
+        for port in self._probe_ports(run):
+            vhost = vhosts.get(port)
+            out[str(port)] = await (
+                self.probe(port + offset, vhost=vhost) if vhost else self.probe(port + offset)
+            )
+        return out
+
+    async def _source_snapshot(self, run: ImportRun) -> dict[str, str]:
+        """What the Coolify app answers: routed ports are read through Coolify's proxy."""
+        out = {}
+        vhosts = self._vhosts(run)
+        proxy = run.summary.get("coolify_proxy") or ""
+        for port in self._probe_ports(run):
+            if port in vhosts:
+                out[str(port)] = await self.upstream_probe(proxy, vhosts[port])
+            else:
+                out[str(port)] = await self.probe(port)
+        return out
 
     async def _wait_for(
-        self, ports: list[int], expected: dict[str, str], *, offset: int = 0
+        self,
+        snapshot: Callable[[], Awaitable[dict[str, str]]],
+        expected: dict[str, str],
     ) -> dict[str, str]:
         """Poll until each port answers like ``expected`` (ports expected closed are skipped)."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.wait_seconds
         current: dict[str, str] = {}
         while True:
-            current = await self._snapshot(ports, offset)
+            current = await snapshot()
             if all(
                 current.get(port) == want
                 for port, want in expected.items()
@@ -436,12 +524,22 @@ class CoolifyImporter:
                 raise ImporterError(f"Ports did not come up as expected: {diff}", 504)
             await self.sleep(self.poll_seconds)
 
-    async def _wait_closed(self, ports: list[int]) -> None:
+    async def _wait_closed(self, run: ImportRun, baseline: dict[str, str]) -> None:
+        """Wait until the Coolify app stopped answering.
+
+        A direct port must close. A routed port is behind Coolify's proxy, which keeps
+        answering (502/404) once the container is gone, so it only has to stop giving
+        its baseline answer.
+        """
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.wait_seconds
+        routed = {str(p) for p in self._vhosts(run)}
         while True:
-            snap = await self._snapshot(ports)
-            if all(v == "closed" for v in snap.values()):
+            snap = await self._source_snapshot(run)
+            if all(
+                (v != baseline.get(port) if port in routed else v == "closed")
+                for port, v in snap.items()
+            ):
                 return
             if loop.time() >= deadline:
                 raise ImporterError(f"Source ports are still open after stop: {snap}", 504)
@@ -463,7 +561,6 @@ class CoolifyImporter:
         summary = dict(run.summary)
         compose_text, env_text = self._secrets(run)
         stage_yaml, _ = self._build(summary, compose_text, env_text, stage=True)
-        ports = self._probe_ports(run)
         await self._prepare(session, run)
         try:
             await self.engine.remove_stack(summary["stage_project"])
@@ -474,9 +571,11 @@ class CoolifyImporter:
             await self.host.copy_volume(vol["source"], vol["stage_target"])
         await self._log(session, run, f"starting {summary['stage_project']}")
         await self.engine.deploy_stack(summary["stage_project"], stage_yaml)
-        baseline = await self._snapshot(ports)
+        baseline = await self._source_snapshot(run)
         await self._log(session, run, f"live answers: {baseline}")
-        result = await self._wait_for(ports, baseline, offset=STAGE_PORT_OFFSET)
+        result = await self._wait_for(
+            lambda: self._snapshot(run, STAGE_PORT_OFFSET), baseline
+        )
         summary["baseline"] = baseline
         summary["stage_probe"] = result
         run.summary = summary
@@ -490,8 +589,7 @@ class CoolifyImporter:
         summary = dict(run.summary)
         compose_text, env_text = self._secrets(run)
         prod_yaml, _ = self._build(summary, compose_text, env_text, stage=False)
-        ports = self._probe_ports(run)
-        baseline = await self._snapshot(ports)
+        baseline = await self._source_snapshot(run)
         if not any(v.startswith("http:") for v in baseline.values()):
             raise ImporterError(f"The Coolify app is not serving HTTP right now: {baseline}", 409)
         await self._log(session, run, f"live answers before cutover: {baseline}")
@@ -503,13 +601,13 @@ class CoolifyImporter:
             await self._log(session, run, f"stopping Coolify containers ({source})")
             await self.engine.stop_stack(source)
             stopped = True
-            await self._wait_closed(ports)
+            await self._wait_closed(run, baseline)
             for vol in summary["volumes"]:
                 await self._log(session, run, f"copying {vol['source']} → {vol['target']}")
                 await self.host.copy_volume(vol["source"], vol["target"])
             await self._log(session, run, f"starting {run.project} on the original ports")
             await self.engine.deploy_stack(run.project, prod_yaml)
-            result = await self._wait_for(ports, baseline)
+            result = await self._wait_for(lambda: self._snapshot(run), baseline)
         except Exception as exc:
             if stopped:
                 await self._log(session, run, f"cutover failed ({exc}); restoring Coolify")
@@ -523,6 +621,12 @@ class CoolifyImporter:
         run.summary = summary
         run.state = IMPORT_LIVE
         await self._log(session, run, f"LIVE on the engine: {result}")
+        for route in summary.get("routes") or []:
+            await self._log(
+                session, run,
+                f"ACTION NEEDED: point nginx for {', '.join(route['hosts'])} at "
+                f"http://127.0.0.1:{route['host_port']} (it still proxies to Coolify)",
+            )
         await self._teardown_stage(session, run)
 
     async def _restore_source(self, session: AsyncSession, run: ImportRun) -> None:
@@ -533,7 +637,7 @@ class CoolifyImporter:
         await self.engine.start_stack(run.summary["source_project"])
         baseline = run.summary.get("baseline") or {}
         if baseline:
-            await self._wait_for(self._probe_ports(run), baseline)
+            await self._wait_for(lambda: self._source_snapshot(run), baseline)
         await self._log(session, run, "Coolify containers are serving again")
 
     async def _rollback(self, session: AsyncSession, run: ImportRun) -> None:
@@ -581,6 +685,9 @@ class CoolifyImporter:
             )
         fqdn = (run.summary.get("coolify") or {}).get("fqdn", "") or ""
         domain = fqdn.split(",")[0].removeprefix("https://").removeprefix("http://").strip("/")
+        routes = run.summary.get("routes") or []
+        if not domain and routes:
+            domain = routes[0]["hosts"][0]
         session.add(
             Deployment(
                 tenant_id=run.tenant_id,
@@ -589,7 +696,7 @@ class CoolifyImporter:
                 builder=BUILDER_IMPORT,
                 image=f"coolify:{run.source_ref}"[:255],
                 domain=domain[:255],
-                port=0,
+                port=int(routes[0]["host_port"]) if routes else 0,
                 log=f"→ imported from Coolify app {run.source_ref} (run {run.id})\n✓ running",
             )
         )
