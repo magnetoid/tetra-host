@@ -6,19 +6,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-RESOURCE_TYPE_SITE = "site"
 RESOURCE_TYPE_MAIL_DOMAIN = "mail_domain"
 RESOURCE_TYPE_MAILBOX = "mailbox"
 RESOURCE_TYPE_DNS_ZONE = "dns_zone"
 RESOURCE_TYPE_DNS_RECORD = "dns_record"
 RESOURCE_TYPE_DATABASE = "database"
-RESOURCE_TYPE_SERVER = "server"
 RESOURCE_TYPE_APP = "app"
 RESOURCE_TYPE_CLOUDFLARE_SERVICE = "cloudflare_service"  # a resold CF plan/add-on on a tenant zone
 RESOURCE_TYPE_AI_KEY = "ai_key"  # a resold OpenRouter runtime key provisioned for a tenant
 RESOURCE_TYPE_BUCKET = "bucket"  # a resold Cloudflare R2 object-storage bucket for a tenant
 
-PROVIDER_COOLIFY = "coolify"
 PROVIDER_MAILCOW = "mailcow"
 PROVIDER_CLOUDFLARE = "cloudflare"
 PROVIDER_DOCKER = "docker"

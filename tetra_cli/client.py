@@ -233,61 +233,12 @@ class TetraClient:
     def dashboard(self) -> Any:
         return self._request("GET", "/dashboard")
 
-    # ── Projects / deploys ────────────────────────────────────────────────
-    def projects(self) -> list[dict]:
-        return self._request("GET", "/projects")
+    # ── Engine app observability ──────────────────────────────────────────
+    def app_analytics(self, project: str, period: str = "7d") -> Any:
+        return self._request("GET", f"/apps/{project}/analytics", params={"period": period})
 
-    def deploy(self, project_id: str, force: bool = False) -> Any:
-        return self._request("POST", f"/projects/{project_id}/deploy", params={"force": "1"} if force else None)
-
-    def update_project(self, project_id: str, **fields: Any) -> Any:
-        body = {k: v for k, v in fields.items() if v is not None}
-        return self._request("PATCH", f"/projects/{project_id}", json_body=body)
-
-    def app_storages(self, project_id: str) -> Any:
-        return self._request("GET", f"/projects/{project_id}/storages")
-
-    def app_storage_add(self, project_id: str, name: str, mount_path: str, host_path: str = "") -> Any:
-        body: dict = {"name": name, "mount_path": mount_path}
-        if host_path:
-            body["host_path"] = host_path
-        return self._request("POST", f"/projects/{project_id}/storages", json_body=body)
-
-    def app_storage_rm(self, project_id: str, storage_uuid: str) -> Any:
-        return self._request("DELETE", f"/projects/{project_id}/storages/{storage_uuid}")
-
-    def deployments(self, project_id: str) -> list[dict]:
-        return self._request("GET", f"/projects/{project_id}/deployments")
-
-    def project_runtime_logs(self, project_id: str, lines: int = 200) -> Any:
-        return self._request("GET", f"/projects/{project_id}/logs", params={"lines": str(lines)})
-
-    def project_analytics(self, project_id: str, period: str = "7d") -> Any:
-        return self._request("GET", f"/projects/{project_id}/analytics", params={"period": period})
-
-    def project_errors(self, project_id: str) -> Any:
-        return self._request("GET", f"/projects/{project_id}/errors")
-
-    def stream_logs(self, project_id: str, deployment_id: str) -> Iterator[tuple[str, dict]]:
-        """Yield (event, data) tuples from the SSE build-log stream until done."""
-        url = f"{self.api}/projects/{project_id}/deployments/{deployment_id}/logs/stream"
-        with self._client() as client, client.stream("GET", url, headers=self._headers()) as response:
-            if response.status_code >= 400:
-                raise TetraError(f"log stream failed ({response.status_code})", response.status_code)
-            event = "message"
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                if line.startswith("event:"):
-                    event = line[6:].strip()
-                elif line.startswith("data:"):
-                    payload = line[5:].strip()
-                    try:
-                        data = json.loads(payload)
-                    except ValueError:
-                        data = {"raw": payload}
-                    yield event, data
-                    event = "message"
+    def app_errors(self, project: str) -> Any:
+        return self._request("GET", f"/apps/{project}/errors")
 
     # ── DNS ───────────────────────────────────────────────────────────────
     def dns(self, zone: str | None = None) -> Any:
@@ -354,14 +305,6 @@ class TetraClient:
         return self._request("POST", f"/dns/zones/{zone_id}/import", json_body={"bind": bind})
 
     # ── Env vars ──────────────────────────────────────────────────────────
-    def envs(self, project_id: str) -> list[dict]:
-        return self._request("GET", f"/projects/{project_id}/envs")
-
-    def env_set(self, project_id: str, key: str, value: str) -> Any:
-        return self._request("POST", f"/projects/{project_id}/envs", json_body={"key": key, "value": value})
-
-    def env_rm(self, project_id: str, env_uuid: str) -> Any:
-        return self._request("DELETE", f"/projects/{project_id}/envs/{env_uuid}")
 
     # ── Apps (Tetra Engine — pre-defined Docker containers) ───────────────
     def apps_catalog(self, search: str | None = None, category: str | None = None) -> Any:
@@ -411,10 +354,8 @@ class TetraClient:
     def explain_deployment(self, deployment_id: str) -> Any:
         return self._request("GET", f"/deploys/{deployment_id}/explain")
 
-    def explain_error(self, application_id: str, issue_id: str) -> Any:
-        return self._request(
-            "GET", f"/projects/{application_id}/errors/{issue_id}/explain"
-        )
+    def explain_error(self, project: str, issue_id: str) -> Any:
+        return self._request("GET", f"/apps/{project}/errors/{issue_id}/explain")
 
     def list_tokens(self) -> Any:
         return self._request("GET", "/account/tokens")
@@ -664,36 +605,6 @@ class TetraClient:
 
     def import_action(self, run_id: str, action: str) -> Any:
         return self._request("POST", f"/importers/runs/{run_id}/{action}")
-
-    # ── Databases ─────────────────────────────────────────────────────────
-    def databases(self) -> list[dict]:
-        return self._request("GET", "/databases")
-
-    def provision_database(
-        self,
-        db_type: str,
-        name: str,
-        server_uuid: str,
-        project_uuid: str,
-        environment_name: str,
-    ) -> Any:
-        return self._request(
-            "POST",
-            "/databases",
-            json_body={
-                "type": db_type,
-                "name": name,
-                "server_uuid": server_uuid,
-                "project_uuid": project_uuid,
-                "environment_name": environment_name,
-            },
-        )
-
-    def database_backups(self, uuid: str) -> list[dict]:
-        return self._request("GET", f"/databases/{uuid}/backups")
-
-    def create_database_backup(self, uuid: str, **config: Any) -> Any:
-        return self._request("POST", f"/databases/{uuid}/backups", json_body=config or None)
 
     # ── Usage ─────────────────────────────────────────────────────────────
     def usage(self) -> Any:

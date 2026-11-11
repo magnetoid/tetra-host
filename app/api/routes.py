@@ -1,4 +1,3 @@
-import asyncio
 import json
 from typing import TypeVar
 
@@ -32,14 +31,10 @@ from app.api.contracts import (
     AppEnvVarRequest,
     AppEnvVarSummary,
     AppInstallRequest,
-    AppStorageCreateRequest,
-    AppStorageSummary,
     AppTemplateSummary,
     AuditEventSummary,
     AuditLogResponse,
     AuthResponse,
-    BackupConfigSummary,
-    BackupCreateRequest,
     BucketCreated,
     BucketProvisionRequest,
     BucketSummary,
@@ -54,15 +49,9 @@ from app.api.contracts import (
     CreditTransactionSummary,
     DashboardMetrics,
     DashboardResponse,
-    DatabaseProvisionRequest,
-    DatabaseSummary,
-    DatabaseTargetOption,
-    DatabaseTargets,
     DeployHookCreated,
     DeployHookRequest,
     DeployHookSummary,
-    DeploymentDetail,
-    DeploymentLogLine,
     DeploymentStatus,
     DeployStartResponse,
     DnsExportResponse,
@@ -74,7 +63,6 @@ from app.api.contracts import (
     DNSZoneSummary,
     DomainRequest,
     DomainSummary,
-    EnvVarCreateRequest,
     ErrorDiagnosis,
     GitDeployRequest,
     InfraServerCreated,
@@ -125,10 +113,7 @@ from app.api.contracts import (
     PricingRuleRequest,
     PricingRuleSummary,
     ProjectAnalytics,
-    ProjectDeploymentSummary,
     ProjectErrors,
-    ProjectSummary,
-    ProjectUpdateRequest,
     ProviderSummary,
     RecentDeployment,
     ResellableServiceSummary,
@@ -192,7 +177,6 @@ from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
-from app.modules.databases.service import DatabasesService
 from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
 from app.modules.domains.service import DomainsService
@@ -200,7 +184,6 @@ from app.modules.errors.service import ErrorsService
 from app.modules.jobs.service import JobError, JobsService
 from app.modules.mail.service import MailService
 from app.modules.plans.service import PlanService
-from app.modules.projects.service import ProjectsService
 from app.modules.reseller.ai_service import AiResellerService
 from app.modules.reseller.service import ResellerError, ResellerService
 from app.modules.reseller.storage_service import StorageService
@@ -210,8 +193,8 @@ from app.routes.deps import get_auth_service
 from app.services.api_tokens import ApiTokenService, looks_like_personal_token
 from app.services.builder import BuildError
 from app.services.cloudflare import CloudflareClient, count_bind_records
-from app.services.coolify import parse_deployment_log_lines
 from app.services.docker_engine import DockerEngineError
+from app.services.engine_apps import EngineAppNotFound
 from app.services.github_webhook import branch_from_ref, push_ref, verify_signature
 from app.services.hetzner import (
     DEFAULT_CLOUD_INIT,
@@ -224,66 +207,6 @@ from app.services.notifications import TEST_EVENT, NotificationService
 from app.services.quota import QuotaService
 from app.services.secrets import decrypt
 from app.services.uptime import UptimeService
-
-# Coolify deployment statuses that mean the build has stopped (terminal).
-_TERMINAL_DEPLOYMENT_STATES = {
-    "finished",
-    "success",
-    "succeeded",
-    "failed",
-    "error",
-    "cancelled",
-    "canceled",
-    "cancelled_by_user",
-    "closed",
-    "skipped",
-}
-
-
-def _sse_event(event: str, data: dict[str, object]) -> str:
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
-
-
-async def _stream_deployment_logs(
-    client,
-    deployment_id: str,
-    request: Request,
-    *,
-    poll_interval: float = 1.5,
-    max_seconds: float = 900.0,
-):
-    """Poll a Coolify deployment and emit incremental SSE log/status events.
-
-    Diffs the build log by parsed line count each poll (Coolify only exposes a
-    growing log string, not a stream), emits new lines + status transitions,
-    and terminates on a terminal status, client disconnect, or safety timeout.
-    """
-    sent_lines = 0
-    last_status: str | None = None
-    elapsed = 0.0
-    while True:
-        if await request.is_disconnected():
-            return
-        deployment = await client.get_deployment(deployment_id)
-        if deployment is None:
-            yield _sse_event("error", {"message": "Deployment not found."})
-            return
-        if deployment.status != last_status:
-            last_status = deployment.status
-            yield _sse_event("status", {"status": deployment.status})
-        lines = parse_deployment_log_lines(deployment.deployment_log)
-        if len(lines) > sent_lines:
-            for line in lines[sent_lines:]:
-                yield _sse_event("log", line)
-            sent_lines = len(lines)
-        if deployment.status.lower() in _TERMINAL_DEPLOYMENT_STATES:
-            yield _sse_event("done", {"status": deployment.status})
-            return
-        await asyncio.sleep(poll_interval)
-        elapsed += poll_interval
-        if elapsed >= max_seconds:
-            yield _sse_event("done", {"status": deployment.status, "timeout": True})
-            return
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
@@ -462,7 +385,7 @@ async def api_status(request: Request) -> StatusResponse:
     from datetime import UTC, datetime
 
     from app.services.cloudflare import CloudflareClient
-    from app.services.coolify import CoolifyClient
+    from app.services.docker_engine import DockerEngine, DockerEngineError
 
     async def compute() -> dict:
         http = request.app.state.http_client
@@ -471,13 +394,11 @@ async def api_status(request: Request) -> StatusResponse:
             {"name": "Control plane API", "status": "operational", "detail": "Responding"}
         ]
 
-        coolify = CoolifyClient.from_settings(http_client=http, cache=cache)
-        if coolify.is_configured():
-            try:
-                await coolify.list_projects()
-                components.append({"name": "Applications", "status": "operational", "detail": "Reachable"})
-            except ProviderAPIError as exc:
-                components.append({"name": "Applications", "status": "degraded", "detail": str(exc)[:120]})
+        try:
+            await DockerEngine(docker_bin=request.state.settings.docker_bin).list_stacks()
+            components.append({"name": "Applications", "status": "operational", "detail": "Reachable"})
+        except DockerEngineError as exc:
+            components.append({"name": "Applications", "status": "degraded", "detail": str(exc)[:120]})
 
         cloudflare = CloudflareClient.from_settings(http_client=http, cache=cache)
         if cloudflare.is_configured():
@@ -663,24 +584,18 @@ async def api_dashboard(
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> DashboardResponse:
-    projects_service = ProjectsService(request)
+    apps_service = AppsService(request)
     mail_service = MailService(request)
     dns_service = DnsService(request)
 
-    sites = []
     domains = []
     mailboxes = []
     zones = []
     providers: list[ProviderSummary] = []
 
-    try:
-        sites = await projects_service.list_sites_for_tenant(session, current_admin.tenant_id)
-        detail = "Credentials missing"
-        if projects_service.client.is_configured():
-            detail = f"{len(sites)} applications"
-        providers.append(_provider_summary("Coolify", projects_service.client.is_configured(), detail))
-    except ProviderAPIError as exc:
-        providers.append(ProviderSummary(name="Coolify", status="degraded", detail=str(exc)))
+    # Engine apps (git deploys, marketplace installs, imports) are the panel's apps.
+    apps = await apps_service.list_installed_for_tenant(session, current_admin.tenant_id)
+    providers.append(_provider_summary("Tetra Engine", True, f"{len(apps)} apps"))
 
     try:
         domains, mailboxes = await mail_service.load_for_tenant(session, current_admin.tenant_id)
@@ -703,7 +618,7 @@ async def api_dashboard(
     admin_count = await session.scalar(
         select(func.count()).select_from(AdminUser).where(AdminUser.tenant_id == current_admin.tenant_id)
     ) or 0
-    unhealthy_sites = sum(1 for site in sites if "unhealthy" in site.status or "exited" in site.status)
+    unhealthy_apps = sum(1 for a in apps if "unhealthy" in a.status or "exited" in a.status)
 
     # ── Editorial-dashboard aggregates, all over existing tables ──────────────
     from datetime import UTC, datetime, timedelta
@@ -753,8 +668,8 @@ async def api_dashboard(
         providers=providers,
         recent_deployments=recent_deployments,
         metrics=DashboardMetrics(
-            projects=len(sites),
-            unhealthy_projects=unhealthy_sites,
+            projects=len(apps),
+            unhealthy_projects=unhealthy_apps,
             mail_domains=len(domains),
             dns_zones=len(zones),
             admins=int(admin_count),
@@ -767,224 +682,10 @@ async def api_dashboard(
     )
 
 
-@router.get("/projects", response_model=list[ProjectSummary])
-async def api_projects(
-    request: Request,
-    response: Response,
-    limit: int = Query(500, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[ProjectSummary]:
-    service = ProjectsService(request)
-    sites = await service.list_sites_for_tenant(
-        session,
-        current_admin.tenant_id,
-        refresh=request.query_params.get("refresh") == "1",
-    )
-    items = [ProjectSummary(**site.model_dump()) for site in sites]
-    return _paginate(response, items, limit, offset)
 
-
-@router.patch("/projects/{application_id}", response_model=ActionResponse)
-async def api_update_project(
-    application_id: str,
-    payload: ProjectUpdateRequest,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    data = {key: value for key, value in payload.model_dump().items() if value is not None}
-    if not data:
-        return ActionResponse(ok=True, message="No changes to save.")
-    service = ProjectsService(request)
-    try:
-        await service.update_site_for_tenant(session, current_admin.tenant_id, application_id, data)
-    except ProviderAPIError as exc:
-        raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
-    return ActionResponse(ok=True, message="App settings saved. Redeploy to apply build changes.")
-
-
-@router.get("/projects/{application_id}/storages", response_model=list[AppStorageSummary])
-async def api_list_app_storages(
-    application_id: str,
-    request: Request,
-    response: Response,
-    limit: int = Query(500, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[AppStorageSummary]:
-    service = ProjectsService(request)
-    try:
-        items = await service.list_storages_for_tenant(session, current_admin.tenant_id, application_id)
-    except ProviderAPIError as exc:
-        raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
-    summaries = [
-        AppStorageSummary(id=s.id, name=s.name, mount_path=s.mount_path, host_path=s.host_path)
-        for s in items
-    ]
-    return _paginate(response, summaries, limit, offset)
-
-
-@router.post("/projects/{application_id}/storages", response_model=ActionResponse)
-async def api_create_app_storage(
-    application_id: str,
-    payload: AppStorageCreateRequest,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    data: dict[str, object] = {"name": payload.name.strip(), "mount_path": payload.mount_path.strip()}
-    if payload.host_path.strip():
-        data["host_path"] = payload.host_path.strip()
-    service = ProjectsService(request)
-    try:
-        await service.create_storage_for_tenant(session, current_admin.tenant_id, application_id, data)
-    except ProviderAPIError as exc:
-        raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
-    return ActionResponse(ok=True, message="Volume added. Redeploy to mount it.")
-
-
-@router.delete("/projects/{application_id}/storages/{storage_uuid}", response_model=ActionResponse)
-async def api_delete_app_storage(
-    application_id: str,
-    storage_uuid: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        await service.delete_storage_for_tenant(
-            session, current_admin.tenant_id, application_id, storage_uuid
-        )
-    except ProviderAPIError as exc:
-        raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
-    return ActionResponse(ok=True, message="Volume removed.")
-
-
-@router.post("/projects/{application_id}/deploy", response_model=ActionResponse)
-async def api_deploy_project(
-    application_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    force = request.query_params.get("force") in {"1", "true", "yes"}
-    try:
-        result = await service.deploy_for_tenant(
-            session, current_admin.tenant_id, application_id, force=force
-        )
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(
-        ok=bool(result.get("ok", True)),
-        message=str(result.get("message", "Deployment queued.")),
-        deployment_id=str(result.get("deployment_id", "")),
-    )
-
-
-@router.post("/projects/{application_id}/start", response_model=ActionResponse)
-async def api_start_project(
-    application_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        result = await service.start_for_tenant(session, current_admin.tenant_id, application_id)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application start requested.")))
-
-
-@router.post("/projects/{application_id}/restart", response_model=ActionResponse)
-async def api_restart_project(
-    application_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        result = await service.restart_for_tenant(session, current_admin.tenant_id, application_id)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application restart requested.")))
-
-
-@router.get("/projects/{application_id}/deployments", response_model=list[ProjectDeploymentSummary])
-async def api_project_deployments(
-    application_id: str,
-    request: Request,
-    response: Response,
-    limit: int = Query(500, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[ProjectDeploymentSummary]:
-    service = ProjectsService(request)
-    try:
-        deployments = await service.list_deployments_for_tenant(session, current_admin.tenant_id, application_id)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    items = [ProjectDeploymentSummary(**deployment.model_dump()) for deployment in deployments]
-    return _paginate(response, items, limit, offset)
-
-
-@router.post("/projects/{application_id}/stop", response_model=ActionResponse)
-async def api_stop_project(
-    application_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        result = await service.stop_for_tenant(session, current_admin.tenant_id, application_id)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Application stop requested.")))
-
-
-@router.get("/projects/{application_id}/logs")
-async def api_project_logs(
-    application_id: str,
-    request: Request,
-    lines: int = 200,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> dict[str, str]:
-    service = ProjectsService(request)
-    try:
-        logs = await service.get_logs_for_tenant(
-            session, current_admin.tenant_id, application_id, lines=max(1, min(lines, 1000))
-        )
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return {"logs": logs}
-
-
-@router.get("/projects/{application_id}/analytics", response_model=ProjectAnalytics)
-async def api_project_analytics(
-    application_id: str,
+@router.get("/apps/{project}/analytics", response_model=ProjectAnalytics)
+async def api_app_analytics(
+    project: str,
     request: Request,
     period: str = "7d",
     session: AsyncSession = Depends(get_db_session),
@@ -993,17 +694,19 @@ async def api_project_analytics(
     service = AnalyticsService(request)
     try:
         data = await service.get_analytics_for_project(
-            session, current_admin.tenant_id, application_id, period=period
+            session, current_admin.tenant_id, project, period=period
         )
+    except EngineAppNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="App not found.") from exc
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return ProjectAnalytics(**data)
 
 
-@router.get("/projects/{application_id}/errors", response_model=ProjectErrors)
-async def api_project_errors(
-    application_id: str,
+@router.get("/apps/{project}/errors", response_model=ProjectErrors)
+async def api_app_errors(
+    project: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
@@ -1011,19 +714,19 @@ async def api_project_errors(
     service = ErrorsService(request)
     try:
         data = await service.get_errors_for_project(
-            session, current_admin.tenant_id, application_id
+            session, current_admin.tenant_id, project
         )
+    except EngineAppNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="App not found.") from exc
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return ProjectErrors(**data)
 
 
-@router.get(
-    "/projects/{application_id}/errors/{issue_id}/explain", response_model=ErrorDiagnosis
-)
+@router.get("/apps/{project}/errors/{issue_id}/explain", response_model=ErrorDiagnosis)
 async def api_explain_error(
-    application_id: str,
+    project: str,
     issue_id: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
@@ -1036,15 +739,17 @@ async def api_explain_error(
     service = ErrorsService(request)
     try:
         result = await service.diagnose_error_for_project(
-            session, current_admin.tenant_id, application_id, issue_id
+            session, current_admin.tenant_id, project, issue_id
         )
+    except EngineAppNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="App not found.") from exc
     except ProviderAPIError as exc:
         status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Error not found, or error tracking is not configured for this project.",
+            detail="Error not found, or error tracking is not configured for this app.",
         )
     issue, diagnosis = result
     return ErrorDiagnosis(
@@ -1347,145 +1052,6 @@ async def api_check_monitor(
     await service.check_one(monitor)
     return _uptime_summary(monitor)
 
-
-@router.get("/projects/{application_id}/envs")
-async def api_project_envs(
-    application_id: str,
-    request: Request,
-    response: Response,
-    limit: int = Query(500, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[dict[str, object]]:
-    service = ProjectsService(request)
-    try:
-        envs = await service.get_envs_for_tenant(session, current_admin.tenant_id, application_id)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return _paginate(response, envs, limit, offset)
-
-
-@router.post("/projects/{application_id}/envs", response_model=ActionResponse)
-async def api_create_env(
-    application_id: str,
-    payload: EnvVarCreateRequest,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        await service.create_env_for_tenant(
-            session,
-            current_admin.tenant_id,
-            application_id,
-            payload.key,
-            payload.value,
-            payload.is_preview,
-            payload.is_build_time,
-        )
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(message="Environment variable saved.")
-
-
-@router.delete("/projects/{application_id}/envs/{env_uuid}", response_model=ActionResponse)
-async def api_delete_env(
-    application_id: str,
-    env_uuid: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        await service.delete_env_for_tenant(session, current_admin.tenant_id, application_id, env_uuid)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(message="Environment variable deleted.")
-
-
-@router.get("/projects/{application_id}/deployments/{deployment_id}", response_model=DeploymentDetail)
-async def api_deployment_detail(
-    application_id: str,
-    deployment_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> DeploymentDetail:
-    service = ProjectsService(request)
-    try:
-        deployment = await service.get_deployment_for_tenant(
-            session, current_admin.tenant_id, application_id, deployment_id
-        )
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    if deployment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found.")
-    return DeploymentDetail(
-        id=deployment.id,
-        status=deployment.status,
-        created_at=deployment.created_at,
-        updated_at=deployment.updated_at,
-        commit=deployment.commit,
-        branch=deployment.branch,
-        log_lines=[DeploymentLogLine(**line) for line in parse_deployment_log_lines(deployment.deployment_log)],
-    )
-
-
-@router.get("/projects/{application_id}/deployments/{deployment_id}/logs/stream")
-async def api_stream_deployment_logs(
-    application_id: str,
-    deployment_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> StreamingResponse:
-    service = ProjectsService(request)
-    # Validate tenant access once, up front: the request DB session is not
-    # safely usable inside the long-lived streaming generator below.
-    #
-    # This must validate the DEPLOYMENT, not just the application: the generator
-    # below calls the flat /api/v1/deployments/{uuid} endpoint, so an app-only
-    # check would let any tenant stream any other tenant's live build log.
-    try:
-        await service.ensure_deployment_access_for_tenant(
-            session, current_admin.tenant_id, application_id, deployment_id
-        )
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return StreamingResponse(
-        _stream_deployment_logs(service.client, deployment_id, request),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post("/projects/{application_id}/deployments/{deployment_id}/cancel", response_model=ActionResponse)
-async def api_cancel_deployment(
-    application_id: str,
-    deployment_id: str,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    service = ProjectsService(request)
-    try:
-        result = await service.cancel_deployment_for_tenant(session, current_admin.tenant_id, application_id, deployment_id)
-    except ProviderAPIError as exc:
-        status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-    return ActionResponse(ok=bool(result.get("ok", True)), message=str(result.get("message", "Deployment cancelled.")))
 
 
 @router.get("/mail", response_model=MailResponse)
@@ -3541,11 +3107,6 @@ async def api_admin(
     )
     providers = [
         _provider_summary(
-            "Coolify",
-            bool(request.state.settings.coolify_url and request.state.settings.coolify_token),
-            request.state.settings.coolify_url or "Missing URL and token",
-        ),
-        _provider_summary(
             "Mailcow",
             bool(request.state.settings.mailcow_url and request.state.settings.mailcow_api_key),
             request.state.settings.mailcow_url or "Missing URL and API key",
@@ -3783,6 +3344,11 @@ async def api_create_tenant_resource(
     tenant = await auth_service.get_tenant_by_slug(payload.tenant_slug)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+    if payload.provider.strip().lower() == "coolify":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Coolify apps are no longer managed by the panel; import them with `tetra import`.",
+        )
 
     resource = await session.scalar(
         select(TenantResource).where(
@@ -3973,145 +3539,6 @@ async def api_usage(
         domains_used=domains_used,
         domains_limit=domains_limit,
         enforced=["apps"],
-    )
-
-
-# ---------------------------------------------------------------------------
-# Databases endpoints  (/api/v1/databases)
-# ---------------------------------------------------------------------------
-
-
-@router.get("/databases", response_model=list[DatabaseSummary])
-async def api_list_databases(
-    request: Request,
-    response: Response,
-    limit: int = Query(500, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[DatabaseSummary]:
-    """List Coolify databases assigned to the caller's tenant."""
-    service = DatabasesService(request)
-    databases = await service.list_databases_for_tenant(
-        session,
-        current_admin.tenant_id,
-        refresh=request.query_params.get("refresh") == "1",
-    )
-    items = [
-        DatabaseSummary(
-            id=db.id,
-            name=db.name,
-            type=db.type,
-            status=db.status,
-            internal_db_url=db.internal_db_url,
-            image=db.image,
-        )
-        for db in databases
-    ]
-    return _paginate(response, items, limit, offset)
-
-
-@router.get("/databases/targets", response_model=DatabaseTargets)
-async def api_database_targets(
-    request: Request,
-    _: AdminUser = Depends(get_current_api_admin),
-) -> DatabaseTargets:
-    """Coolify servers + projects to populate the provisioning form's pickers."""
-    data = await DatabasesService(request).list_targets()
-    return DatabaseTargets(
-        servers=[DatabaseTargetOption(**s) for s in data["servers"]],
-        projects=[DatabaseTargetOption(**p) for p in data["projects"]],
-    )
-
-
-@router.post("/databases", response_model=ActionResponse)
-async def api_provision_database(
-    payload: DatabaseProvisionRequest,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    """Provision a new managed database via Coolify (tenant-scoped).
-
-    Gated by ENABLE_PROVIDER_ACTIONS. db_type must be in the supported allow-list.
-    """
-    service = DatabasesService(request)
-    try:
-        result = await service.provision_for_tenant(
-            session,
-            current_admin.tenant_id,
-            db_type=payload.db_type,
-            name=payload.name,
-            server_uuid=payload.server_uuid,
-            project_uuid=payload.project_uuid,
-            environment_name=payload.environment_name,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except ProviderAPIError as exc:
-        _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
-    return ActionResponse(
-        ok=bool(result.get("ok", True)),
-        message=str(result.get("message", "Database provisioned.")),
-    )
-
-
-@router.get("/databases/{db_uuid}/backups", response_model=list[BackupConfigSummary])
-async def api_list_database_backups(
-    db_uuid: str,
-    request: Request,
-    response: Response,
-    limit: int = Query(500, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> list[BackupConfigSummary]:
-    """List backup configs for a tenant-owned database."""
-    service = DatabasesService(request)
-    try:
-        backups = await service.backups_for_tenant(session, current_admin.tenant_id, db_uuid)
-    except ProviderAPIError as exc:
-        _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
-    items = [
-        BackupConfigSummary(
-            id=str(b.get("uuid") or b.get("id") or ""),
-            frequency=str(b.get("frequency") or ""),
-            retention_days=int(b.get("retention_days") or b.get("retention") or 0),
-            s3_storage_id=str(b.get("s3_storage_id") or ""),
-        )
-        for b in backups
-    ]
-    return _paginate(response, items, limit, offset)
-
-
-@router.post("/databases/{db_uuid}/backups", response_model=ActionResponse)
-async def api_create_database_backup(
-    db_uuid: str,
-    payload: BackupCreateRequest,
-    request: Request,
-    session: AsyncSession = Depends(get_db_session),
-    current_admin: AdminUser = Depends(get_current_api_admin),
-) -> ActionResponse:
-    """Create a backup config for a tenant-owned database. Gated by ENABLE_PROVIDER_ACTIONS."""
-    service = DatabasesService(request)
-    config: dict[str, object] = {
-        "frequency": payload.frequency,
-        "retention_days": payload.retention_days,
-    }
-    if payload.s3_storage_id:
-        config["s3_storage_id"] = payload.s3_storage_id
-    try:
-        result = await service.create_backup_for_tenant(
-            session, current_admin.tenant_id, db_uuid, **config
-        )
-    except ProviderAPIError as exc:
-        _status_code = exc.status_code or status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(status_code=_status_code, detail=str(exc)) from exc
-    return ActionResponse(
-        ok=bool(result.get("ok", True)),
-        message=str(result.get("message", "Backup config created.")),
     )
 
 

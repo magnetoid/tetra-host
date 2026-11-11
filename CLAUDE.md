@@ -4,14 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Tetra Host is a Cloud Industry branded multi-tenant hosting control panel. It orchestrates third-party
-infrastructure providers — **Coolify** (sites/apps), **Mailcow** (mail), **Cloudflare** (DNS),
-**Hetzner Cloud** (own-infra compute provisioning), plus **Umami**/**GlitchTip** observability sidecars —
-behind a single admin/tenant surface.
+Tetra Host is a Cloud Industry branded, open-source multi-tenant hosting control panel that replaces
+Coolify + Plesk. Apps and sites run on the native **Tetra Engine** (Docker/compose driven directly); it
+also orchestrates **Mailcow** (mail), **Cloudflare** (DNS), **Hetzner Cloud** (own-infra compute
+provisioning), plus **Umami**/**GlitchTip** observability sidecars — behind a single admin/tenant surface.
 
-**Direction (ADR 0017, `docs/architecture/roadmap.md`):** the native **Tetra Engine** is the deploy
-backend; Coolify is transitional and is being migrated off — give Coolify code fixes only, no new
-Coolify-only features. Target tenancy is platform → reseller (hosting company) → customer → team member,
+**Direction (ADR 0017 + ADR 0018, `docs/architecture/roadmap.md`):** the Tetra Engine is the deploy
+backend. **Coolify is an import source only** (rule `tetra-coolify-import-source-only`): the panel does
+not list, deploy or configure Coolify apps; the only Coolify code is the importer
+(`app/modules/importers/`, read-only client `coolify_source.py`). Features Coolify used to provide
+(managed databases, volumes, restart, cancel, exec) come back as engine features. Target tenancy is platform → reseller (hosting company) → customer → team member,
 with plugins toggled at runtime. Check the roadmap phase before starting structural work.
 
 The repo contains **two independent applications**:
@@ -49,7 +51,7 @@ Ops scripts: `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh
 `python -m tetra_cli ...` or `scripts/tetra ...`; `pip install -e .` exposes the `tetra` command.
 
 - `tetra login --url https://panel.cloud-industry.com` saves a token to `~/.config/tetra-host/config.json` (override with `TETRA_API_URL` / `TETRA_TOKEN` env).
-- `tetra sites`, `tetra deploy <id> --follow` (streams build logs live), `tetra logs <site> <dep>`, `tetra deployments <id>`, `tetra dns zones|records|add|rm`, `tetra env list|set|rm`, `tetra dashboard`.
+- `tetra deploys list|git|rollback` (git deploys stream build logs live), `tetra deploys env list|set|rm`, `tetra apps catalog|install|logs`, `tetra analytics|errors <app>`, `tetra dns zones|records|add|rm`, `tetra teams`, `tetra project …`, `tetra import list|show|coolify|stage|cutover|rollback`, `tetra dashboard`.
 - It's a thin client over [tetra_cli/client.py](tetra_cli/client.py) (injectable httpx transport → tested in-process with `httpx.MockTransport`). **When you add a dashboard feature, add the matching CLI command.**
 - `tetra mcp serve` ([tetra_cli/mcp.py](tetra_cli/mcp.py)) exposes the **third parity surface**: a hand-rolled MCP (JSON-RPC over stdio, no new deps) wrapping the same `/api/v1` contract so an AI agent sees exactly what a human does. Writes are double-gated — `--allow-writes` at startup **and** `confirm=true` per call; billable/admin ops (Hetzner, plans, tenants) and DNS writes are not exposed at all (ADR 0012).
 
@@ -64,17 +66,16 @@ existing modules.
 
 A module typically has: `routes.py` (thin handlers), `service.py` (business/provider logic), `plugin.py`,
 and sometimes `schemas.py`. Registered plugins (order matters, see `load_plugins()`): `public`, `auth`,
-`dashboard`, `projects`, `databases`, `servers`, `mail`, `oidc`, `dns`, `domains`, `maintenance`, `plans`,
-`account`, `admin`, `importers`, `workspaces` (the last two are API-only, with their own
+`dashboard`, `mail`, `oidc`, `dns`, `domains`, `plans`, `account`, `admin`, `importers`, `workspaces`
+(the last two are API-only, with their own
 `/api/v1` routers). Plugins cannot yet be disabled at runtime and their boundary covers only the Jinja
 routes; all of `/api/v1` still lives in `app/api/routes.py` (roadmap phase 1 splits it per plugin, guarded
 by `tests/test_openapi_snapshot.py` — regenerate with `UPDATE_SNAPSHOTS=1` only for intended changes).
 
 **Not every module has a plugin.** Several modules are **service-only** — `apps`, `analytics`, `billing`,
 `deploys`, `errors`, `jobs`, `reseller`, `sso`, `team` ship just a `service.py` with no `plugin.py`, consumed by
-the `projects` plugin and by [app/api/routes.py](app/api/routes.py). `projects` is the **composite surface**:
-one plugin that renders sites/apps/deployments/metrics/errors as tabs (templates still live under
-`templates/sites/`). So "add a feature" means: a new plugin module when it needs its own nav entry + routes;
+[app/api/routes.py](app/api/routes.py) and the console. Analytics and errors resolve an engine app through
+`app/services/engine_apps.py` (`resolve_engine_app`). So "add a feature" means: a new plugin module when it needs its own nav entry + routes;
 a service-only module when it's domain logic surfaced through an existing plugin or the API.
 
 **Keep the core clean and simple** (rule `tetra-clean-simple-core`, ADR 0007): `app/main.py` is wiring only,
@@ -86,7 +87,7 @@ plus the **account** self-service and **audit-log** surfaces on `/api/v1` + `tet
 
 **Layering (enforce this).** Route handlers stay thin; all provider and domain logic lives in service
 classes (`app/modules/*/service.py` and `app/services/`). Provider clients —
-`app/services/{coolify,mailcow,cloudflare,hetzner,umami,glitchtip}.py`, plus supporting services
+`app/services/{mailcow,cloudflare,hetzner,umami,glitchtip}.py`, plus supporting services
 (`builder`, `registry`, `docker_engine`, `edge`, `github_webhook`, `secrets`, `quota`, `limits`) —
 go through the shared retrying HTTP helper
 [app/services/http.py](app/services/http.py) (`request_json`, raises `ProviderAPIError`). Catch
@@ -112,7 +113,7 @@ to async drivers (`sqlite+aiosqlite` / `postgresql+asyncpg`); production refuses
 `app/models/` (tenancy: `AdminUser`, `Tenant`, `TenantResource`, `TenantInvite`, `ApiToken`, `Plan`; engine:
 `Deployment`, `Domain`, `AppEnvVar`, `DeployHook`, `PreviewEnv`; plus billing, jobs, uptime, notifications,
 SSO and `AuditEvent`; hierarchy: `WorkspaceProject`, `Environment`, `WorkspaceApp` — team → project →
-environment → app, where `apps` indexes engine stacks and Coolify apps and is kept current by
+environment → app, where `apps` indexes engine stacks (deploys, installs, imports, previews) and is kept current by
 `app/modules/workspaces/service.py` `sync()`), re-exported from `app/models/__init__.py`. Schema today is a hybrid: `init_db()`
 runs `create_all` plus startup ALTERs/backfills in `app/db/session.py`, and Alembic (`alembic/versions/`)
 holds a no-op baseline plus later revisions. **New columns go in an Alembic migration, not the startup

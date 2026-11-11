@@ -37,12 +37,13 @@ class Settings(BaseSettings):
     provider_cache_ttl_seconds: int = 30
     enable_provider_actions: bool = False
 
-    coolify_url: str = ""
-    coolify_token: str = ""
-    # Importers (Coolify → Tetra Engine). COOLIFY_DATA_DIR is Coolify's on-host data root
-    # (apps live in <dir>/applications/<uuid>); ENGINE_STACKS_DIR holds files an imported
+    # Importers (Coolify → Tetra Engine). The panel does not manage Coolify apps: COOLIFY_URL
+    # and COOLIFY_TOKEN only let the importer read an app's metadata. COOLIFY_DATA_DIR is
+    # Coolify's on-host data root (apps live in <dir>/applications/<uuid>); ENGINE_STACKS_DIR holds files an imported
     # stack bind-mounts (empty = <repo>/data/stacks). The helper image does the root-only
     # file and volume copies.
+    coolify_url: str = ""
+    coolify_token: str = ""
     coolify_data_dir: str = "/data/coolify"
     engine_stacks_dir: str = ""
     import_helper_image: str = "alpine:3.20"
@@ -263,7 +264,6 @@ class Settings(BaseSettings):
     def provider_credentials_configured(self) -> bool:
         return any(
             [
-                bool(self.coolify_url and self.coolify_token),
                 bool(self.mailcow_url and self.mailcow_api_key),
                 bool(self.cloudflare_api_token),
             ]

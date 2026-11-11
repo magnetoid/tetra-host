@@ -2,9 +2,11 @@
 
 Tetra Host (Cloud Industry / **Tetra AI Cloud**) is an open-source, multi-tenant hosting
 platform: a Vercel-style console over best-in-class open-source infrastructure. It orchestrates
-**Coolify** (apps/sites), **Cloudflare** (DNS), **Mailcow** (mail), **Hetzner Cloud** (compute),
+the native **Tetra Engine** (apps/sites on Docker), **Cloudflare** (DNS), **Mailcow** (mail),
+**Hetzner Cloud** (compute),
 plus **Umami**/**GlitchTip** observability — behind one control plane, one web console, one CLI,
-and one MCP surface for AI agents.
+and one MCP surface for AI agents. It replaces Coolify + Plesk: existing Coolify apps are moved onto
+the engine with the importer (`tetra import`), not managed through Coolify (ADR 0018).
 
 ## What's in this repo
 

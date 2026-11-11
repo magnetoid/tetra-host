@@ -1,15 +1,12 @@
 """Workspace hierarchy: team (``Tenant``) → project → environment → app.
 
-Until now a "project" was only a text name repeated on six tables, and an app existed in
-three unrelated models (Coolify applications, engine deployments, the catalog). These
-tables give every level a real row so the console can address it.
+Until now a "project" was only a text name repeated on six tables. These tables give every
+level a real row so the console can address it.
 
-``apps`` is an **index** over the workloads that already exist, not their source of truth:
-an engine app points at its stack (``external_id`` = engine project name), a Coolify app
-at its application uuid. Service calls keep going through the existing services; the
-``WorkloadDriver`` of roadmap phase 3 later builds on the same table. When an app moves
-from Coolify to the engine the row stays and only ``driver``/``external_id`` change, so
-its placement in the hierarchy survives the migration.
+``apps`` is an **index** over the engine stacks that already exist, not their source of
+truth: each row points at its stack (``external_id`` = engine project name). Service calls
+keep going through the existing services. ``driver`` is ``engine`` for every app today; it
+leaves room for other runtimes without a schema change.
 """
 
 from datetime import UTC, datetime
@@ -26,8 +23,7 @@ ENV_PREVIEW = "preview"
 ENVIRONMENT_KINDS = (ENV_PRODUCTION, ENV_STAGING, ENV_PREVIEW)
 
 DRIVER_ENGINE = "engine"
-DRIVER_COOLIFY = "coolify"
-APP_DRIVERS = (DRIVER_ENGINE, DRIVER_COOLIFY)
+APP_DRIVERS = (DRIVER_ENGINE,)
 
 
 def utc_now() -> datetime:

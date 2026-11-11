@@ -1,9 +1,9 @@
 """Per-project web analytics, backed by a self-hosted Umami instance.
 
-Config-gated (like Coolify/Cloudflare): with no ``UMAMI_URL`` the Metrics tab shows
+Config-gated (like Cloudflare): with no ``UMAMI_URL`` the Metrics tab shows
 a "connect analytics" state. Each project maps to an Umami *website* resolved by the
-project's domain (found or created on demand). Tenant isolation is enforced via the
-ProjectsService access guard before any Umami call.
+engine app's domain (found or created on demand). Tenant isolation is enforced by
+``resolve_engine_app`` before any Umami call.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.projects.service import ProjectsService
+from app.services.engine_apps import resolve_engine_app
 from app.services.umami import UmamiClient
 
 PERIOD_DAYS: dict[str, int] = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
@@ -55,17 +55,10 @@ def _series(pageviews: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def _domain_of(fqdn: str) -> str:
-    """First hostname from a Coolify fqdn (strip scheme/path, take first of a list)."""
-    first = (fqdn or "").split(",")[0].strip()
-    first = first.replace("https://", "").replace("http://", "")
-    return first.split("/")[0].strip()
-
-
 def _valid_domain(value: str) -> bool:
-    """Reject empties, Coolify's "No domain" placeholder, and non-hostnames."""
+    """Reject empties and non-hostnames."""
     d = (value or "").strip().lower()
-    return bool(d) and " " not in d and "." in d and d != "no domain"
+    return bool(d) and " " not in d and "." in d
 
 
 class AnalyticsService:
@@ -75,7 +68,6 @@ class AnalyticsService:
             http_client=request.app.state.http_client,
             cache=request.app.state.cache,
         )
-        self.projects = ProjectsService(request)
 
     def is_configured(self) -> bool:
         return self.umami.is_configured()
@@ -84,32 +76,24 @@ class AnalyticsService:
         self,
         session: AsyncSession,
         tenant_id: str | None,
-        application_id: str,
+        project: str,
         *,
         period: str = "7d",
     ) -> dict[str, Any]:
-        # Tenant isolation guard (raises 403 if the project isn't this tenant's).
-        await self.projects.ensure_access_for_tenant(session, tenant_id, application_id)
+        # Tenant isolation guard (raises EngineAppNotFound if the app isn't this tenant's).
+        app = await resolve_engine_app(session, tenant_id, project)
 
         if not self.umami.is_configured():
             return {"configured": False, "ready": False, "period": period}
 
-        # Resolve domain + name from the application LIST: primary_domain is reliably
-        # populated there, whereas the single-app GET omits fqdn on this Coolify version.
-        # Coolify uses the literal "No domain" placeholder when a site isn't exposed.
-        domain, name = "", application_id
-        for app in await self.projects.list_sites():
-            if app.id == application_id:
-                candidate = _domain_of(app.primary_domain) or _domain_of(app.fqdn)
-                domain = candidate if _valid_domain(candidate) else ""
-                name = app.name or application_id
-                break
+        domain = app.domain if _valid_domain(app.domain) else ""
+        name = app.name
         if not domain:
             return {
                 "configured": True,
                 "ready": False,
                 "period": period,
-                "reason": "This project has no domain yet, so analytics can't be attached.",
+                "reason": "This app has no domain yet, so analytics can't be attached.",
             }
 
         website = await self.umami.find_or_create_website(domain=domain, name=name)

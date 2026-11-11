@@ -21,7 +21,7 @@ def test_graphql_requires_auth(client):
     assert "Authentication required" in body["errors"][0]["message"]
 
 
-def test_graphql_dashboard_and_projects(client):
+def test_graphql_dashboard(client):
     headers = {"Authorization": f"Bearer {_token(client)}"}
     query = """
       {
@@ -29,7 +29,6 @@ def test_graphql_dashboard_and_projects(client):
           metrics { projects unhealthyProjects mailDomains dnsZones admins }
           providers { name status }
         }
-        projects { id name }
       }
     """
     response = client.post("/graphql", json={"query": query}, headers=headers)
@@ -39,5 +38,4 @@ def test_graphql_dashboard_and_projects(client):
     data = body["data"]
     assert isinstance(data["dashboard"]["metrics"]["admins"], int)
     assert data["dashboard"]["metrics"]["admins"] >= 1  # the bootstrap admin
-    assert {p["name"] for p in data["dashboard"]["providers"]} >= {"Coolify", "Mailcow", "Cloudflare"}
-    assert isinstance(data["projects"], list)
+    assert {p["name"] for p in data["dashboard"]["providers"]} >= {"Tetra Engine", "Mailcow", "Cloudflare"}

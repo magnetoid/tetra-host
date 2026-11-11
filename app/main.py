@@ -179,7 +179,6 @@ def create_app() -> FastAPI:
             "ok": db_ok,
             "database": "up" if db_ok else "down",
             "providers": {
-                "coolify": bool(settings.coolify_url and settings.coolify_token),
                 "mailcow": bool(settings.mailcow_url and settings.mailcow_api_key),
                 "cloudflare": bool(settings.cloudflare_api_token),
             },
