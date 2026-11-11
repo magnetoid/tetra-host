@@ -65,7 +65,8 @@ existing modules.
 A module typically has: `routes.py` (thin handlers), `service.py` (business/provider logic), `plugin.py`,
 and sometimes `schemas.py`. Registered plugins (order matters, see `load_plugins()`): `public`, `auth`,
 `dashboard`, `projects`, `databases`, `servers`, `mail`, `oidc`, `dns`, `domains`, `maintenance`, `plans`,
-`account`, `admin`. Plugins cannot yet be disabled at runtime and their boundary covers only the Jinja
+`account`, `admin`, `importers`, `workspaces` (the last two are API-only, with their own
+`/api/v1` routers). Plugins cannot yet be disabled at runtime and their boundary covers only the Jinja
 routes; all of `/api/v1` still lives in `app/api/routes.py` (roadmap phase 1 splits it per plugin, guarded
 by `tests/test_openapi_snapshot.py` — regenerate with `UPDATE_SNAPSHOTS=1` only for intended changes).
 
@@ -110,7 +111,9 @@ to async drivers (`sqlite+aiosqlite` / `postgresql+asyncpg`); production refuses
 `get_db_session` FastAPI dependency in routes, or `session_scope()` for background/lifespan work. Models in
 `app/models/` (tenancy: `AdminUser`, `Tenant`, `TenantResource`, `TenantInvite`, `ApiToken`, `Plan`; engine:
 `Deployment`, `Domain`, `AppEnvVar`, `DeployHook`, `PreviewEnv`; plus billing, jobs, uptime, notifications,
-SSO and `AuditEvent`), re-exported from `app/models/__init__.py`. Schema today is a hybrid: `init_db()`
+SSO and `AuditEvent`; hierarchy: `WorkspaceProject`, `Environment`, `WorkspaceApp` — team → project →
+environment → app, where `apps` indexes engine stacks and Coolify apps and is kept current by
+`app/modules/workspaces/service.py` `sync()`), re-exported from `app/models/__init__.py`. Schema today is a hybrid: `init_db()`
 runs `create_all` plus startup ALTERs/backfills in `app/db/session.py`, and Alembic (`alembic/versions/`)
 holds a no-op baseline plus later revisions. **New columns go in an Alembic migration, not the startup
 ALTERs** (see `docs/OPERATIONS.md`); roadmap phase 2 moves production to Postgres with migrations only.

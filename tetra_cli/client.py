@@ -597,6 +597,56 @@ class TetraClient:
     def admin_overview(self) -> Any:
         return self._request("GET", "/admin/overview")
 
+    # ── Workspaces: team → project → environment → app ───────────────────
+    def teams(self) -> list[dict]:
+        return self._request("GET", "/teams")
+
+    def team_detail(self, team: str) -> Any:
+        return self._request("GET", f"/teams/{team}")
+
+    def team_projects(self, team: str) -> list[dict]:
+        return self._request("GET", f"/teams/{team}/projects")
+
+    def create_team_project(self, team: str, name: str, slug: str | None = None) -> Any:
+        body: dict[str, Any] = {"name": name}
+        if slug:
+            body["slug"] = slug
+        return self._request("POST", f"/teams/{team}/projects", json_body=body)
+
+    def rename_team_project(self, team: str, project: str, name: str) -> Any:
+        return self._request("PATCH", f"/teams/{team}/projects/{project}", json_body={"name": name})
+
+    def delete_team_project(self, team: str, project: str) -> Any:
+        return self._request("DELETE", f"/teams/{team}/projects/{project}")
+
+    def environments(self, team: str, project: str) -> list[dict]:
+        return self._request("GET", f"/teams/{team}/projects/{project}/environments")
+
+    def create_environment(
+        self, team: str, project: str, name: str, kind: str = "staging", slug: str | None = None
+    ) -> Any:
+        body: dict[str, Any] = {"name": name, "kind": kind}
+        if slug:
+            body["slug"] = slug
+        return self._request("POST", f"/teams/{team}/projects/{project}/environments", json_body=body)
+
+    def delete_environment(self, team: str, project: str, environment: str) -> Any:
+        return self._request("DELETE", f"/teams/{team}/projects/{project}/environments/{environment}")
+
+    def team_apps(
+        self, team: str, project: str | None = None, environment: str | None = None
+    ) -> list[dict]:
+        params = {k: v for k, v in (("project", project), ("environment", environment)) if v}
+        return self._request("GET", f"/teams/{team}/apps", params=params or None)
+
+    def move_app(self, team: str, app_id: str, environment_id: str) -> Any:
+        return self._request(
+            "POST", f"/teams/{team}/apps/{app_id}/move", json_body={"environment_id": environment_id}
+        )
+
+    def platform_apps(self) -> list[dict]:
+        return self._request("GET", "/platform/apps")
+
     # ── Importers (platform admin) ────────────────────────────────────────
     def import_runs(self) -> list[dict]:
         return self._request("GET", "/importers/runs")

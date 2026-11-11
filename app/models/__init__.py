@@ -22,6 +22,7 @@ from app.models.team import TenantInvite
 from app.models.tenant import Tenant
 from app.models.tenant_resource import TenantResource
 from app.models.uptime import UptimeMonitor
+from app.models.workspace import Environment, WorkspaceApp, WorkspaceProject
 
 __all__ = [
     "AdminUser",
@@ -31,6 +32,7 @@ __all__ = [
     "AuditEvent",
     "CreditTransaction",
     "DeployHook",
+    "Environment",
     "Deployment",
     "Domain",
     "ImportRun",
@@ -47,4 +49,6 @@ __all__ = [
     "TenantResource",
     "TenantSSOConfig",
     "UptimeMonitor",
+    "WorkspaceApp",
+    "WorkspaceProject",
 ]

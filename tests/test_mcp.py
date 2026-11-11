@@ -358,3 +358,27 @@ def test_bad_typed_argument_is_tool_error_not_crash():
     assert "Invalid argument" in result["content"][0]["text"]
     # The server must still answer subsequent calls (loop survives).
     assert server.handle_message(_rpc("ping"))["result"] == {}
+
+
+def test_workspace_tools_are_read_only():
+    names = {t["name"] for t in MCPServer(_noop_client(), allow_writes=True).handle_message(
+        _rpc("tools/list"))["result"]["tools"]}
+    assert {"list_teams", "get_team", "list_team_projects", "list_environments",
+            "list_team_apps"} <= names
+    # Hierarchy writes and the platform-wide list stay off the agent surface (ADR 0012).
+    assert not names & {"create_project", "move_app", "delete_project", "list_platform_apps"}
+    read_only = {t["name"] for t in MCPServer(_noop_client()).handle_message(
+        _rpc("tools/list"))["result"]["tools"]}
+    assert "list_team_apps" in read_only
+
+
+def test_call_list_team_apps_passes_filters():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/teams/alpha/apps"
+        assert dict(request.url.params) == {"project": "shop"}
+        return httpx.Response(200, json=[{"name": "shop"}])
+
+    response = MCPServer(make_client(handler)).handle_message(
+        _rpc("tools/call", {"name": "list_team_apps", "arguments": {"team": "alpha", "project": "shop"}})
+    )
+    assert response["result"]["isError"] is False
