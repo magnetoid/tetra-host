@@ -25,7 +25,7 @@ const CAPABILITIES = [
     body: "Ship any git repo — live build logs, instant rollback, preview environments, push-to-deploy.",
     span: "sm:col-span-2",
   },
-  { icon: faServer, title: "Coolify apps", body: "Full application inventory with deployment-safe controls." },
+  { icon: faServer, title: "Tetra Engine", body: "Apps and sites run on Docker, driven directly — no third-party panel underneath." },
   { icon: faGlobe, title: "Cloudflare DNS", body: "Browse and edit zones, records, and traffic analytics." },
   { icon: faEnvelope, title: "Mailcow mail", body: "Domains, mailboxes, aliases, and DKIM at a glance." },
   { icon: faChartLine, title: "Observability", body: "Traffic + error insight via Umami and GlitchTip sidecars." },
@@ -76,8 +76,8 @@ export default function HomePage() {
               className="animate-fade-up mt-6 max-w-xl text-lg text-muted-foreground"
               style={{ animationDelay: "0.1s" }}
             >
-              Tetra AI Cloud orchestrates Coolify apps, Cloudflare DNS, and Mailcow mail behind a
-              single, tenant-aware console — with a deploy engine, live logs, and observability built in.
+              Tetra AI Cloud runs your apps on its own deploy engine, with Cloudflare DNS and Mailcow
+              mail behind a single, tenant-aware console — live logs and observability built in.
             </p>
             <div
               className="animate-fade-up mt-8 flex flex-wrap gap-3"

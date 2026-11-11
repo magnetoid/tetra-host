@@ -10,7 +10,7 @@ import { ProviderCard } from "@/components/ui/provider-card"
 import { requireConsoleSession } from "@/lib/auth"
 import { PANEL_PUBLIC_URL } from "@/lib/env"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
-import type { MailResponse, ProjectRecord } from "@/lib/types"
+import type { InstalledApp, MailResponse } from "@/lib/types"
 
 type MailPageProps = {
   searchParams: Promise<{ refresh?: string }>
@@ -21,7 +21,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
   const params = await searchParams
 
   // Mail degrades to a dormant state (never crashes) when Mailcow is unconfigured.
-  const [mailRes, projectsRes] = await Promise.all([
+  const [mailRes, appsRes] = await Promise.all([
     fetchDegraded<MailResponse>(
       "/mail",
       "Mail",
@@ -31,16 +31,16 @@ export default async function MailPage({ searchParams }: MailPageProps) {
         searchParams: { refresh: params.refresh === "1" ? "1" : undefined },
       },
     ),
-    fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], { token: session.token }),
+    fetchDegraded<InstalledApp[]>("/apps", "Apps", [], { token: session.token }),
   ])
   const mail = mailRes.data
-  const projects = projectsRes.data
+  const apps = appsRes.data
 
   const configured = mail.providers.length > 0
   // Domains you already host on apps → offered as one-click "enable mail" picks.
-  // Skip throwaway auto-domains (Coolify's *.sslip.io / *.nip.io previews) — you
-  // never want a mailbox on those.
-  const appDomains = [...new Set(projects.map((p) => p.primary_domain).filter(Boolean))].filter(
+  // Skip throwaway wildcard-DNS domains (*.sslip.io / *.nip.io) — you never want a
+  // mailbox on those.
+  const appDomains = [...new Set(apps.map((a) => a.domain).filter(Boolean))].filter(
     (d) => !d.includes(".sslip.io") && !d.includes(".nip.io"),
   )
 
@@ -53,7 +53,7 @@ export default async function MailPage({ searchParams }: MailPageProps) {
         action={<RefreshLink href="/mail?refresh=1" label="Refresh" />}
       />
 
-      <DegradedBanner sources={degradedSources([mailRes, projectsRes])} />
+      <DegradedBanner sources={degradedSources([mailRes, appsRes])} />
 
       {configured ? (
         <>

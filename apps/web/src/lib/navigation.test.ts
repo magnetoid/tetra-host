@@ -9,13 +9,10 @@ describe("resolveScope", () => {
     expect(resolveScope("/tenants/5", false)).toEqual({ kind: "team" })
   })
 
-  it("maps project and app paths", () => {
-    expect(resolveScope("/projects/web", true)).toEqual({ kind: "project", project: "web" })
-    expect(resolveScope("/projects/web/apps/a1/logs", false)).toEqual({
-      kind: "app",
-      project: "web",
-      app: "a1",
-    })
+  it("maps engine app paths, but not the team-level apps list", () => {
+    expect(resolveScope("/apps/mtio/metrics", false)).toEqual({ kind: "app", app: "mtio" })
+    expect(resolveScope("/apps", false)).toEqual({ kind: "team" })
+    expect(resolveScope("/apps/catalog", false)).toEqual({ kind: "team" })
   })
 
   it("does not confuse prefixes", () => {
@@ -31,25 +28,28 @@ describe("sidebarFor", () => {
     expect(sidebarFor({ kind: "platform" }, true).back).toBeUndefined()
   })
 
-  it("app scope backs out to its project with the project label", () => {
-    const model = sidebarFor({ kind: "app", project: "web", app: "a1" }, false, { project: "Website" })
-    expect(model.back).toEqual({ href: "/projects/web", label: "Website" })
-    expect(activeItem(model, "/projects/web/apps/a1/logs")?.label).toBe("Logs")
-    expect(activeItem(model, "/projects/web/apps/a1")?.label).toBe("Overview")
+  it("app scope backs out to the apps list", () => {
+    const model = sidebarFor({ kind: "app", app: "mtio" }, false)
+    expect(model.back).toEqual({ href: "/apps", label: "Apps" })
+    expect(activeItem(model, "/apps/mtio/errors")?.label).toBe("Errors")
+    expect(activeItem(model, "/apps/mtio/compute")?.label).toBe("Compute")
+  })
+
+  it("has no Coolify-era destinations in the team menu", () => {
+    const hrefs = sidebarFor({ kind: "team" }, false).sections.flatMap((s) => s.items.map((i) => i.href))
+    expect(hrefs).toContain("/deploys")
+    expect(hrefs).not.toContain("/projects")
+    expect(hrefs).not.toContain("/databases")
   })
 })
 
 describe("breadcrumbsFor", () => {
-  it("builds platform / team / project / app / page with no href on the last crumb", () => {
-    const scope = resolveScope("/projects/web/apps/a1/env", true)
-    const crumbs = breadcrumbsFor(scope, "/projects/web/apps/a1/env", true, {
-      team: "Cloud Industry",
-      project: "Website",
-      app: "mtio",
-    })
-    expect(crumbs.map((c) => c.label)).toEqual(["Platform", "Cloud Industry", "Website", "mtio", "Variables"])
+  it("builds platform / team / app / page with no href on the last crumb", () => {
+    const scope = resolveScope("/apps/mtio/env", true)
+    const crumbs = breadcrumbsFor(scope, "/apps/mtio/env", true, { team: "Cloud Industry" })
+    expect(crumbs.map((c) => c.label)).toEqual(["Platform", "Cloud Industry", "mtio", "Variables"])
     expect(crumbs.at(-1)?.href).toBeUndefined()
-    expect(crumbs[2].href).toBe("/projects/web")
+    expect(crumbs[2].href).toBe("/apps/mtio/compute")
   })
 
   it("omits the page crumb at a scope root and the platform crumb for team users", () => {

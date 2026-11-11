@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ErrorExplainButton } from "@/components/projects/error-explain-button"
+import { ErrorExplainButton } from "@/components/apps/error-explain-button"
 import type { ErrorDiagnosis } from "@/lib/types"
 
 afterEach(() => {
@@ -31,7 +31,7 @@ describe("ErrorExplainButton", () => {
 
     await user.click(screen.getByRole("button", { name: /explain/i }))
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/proxy/projects/app-7/errors/42/explain")
+    expect(fetchMock).toHaveBeenCalledWith("/api/proxy/apps/app-7/errors/42/explain")
     expect(await screen.findByText(/value was used as the wrong type/i)).toBeInTheDocument()
     expect(screen.getByText(/validate the api payload/i)).toBeInTheDocument()
     expect(screen.getByText("type-error")).toBeInTheDocument()

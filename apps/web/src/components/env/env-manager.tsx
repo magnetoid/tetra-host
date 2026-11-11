@@ -12,61 +12,31 @@ import { apiFetch } from "@/lib/client-api"
 import { faKey, faPlus, faTrash } from "@/lib/icons"
 
 /**
- * The one environment-variable manager, parameterized by deploy target —
- * replaces the two diverged copies (native-engine vs Coolify) that drifted on
- * endpoints, delete keys, and features.
+ * Environment variables of one engine app (`/deploys/{project}/env`). Rows are
+ * key-addressed; values flagged `is_secret` are encrypted at rest and masked.
  */
-export type EnvTarget =
-  | { kind: "deploy"; project: string } // native Tetra engine — key-addressed, supports is_secret
-  | { kind: "app"; applicationId: string } // Coolify application — uuid-addressed, values masked
-
 export type EnvRow = {
-  uuid?: string
-  id?: string
   key?: string
   value?: string
   is_secret?: boolean
 }
 
-function rowId(target: EnvTarget, row: EnvRow): string {
-  return target.kind === "deploy" ? (row.key ?? "") : (row.uuid ?? row.id ?? "")
-}
-
-function endpoints(target: EnvTarget) {
-  return target.kind === "deploy"
-    ? {
-        add: `/api/proxy/deploys/${target.project}/env`,
-        remove: (id: string) => `/api/proxy/deploys/${target.project}/env/${id}`,
-      }
-    : {
-        add: `/api/proxy/projects/${target.applicationId}/envs`,
-        remove: (id: string) => `/api/proxy/projects/${target.applicationId}/envs/${id}`,
-      }
-}
-
-export function EnvManager({ target, vars }: { target: EnvTarget; vars: EnvRow[] }) {
+export function EnvManager({ project, vars }: { project: string; vars: EnvRow[] }) {
   const { run, pending, error } = useAction()
   const [key, setKey] = useState("")
   const [value, setValue] = useState("")
   const [isSecret, setIsSecret] = useState(false)
-  const [reveal, setReveal] = useState(false)
 
-  const api = endpoints(target)
-  // Coolify returns values masked-by-default in this console; the native engine
-  // masks only rows flagged is_secret.
-  const masked = (row: EnvRow) => (target.kind === "app" ? !reveal : Boolean(row.is_secret))
+  const base = `/api/proxy/deploys/${encodeURIComponent(project)}/env`
 
   async function addVar(event: React.FormEvent<HTMLFormElement>) {
     const trimmedKey = key.trim()
     event.preventDefault()
     const ok = await run(
       () =>
-        apiFetch(api.add, {
+        apiFetch(base, {
           method: "POST",
-          body:
-            target.kind === "deploy"
-              ? { key: trimmedKey, value, is_secret: isSecret }
-              : { key: trimmedKey, value },
+          body: { key: trimmedKey, value, is_secret: isSecret },
           errorMessage: "Could not save variable.",
         }),
       { key: "add" },
@@ -100,17 +70,15 @@ export function EnvManager({ target, vars }: { target: EnvTarget; vars: EnvRow[]
           onChange={(event) => setValue(event.target.value)}
           className="font-mono"
         />
-        {target.kind === "deploy" ? (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={isSecret}
-              onChange={(event) => setIsSecret(event.target.checked)}
-              className="size-4 accent-[var(--primary)]"
-            />
-            Secret
-          </label>
-        ) : null}
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={isSecret}
+            onChange={(event) => setIsSecret(event.target.checked)}
+            className="size-4 accent-[var(--primary)]"
+          />
+          Secret
+        </label>
         <Button type="submit" variant="primary" icon={faPlus} disabled={pending !== null}>
           {pending === "add" ? "Saving…" : "Add"}
         </Button>
@@ -124,7 +92,7 @@ export function EnvManager({ target, vars }: { target: EnvTarget; vars: EnvRow[]
       ) : (
         <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
           {vars.map((row, index) => {
-            const id = rowId(target, row)
+            const id = row.key ?? ""
             return (
               <div
                 key={id || index}
@@ -141,7 +109,7 @@ export function EnvManager({ target, vars }: { target: EnvTarget; vars: EnvRow[]
                     ) : null}
                   </div>
                   <div className="truncate font-mono text-xs text-muted-foreground">
-                    {masked(row) ? "••••••••" : (row.value ?? "")}
+                    {row.is_secret ? "••••••••" : (row.value ?? "")}
                   </div>
                 </div>
                 <Button
@@ -152,7 +120,7 @@ export function EnvManager({ target, vars }: { target: EnvTarget; vars: EnvRow[]
                   onClick={() =>
                     run(
                       () =>
-                        apiFetch(api.remove(id), {
+                        apiFetch(`${base}/${encodeURIComponent(id)}`, {
                           method: "DELETE",
                           errorMessage: "Could not remove variable.",
                         }),
@@ -168,25 +136,8 @@ export function EnvManager({ target, vars }: { target: EnvTarget; vars: EnvRow[]
         </div>
       )}
 
-      {target.kind === "app" && vars.length > 0 ? (
-        <button
-          type="button"
-          onClick={() => setReveal((current) => !current)}
-          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {reveal ? "Hide values" : "Reveal values"}
-        </button>
-      ) : null}
-
       <p className="text-xs text-muted-foreground">
-        Changes apply on the next deploy
-        {target.kind === "deploy" ? (
-          <>
-            {" "}
-            of <span className="font-mono">{target.project}</span>
-          </>
-        ) : null}
-        .
+        Changes apply on the next deploy of <span className="font-mono">{project}</span>.
       </p>
     </div>
   )

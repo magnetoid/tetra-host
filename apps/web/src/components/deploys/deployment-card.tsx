@@ -14,12 +14,7 @@ export function SourceBadge({ source }: { source: DeploymentSource }) {
   return (
     <span
       title={meta.hint}
-      className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-xs",
-        source === "coolify"
-          ? "border-border bg-muted text-muted-foreground"
-          : "border-primary/30 bg-primary/10 text-primary",
-      )}
+      className="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary"
     >
       {meta.label}
     </span>
@@ -28,14 +23,13 @@ export function SourceBadge({ source }: { source: DeploymentSource }) {
 
 function subtitleFor(deployment: UnifiedDeployment): string {
   if (deployment.source === "app") return "one-click install"
-  const ref = deployment.source === "coolify" ? deployment.branch : deployment.ref
   const short = deployment.commit ? `@${deployment.commit.slice(0, 7)}` : ""
-  return `${ref || "—"}${short}`
+  return `${deployment.ref || "—"}${short}`
 }
 
 /**
  * Universal deployment card — one accordion row rendered identically for every source
- * (git build, marketplace app, Coolify application). The header (source badge, status,
+ * (git build or marketplace app). The header (source badge, status,
  * project, ref/commit, domain) is uniform; callers supply source-specific `actions` (the
  * buttons that light up per {@link capabilitiesFor}) and the expanded `children` body
  * (details + whichever log stream matches the source).

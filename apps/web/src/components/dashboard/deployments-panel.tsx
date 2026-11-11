@@ -23,7 +23,7 @@ export function DeploymentsPanel({ deployments }: { deployments: RecentDeploymen
     <section>
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-sm font-semibold">Deployments</h2>
-        <Link href="/projects" className="text-sm text-primary transition-colors hover:text-primary/80">
+        <Link href="/deploys" className="text-sm text-primary transition-colors hover:text-primary/80">
           View all →
         </Link>
       </div>

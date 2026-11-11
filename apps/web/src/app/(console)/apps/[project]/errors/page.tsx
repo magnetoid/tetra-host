@@ -1,4 +1,6 @@
-import { ErrorIssuesTable } from "@/components/projects/error-issues-table"
+import Link from "next/link"
+
+import { ErrorIssuesTable } from "@/components/apps/error-issues-table"
 import { Card, CardHeader } from "@/components/ui/card"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -7,12 +9,12 @@ import { requireConsoleSession } from "@/lib/auth"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
 import type { ProjectErrors } from "@/lib/types"
 
-export default async function ErrorsPage({ params }: { params: Promise<{ app: string }> }) {
+export default async function ErrorsPage({ params }: { params: Promise<{ project: string }> }) {
   const session = await requireConsoleSession()
-  const { app } = await params
+  const { project } = await params
 
   const errorsRes = await fetchDegraded<ProjectErrors | null>(
-    `/projects/${app}/errors`,
+    `/apps/${encodeURIComponent(project)}/errors`,
     "App errors",
     null,
     { token: session.token },
@@ -21,9 +23,12 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
 
   const header = (
     <>
-      <PageHeader as="h2"
-        eyebrow="Observability"
-        title="Errors"
+      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Apps
+      </Link>
+      <PageHeader
+        eyebrow="Errors"
+        title={project}
         description="Unresolved exceptions captured for this app, via GlitchTip."
       />
       <DegradedBanner sources={degradedSources([errorsRes])} />
@@ -73,7 +78,7 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
         </Card>
       ) : null}
 
-      <ErrorIssuesTable app={app} issues={errors.issues} />
+      <ErrorIssuesTable app={project} issues={errors.issues} />
     </div>
   )
 }

@@ -15,7 +15,6 @@ import {
   faBox,
   faChartBar,
   faChartLine,
-  faDatabase,
   faKey,
   faLayerGroup,
   faUsers,
@@ -123,11 +122,10 @@ export default async function SuperAdminPage() {
       <AdminLinks />
 
       {/* Headline totals */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={faUsers} label="Tenants" value={totals.tenants} accent="text-status-live" />
         <StatCard icon={faUserShield} label="Admins" value={totals.admins} accent="text-primary" />
         <StatCard icon={faBox} label="Apps" value={totals.apps} accent="text-status-ok" />
-        <StatCard icon={faDatabase} label="Databases" value={totals.databases} accent="text-status-warn" />
         <StatCard icon={faLayerGroup} label="Plans" value={totals.plans} accent="text-status-err" />
       </section>
 

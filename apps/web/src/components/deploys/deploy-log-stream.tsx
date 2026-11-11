@@ -15,7 +15,7 @@ function statusTone(status: string): string {
 }
 
 /** Live SSE build-log view for a native (Tetra Engine) deployment.
- *  Native `log` events carry a raw line string (unlike the Coolify stream's objects). */
+ *  `log` events carry a raw line string. */
 export function DeployLogStream({ deploymentId }: { deploymentId: string }) {
   const [lines, setLines] = useState<string[]>([])
   const [status, setStatus] = useState<string>("")

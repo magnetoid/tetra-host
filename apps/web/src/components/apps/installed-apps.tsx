@@ -69,6 +69,18 @@ export function InstalledApps({ apps }: { apps: InstalledApp[] }) {
             >
               Env
             </Link>
+            <Link
+              href={`/apps/${app.project}/metrics`}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              Metrics
+            </Link>
+            <Link
+              href={`/apps/${app.project}/errors`}
+              className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              Errors
+            </Link>
             <Button size="sm" icon={faCirclePlay} disabled={pending !== null} onClick={() => act(app.project, "start")}>
               {pending === `start:${app.project}` ? "…" : "Start"}
             </Button>

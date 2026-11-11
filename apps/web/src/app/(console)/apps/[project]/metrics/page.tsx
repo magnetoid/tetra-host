@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { AreaChart } from "@/components/tremor/area-chart"
 import { BarChart } from "@/components/tremor/bar-chart"
 import { BarList } from "@/components/tremor/bar-list"
@@ -19,7 +21,7 @@ import {
   faTriangleExclamation,
   faUsers,
 } from "@/lib/icons"
-import type { ProjectAnalytics, ProjectDeploymentRecord } from "@/lib/types"
+import type { DeploymentRecord, ProjectAnalytics } from "@/lib/types"
 import { formatRelativeLabel } from "@/lib/utils"
 
 function fmtDuration(seconds: number): string {
@@ -29,31 +31,34 @@ function fmtDuration(seconds: number): string {
   return m ? `${m}m ${s}s` : `${s}s`
 }
 
-export default async function MetricsPage({ params }: { params: Promise<{ app: string }> }) {
+export default async function MetricsPage({ params }: { params: Promise<{ project: string }> }) {
   const session = await requireConsoleSession()
-  const { app } = await params
+  const { project } = await params
+  const app = encodeURIComponent(project)
 
   const [analyticsRes, deploymentsRes] = await Promise.all([
     fetchDegraded<ProjectAnalytics | null>(
-      `/projects/${app}/analytics?period=7d`,
+      `/apps/${app}/analytics?period=7d`,
       "Metrics",
       null,
       { token: session.token },
     ),
-    fetchDegraded<ProjectDeploymentRecord[]>(`/projects/${app}/deployments`, "Deployments", [], {
-      token: session.token,
-    }),
+    fetchDegraded<DeploymentRecord[]>("/deploys", "Deployments", [], { token: session.token }),
   ])
   const analytics = analyticsRes.data
-  const deployments = deploymentsRes.data
+  // /deploys lists the team's engine deploys; this page is one app's slice of it.
+  const deployments = deploymentsRes.data.filter((d) => d.project === project)
 
   const stats = computeDeployStats(deployments)
 
   return (
     <div className="space-y-8">
-      <PageHeader as="h2"
-        eyebrow="Observability"
-        title="Metrics"
+      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Apps
+      </Link>
+      <PageHeader
+        eyebrow="Metrics"
+        title={project}
         description="Deployment health and reliability for this app, plus privacy-first web analytics."
       />
       <DegradedBanner sources={degradedSources([analyticsRes, deploymentsRes])} />

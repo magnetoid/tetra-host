@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     default: APP_NAME,
     template: `%s · ${APP_NAME}`,
   },
-  description: "Tetra AI Cloud — a multi-tenant hosting control plane for apps, databases, DNS, and mail.",
+  description: "Tetra AI Cloud — a multi-tenant hosting control plane for apps, DNS, and mail.",
 }
 
 export default async function RootLayout({

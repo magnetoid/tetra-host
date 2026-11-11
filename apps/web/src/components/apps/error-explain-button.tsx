@@ -31,7 +31,7 @@ export function ErrorExplainButton({ app, issueId, title }: { app: string; issue
     setDiagnosis(null)
     try {
       const response = await fetch(
-        `/api/proxy/projects/${app}/errors/${issueId}/explain`,
+        `/api/proxy/apps/${encodeURIComponent(app)}/errors/${issueId}/explain`,
       )
       const payload = (await response.json().catch(() => ({}))) as ErrorDiagnosis & {
         detail?: string

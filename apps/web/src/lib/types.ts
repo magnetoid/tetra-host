@@ -12,7 +12,6 @@ export interface HealthResponse {
 export interface ReadinessResponse {
   ok: boolean
   providers: {
-    coolify: boolean
     mailcow: boolean
     cloudflare: boolean
   }
@@ -53,36 +52,6 @@ export interface DashboardResponse {
     monitors_up: number
   }
   recent_deployments: RecentDeployment[]
-}
-
-export interface ProjectRecord {
-  id: string
-  name: string
-  status: string
-  primary_domain: string
-  repository: string
-  environment: string
-  updated_at: string
-  healthcheck_enabled: boolean
-  // Coolify project grouping (tenant > project > deployment).
-  project_uuid?: string
-  project_name?: string
-  // Editable build/run settings (app Settings tab).
-  fqdn?: string
-  build_pack?: string
-  install_command?: string
-  build_command?: string
-  start_command?: string
-  base_directory?: string
-  publish_directory?: string
-  ports_exposes?: string
-}
-
-export interface AppStorageRecord {
-  id: string
-  name: string
-  mount_path: string
-  host_path: string
 }
 
 export interface MailDomainRecord {
@@ -300,32 +269,6 @@ export interface Plan {
 export interface AdminResponse {
   admins: AdminRecord[]
   providers: ProviderSummary[]
-}
-
-export interface ProjectDeploymentRecord {
-  id: string
-  status: string
-  created_at: string
-  updated_at: string
-  commit: string
-  branch: string
-  source?: string // "coolify"
-}
-
-export interface DeploymentLogLine {
-  output: string
-  type: string
-  timestamp: string
-}
-
-export interface DeploymentDetail {
-  id: string
-  status: string
-  created_at: string
-  updated_at: string
-  commit: string
-  branch: string
-  log_lines: DeploymentLogLine[]
 }
 
 export interface TenantRecord {
@@ -735,31 +678,6 @@ export interface AiUsageReport {
   events: AiUsageEventRecord[]
 }
 
-export interface DatabaseRecord {
-  id: string
-  name: string
-  type: string
-  status: string
-  internal_db_url: string
-  image: string
-}
-
-export interface BackupConfig {
-  id: string
-  frequency: string
-  retention_days: number
-  s3_storage_id: string
-}
-
-export interface DatabaseTargetOption {
-  uuid: string
-  name: string
-}
-
-export interface DatabaseTargets {
-  servers: DatabaseTargetOption[]
-  projects: DatabaseTargetOption[]
-}
 
 export interface BucketRecord {
   name: string
