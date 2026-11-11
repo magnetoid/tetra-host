@@ -1,29 +1,33 @@
 /**
- * Tetra AI Cloud wordmark lockup — the tetrahedron glyph + product name.
- * Server-safe (pure SVG + text). Size the glyph via `className` on the wrapper.
+ * Tetra wordmark — a monochrome tetrahedron glyph + product name. Inherits the
+ * text colour so it reads in both themes. `compact` renders the glyph only
+ * (collapsed sidebar). Server-safe (pure SVG + text).
  */
-export function TetraWordmark({ label = "Tetra AI Cloud" }: { label?: string }) {
+export function TetraWordmark({
+  label = "Tetra AI Cloud",
+  compact = false,
+}: {
+  label?: string
+  compact?: boolean
+}) {
   return (
-    <span className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-lg border border-primary/40 bg-primary/10">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M12 2 L22 20 L2 20 Z"
-            stroke="#a78bfa"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M12 2 L12 20 M12 2 L2 20 M12 2 L22 20"
-            stroke="#22d3ee"
-            strokeWidth="1"
-            opacity="0.55"
-          />
-        </svg>
-      </span>
-      <span className="font-[family-name:var(--font-geist)] text-lg font-semibold tracking-tight">
-        {label}
-      </span>
+    <span className="flex items-center gap-2.5">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="shrink-0"
+      >
+        <path d="M12 3 3 19h18L12 3zM12 3v16M3 19l9-5 9 5" />
+      </svg>
+      {compact ? <span className="sr-only">{label}</span> : (
+        <span className="text-sm font-semibold tracking-tight">{label}</span>
+      )}
     </span>
   )
 }

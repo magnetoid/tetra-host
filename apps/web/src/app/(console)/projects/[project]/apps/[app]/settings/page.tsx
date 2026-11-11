@@ -33,7 +33,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Configuration"
         title="Settings"
         description="Edit this app's identity and build settings, or run lifecycle actions."

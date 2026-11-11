@@ -2,7 +2,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
-import { ProjectSubNav } from "@/components/projects/project-sub-nav"
+import { SetScopeLabels } from "@/components/shell/scope-labels"
 import { LiveStatus } from "@/components/ui/live-status"
 import { requireConsoleSession } from "@/lib/auth"
 import { isDeploymentActive } from "@/lib/deploy-stats"
@@ -44,7 +44,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     if (!projectsRes.degraded) {
       notFound()
     }
-    return <main className="min-w-0">{children}</main>
+    return <div className="min-w-0">{children}</div>
   }
 
   const projectName = record.project_name || record.name
@@ -58,25 +58,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
 
   return (
     <div className="space-y-6">
-      {/* Persistent entity header — every app tab is anchored by name · status ·
-          live domain · breadcrumb, so you always know what you're operating on. */}
-      <header className="space-y-2 border-b border-border pb-5">
-        <nav className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-          <Link href="/projects" className="transition-colors hover:text-foreground">
-            Projects
-          </Link>
-          <span aria-hidden>/</span>
-          <Link
-            href={`/projects/${project}`}
-            className="truncate transition-colors hover:text-foreground"
-          >
-            {projectName}
-          </Link>
-          <span aria-hidden>/</span>
-          <span className="truncate text-foreground">{record.name}</span>
-        </nav>
+      <SetScopeLabels project={projectName} app={record.name} />
+      {/* Persistent entity header: name · status · live domain on every app tab. */}
+      <header className="border-b border-border pb-5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{record.name}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{record.name}</h1>
           <LiveStatus appId={app} status={record.status} deploying={deploying} />
           {mailDomain ? (
             <Link
@@ -93,7 +79,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               href={`https://${record.primary_domain}`}
               target="_blank"
               rel="noreferrer"
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm transition-colors hover:bg-accent"
             >
               <span className="font-mono text-xs">{record.primary_domain}</span>
               <span aria-hidden>↗</span>
@@ -102,17 +88,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         </div>
       </header>
 
-      {/* Desktop: the main sidebar slides to this app's menu (see ConsoleNav).
-          Mobile (no sidebar): a horizontal app bar carries the same menu. */}
-      <div className="lg:hidden">
-        <ProjectSubNav
-          projectSlug={project}
-          appId={app}
-          projectName={projectName}
-          appName={record.name}
-        />
-      </div>
-      <main className="min-w-0">{children}</main>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }

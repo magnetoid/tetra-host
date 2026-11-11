@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { Command } from "cmdk"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
-import { consoleNavItems, NAV_SECTIONS } from "@/lib/navigation"
+import { platformSections, teamSections, type NavSection } from "@/lib/navigation"
 import { projectSlug } from "@/lib/projects"
 import { toggleTheme } from "@/lib/theme"
 import {
@@ -63,16 +63,24 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
   }, [])
   const go = useCallback((href: string) => run(() => router.push(href)), [run, router])
 
-  const navItems = consoleNavItems.filter(
-    (item) => !item.platformAdminOnly || adminRole === "platform_admin",
-  )
+  const isPlatformAdmin = adminRole === "platform_admin"
+  // Every destination grouped by section; platform pages first for super admins.
+  const groups: { heading: string; items: NavSection["items"] }[] = [
+    ...(isPlatformAdmin
+      ? platformSections.map((s) => ({ heading: `Platform${s.title ? ` · ${s.title}` : ""}`, items: s.items }))
+      : []),
+    ...teamSections.map((s) => ({
+      heading: s.title ?? "General",
+      items: s.items.filter((item) => !item.platformAdminOnly || isPlatformAdmin),
+    })),
+  ]
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+        className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
       >
         <FontAwesomeIcon icon={faMagnifyingGlass} className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Search…</span>
@@ -105,15 +113,14 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
                   No results.
                 </Command.Empty>
 
-                {NAV_SECTIONS.map((section) => {
-                  const items = navItems.filter((item) => item.section === section)
+                {groups.map(({ heading, items }) => {
                   if (items.length === 0) return null
                   return (
-                    <Command.Group key={section} heading={section}>
+                    <Command.Group key={heading} heading={heading}>
                       {items.map((item) => (
                         <Command.Item
                           key={item.href}
-                          value={`${section} ${item.label}`}
+                          value={`${heading} ${item.label}`}
                           onSelect={() => go(item.href)}
                           className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground data-[selected=true]:bg-accent"
                         >

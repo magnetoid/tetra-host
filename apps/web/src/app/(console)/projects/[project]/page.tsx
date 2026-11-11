@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
+import { SetScopeLabels } from "@/components/shell/scope-labels"
 import { ProjectActions } from "@/components/projects/project-actions"
 import { AppStatus } from "@/components/ui/app-status"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
@@ -59,15 +60,9 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/projects"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <span aria-hidden>←</span> All projects
-      </Link>
-
+      <SetScopeLabels project={projectName} />
       <PageHeader
-        eyebrow={session.admin.tenant_name ? `${session.admin.tenant_name} › Project` : "Project"}
+        eyebrow="Project"
         title={projectName}
         description={`${apps.length} app${apps.length === 1 ? "" : "s"} in this project — open one to manage its deployments, logs, and settings.`}
         action={<RefreshLink href={`/projects/${slug}?refresh=1`} label="Refresh" />}

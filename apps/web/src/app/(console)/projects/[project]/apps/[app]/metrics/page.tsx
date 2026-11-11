@@ -51,7 +51,7 @@ export default async function MetricsPage({ params }: { params: Promise<{ app: s
 
   return (
     <div className="space-y-8">
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Observability"
         title="Metrics"
         description="Deployment health and reliability for this app, plus privacy-first web analytics."
@@ -232,7 +232,7 @@ function WebAnalytics({ analytics }: { analytics: ProjectAnalytics | null }) {
       {analytics.tracking_snippet ? (
         <Card>
           <CardHeader title="Tracking snippet" action="Add to your site's <head>" />
-          <pre className="mt-4 overflow-x-auto rounded-xl border border-border bg-black/60 p-4 font-mono text-xs text-zinc-300">
+          <pre className="mt-4 overflow-x-auto rounded-xl border border-border bg-code p-4 font-mono text-xs text-code-foreground">
             {analytics.tracking_snippet}
           </pre>
         </Card>

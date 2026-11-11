@@ -62,9 +62,9 @@ export function DeployLogStream({ deploymentId }: { deploymentId: string }) {
       </div>
       <div
         ref={scrollRef}
-        className="max-h-72 overflow-y-auto rounded-xl border border-border bg-black/60 p-3 font-mono text-xs text-zinc-300"
+        className="max-h-72 overflow-y-auto rounded-xl border border-border bg-code p-3 font-mono text-xs text-code-foreground"
       >
-        {lines.length === 0 ? <span className="text-zinc-600">waiting for build output…</span> : null}
+        {lines.length === 0 ? <span className="text-code-muted">waiting for build output…</span> : null}
         {lines.map((line, index) => (
           <div key={index}>{line}</div>
         ))}

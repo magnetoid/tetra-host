@@ -169,7 +169,7 @@ export function DeployProgress({
     >
       <div
         ref={scrollRef}
-        className="max-h-72 overflow-y-auto rounded-xl border border-border bg-black/70 p-4 font-mono text-xs leading-relaxed text-zinc-300"
+        className="max-h-72 overflow-y-auto rounded-xl border border-border bg-code p-4 font-mono text-xs leading-relaxed text-code-foreground"
         aria-live="polite"
       >
         {lines.map((line, i) => (
@@ -186,7 +186,7 @@ export function DeployProgress({
             <span className="text-accent-cyan">{SPINNER[frame]}</span>
             <span>
               {typing}
-              <span className="ml-0.5 inline-block w-1.5 animate-pulse bg-zinc-400">&nbsp;</span>
+              <span className="ml-0.5 inline-block w-1.5 animate-pulse bg-code-muted">&nbsp;</span>
             </span>
           </div>
         ) : null}

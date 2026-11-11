@@ -38,7 +38,7 @@ export default async function AccountPage() {
 
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="grid h-14 w-14 place-items-center rounded-full bg-primary text-lg font-bold text-white">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
             {initial}
           </div>
           <div>

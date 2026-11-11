@@ -31,7 +31,7 @@ export default async function DeploymentsPage({ params }: DeploymentsPageProps) 
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Deploy console"
         title="Deployments"
         description="Trigger deploys and watch the build stream in real time."
