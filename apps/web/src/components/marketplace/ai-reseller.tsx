@@ -205,7 +205,7 @@ export function AiReseller({ models, keys }: { models: AiModel[]; keys: AiKey[] 
                 {created.label} · cap {created.limit != null ? `$${created.limit}/mo` : "unlimited"}
               </span>
             </div>
-            <code className="block break-all rounded-lg border border-border bg-black/60 p-3 font-mono text-xs text-zinc-200">
+            <code className="block break-all rounded-lg border border-border bg-code p-3 font-mono text-xs text-code-foreground">
               {created.key}
             </code>
             <Button

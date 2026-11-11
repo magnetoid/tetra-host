@@ -110,7 +110,7 @@ export function LogStream({
       <div
         ref={scrollRef}
         data-testid="log-output"
-        className="max-h-[28rem] overflow-y-auto bg-black px-4 py-3 font-mono text-xs leading-relaxed"
+        className="max-h-[28rem] overflow-y-auto bg-code px-4 py-3 font-mono text-xs leading-relaxed"
       >
         {lines.length === 0 ? (
           <p className="text-muted-foreground">
@@ -122,7 +122,7 @@ export function LogStream({
               key={index}
               className={cn(
                 "whitespace-pre-wrap break-words",
-                line.type === "stderr" ? "text-red-300" : "text-zinc-300",
+                line.type === "stderr" ? "text-code-error" : "text-code-foreground",
               )}
             >
               {line.output}

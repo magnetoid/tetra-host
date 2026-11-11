@@ -39,7 +39,7 @@ export default async function DomainsPage({ params }: DomainsPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Networking"
         title="Domains"
         description="This app's domain — manage its DNS and enable mailboxes on it."

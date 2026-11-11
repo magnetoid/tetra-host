@@ -21,7 +21,7 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
 
   const header = (
     <>
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Observability"
         title="Errors"
         description="Unresolved exceptions captured for this app, via GlitchTip."
@@ -67,7 +67,7 @@ export default async function ErrorsPage({ params }: { params: Promise<{ app: st
       {errors.dsn ? (
         <Card>
           <CardHeader title="SDK DSN" action="Point your app's Sentry-compatible SDK here" />
-          <pre className="mt-4 overflow-x-auto rounded-xl border border-border bg-black/60 p-4 font-mono text-xs text-zinc-300">
+          <pre className="mt-4 overflow-x-auto rounded-xl border border-border bg-code p-4 font-mono text-xs text-code-foreground">
             {errors.dsn}
           </pre>
         </Card>

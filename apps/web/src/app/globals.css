@@ -1,161 +1,126 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* ── Design tokens ────────────────────────────────────────────────────── */
-:root {
-  /* Tetra AI Cloud core palette (ADR 0003): deep cool near-black, violet brand + cyan accent */
-  --background: #070709;
-  --foreground: #f4f4f6;
-  --muted: #131319;
-  --border: #1c1c26;
-  --primary: #7c3aed;
-  --accent-cyan: #22d3ee;
-
-  /* shadcn/ui semantic tokens (dark theme; this console is always dark) */
-  --card: #09090b;
-  --card-foreground: #fafafa;
-  --popover: #09090b;
-  --popover-foreground: #fafafa;
-  --primary-foreground: #fafafa;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #ef4444;
-  --destructive-foreground: #fafafa;
-  --input: #27272a;
-  --ring: #7c3aed;
-
-  /* Chart chrome — theme-aware so Tremor charts read correctly in both modes
-     (charts pass these as CSS-var strings to Recharts stroke/fill). */
-  --chart-grid: #27272a;
-  --chart-axis: #71717a;
-  --chart-cursor: #3f3f46;
-  --chart-tooltip-bg: #09090b;
-  --chart-tooltip-border: #27272a;
-
-  /* Categorical series palette (violet brand first, cyan for live, then status hues) */
-  --chart-1: #7c3aed;
-  --chart-2: #22d3ee;
-  --chart-3: #34d399;
-  --chart-4: #fbbf24;
-  --chart-5: #f472b6;
-  --chart-6: #60a5fa;
-
-  /* Semantic status — used by the status spine, badges, and live states */
-  --status-ok: #34d399;
-  --status-warn: #fbbf24;
-  --status-err: #f87171;
-  --status-live: #22d3ee;
-
-  /* Radius scale — tightened for a crisp, professional SaaS surface */
-  --radius: 0.375rem;
-}
-
-/* ── Light theme = DEFAULT (warm editorial palette) ────────────────────────
-   The approved redesign is a warm, near-white editorial surface with hairline
-   dividers and an indigo accent (Linear/Vercel/Stripe register). This is the
-   default; dark is opt-in. Remaps the semantic tokens plus the fixed zinc
-   utilities the older components lean on, so both themes read correctly. */
+/* ── Design tokens ────────────────────────────────────────────────────────
+   Neutral surfaces, ONE accent (#3d63f0, identical in both themes), status hues
+   only for status. Light is the default; `data-theme="dark"` is opt-in (cookie,
+   set server-side in the root layout). Component code uses only these tokens —
+   never fixed palette classes (zinc-*, bg-black, emerald-950 …). */
+:root,
 [data-theme="light"] {
-  --background: #faf9f5; /* warm near-white canvas */
-  --foreground: #1a1a1a; /* near-black ink */
-  --muted: #f2f0ea; /* warm muted fill */
-  --border: #e6e4dd; /* warm hairline */
-  --card: #ffffff; /* panels sit a touch brighter than the canvas */
-  --card-foreground: #1a1a1a;
+  --background: #ffffff;
+  --foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #61616a;
+  --border: #e5e5e7;
+  --input: #e5e5e7;
+  --card: #ffffff;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
-  --primary: #6366f1; /* indigo accent (links, progress, active tab) */
-  --secondary: #eceae3;
-  --secondary-foreground: #1a1a1a;
-  --muted-foreground: #6b6862; /* warm gray for labels/sub-lines */
-  --accent: #f2f0ea;
-  --accent-foreground: #1a1a1a;
-  --input: #e6e4dd;
-  --ring: #6366f1;
+  --popover-foreground: #18181b;
+  --primary: #3d63f0;
+  --primary-foreground: #ffffff;
+  --ring: #3d63f0;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --accent: #f4f4f5; /* hover fill */
+  --accent-foreground: #18181b;
+  --destructive: #c2252e;
+  --destructive-foreground: #ffffff;
+  --link: #2b50d6;
 
-  /* Chart chrome for the warm light canvas */
-  --chart-grid: #e6e4dd;
-  --chart-axis: #8a877e;
-  --chart-cursor: #d8d5cc;
+  /* Shell */
+  --sidebar: #fafafa;
+  --selected: #ebebee;
+  --scrim: rgb(24 24 27 / 32%);
+
+  /* Status (text/dot) and their soft fills (badges, banners) */
+  --status-ok: #17803a;
+  --status-ok-soft: #e7f5ec;
+  --status-warn: #8a5800;
+  --status-warn-soft: #fcf2df;
+  --status-err: #c2252e;
+  --status-err-soft: #fdecec;
+  --status-live: #2b50d6;
+  --status-live-soft: #edf1fe;
+  --accent-cyan: var(--status-live); /* legacy alias */
+
+  /* Code / log panes stay dark in both themes */
+  --code: #18181b;
+  --code-foreground: #e4e4e7;
+  --code-muted: #8b8b94;
+  --code-error: #ff8f87;
+
+  /* Charts */
+  --chart-grid: #e5e5e7;
+  --chart-axis: #61616a;
+  --chart-cursor: #d4d4d8;
   --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-border: #e6e4dd;
+  --chart-tooltip-border: #e5e5e7;
+  --chart-1: #3d63f0;
+  --chart-2: #0e7490;
+  --chart-3: #17803a;
+  --chart-4: #b45309;
+  --chart-5: #be185d;
+  --chart-6: #6d28d9;
 
-  /* Series + status hues tuned for the warm-white canvas (bold-text legible) */
-  --chart-1: #6366f1;
-  --chart-2: #0891b2;
-  --chart-3: #059669;
-  --chart-4: #d97706;
-  --chart-5: #db2777;
-  --chart-6: #2563eb;
-  --status-ok: #059669;
-  --status-warn: #d97706;
-  --status-err: #dc2626;
-  --status-live: #0d9488;
+  --radius: 0.375rem;
   color-scheme: light;
 }
 
-/* Fixed zinc/white/black utilities → theme-aware equivalents in light mode.
-   Muted text and borders remap globally (safe); dark surfaces become light; white
-   text that sits on a now-light surface darkens (standalone white-on-color stays);
-   the white primary button inverts to a dark button. */
-[data-theme="light"] .text-zinc-100,
-[data-theme="light"] .text-zinc-200,
-[data-theme="light"] .text-zinc-300,
-[data-theme="light"] .hover\:text-zinc-200:hover,
-[data-theme="light"] .hover\:text-zinc-300:hover { color: #3f3f46; }
-[data-theme="light"] .text-zinc-400 { color: #52525b; }
-[data-theme="light"] .text-zinc-500,
-[data-theme="light"] .text-zinc-600 { color: #71717a; }
-[data-theme="light"] .border-zinc-500,
-[data-theme="light"] .border-zinc-600,
-[data-theme="light"] .border-zinc-700 { border-color: #d4d4d8; }
-[data-theme="light"] .bg-zinc-800,
-[data-theme="light"] .bg-zinc-900,
-[data-theme="light"] .bg-zinc-950 { background-color: #f4f4f5; }
-[data-theme="light"] .bg-zinc-500,
-[data-theme="light"] .bg-zinc-600 { background-color: #e4e4e7; }
-[data-theme="light"] .hover\:bg-zinc-800:hover,
-[data-theme="light"] .hover\:bg-zinc-900:hover,
-[data-theme="light"] .hover\:bg-zinc-950:hover { background-color: #e4e4e7; }
-[data-theme="light"] .bg-zinc-800 .text-white,
-[data-theme="light"] .bg-zinc-800.text-white,
-[data-theme="light"] .bg-zinc-900 .text-white,
-[data-theme="light"] .bg-zinc-900.text-white,
-[data-theme="light"] .hover\:text-white:hover { color: #18181b; }
-[data-theme="light"] .bg-white.text-black { background-color: #18181b; color: #ffffff; }
-[data-theme="light"] .bg-white.text-black.hover\:bg-zinc-200:hover { background-color: #27272a; }
+[data-theme="dark"] {
+  --background: #0c0c0e;
+  --foreground: #ededef;
+  --muted: #1c1c20;
+  --muted-foreground: #a3a3ac;
+  --border: #28282d;
+  --input: #28282d;
+  --card: #151518;
+  --card-foreground: #ededef;
+  --popover: #151518;
+  --popover-foreground: #ededef;
+  --primary: #3d63f0;
+  --primary-foreground: #ffffff;
+  --ring: #6b87f5;
+  --secondary: #1c1c20;
+  --secondary-foreground: #ededef;
+  --accent: #1c1c20;
+  --accent-foreground: #ededef;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --link: #93a8ff;
 
-/* Terminal / log panes stay dark in light mode (code reads better dark); keep their
-   text light. Attribute selectors catch bg-black and its opacity variants. */
-[data-theme="light"] [class*="bg-black"] { background-color: #18181b; color: #e4e4e7; }
-[data-theme="light"] [class*="bg-black"] [class*="text-zinc"] { color: #d4d4d8; }
+  --sidebar: #111114;
+  --selected: #25252a;
+  --scrim: rgb(0 0 0 / 55%);
 
-/* Status badges/banners use dark-tint surfaces (bg-*-950) with light text (text-*-300).
-   Flip to light tints with dark text so they stay legible in light mode. Attribute
-   selectors cover the /40, /70 opacity variants too. */
-[data-theme="light"] [class*="bg-emerald-950"] { background-color: #ecfdf5; }
-[data-theme="light"] [class*="border-emerald-900"] { border-color: #a7f3d0; }
-[data-theme="light"] [class*="text-emerald-200"],
-[data-theme="light"] [class*="text-emerald-300"],
-[data-theme="light"] [class*="text-emerald-400"],
-[data-theme="light"] [class*="text-emerald-500"],
-[data-theme="light"] [class*="text-green-400"] { color: #047857; }
-[data-theme="light"] [class*="bg-red-950"] { background-color: #fef2f2; }
-[data-theme="light"] [class*="border-red-900"] { border-color: #fecaca; }
-[data-theme="light"] [class*="text-red-100"],
-[data-theme="light"] [class*="text-red-200"],
-[data-theme="light"] [class*="text-red-300"],
-[data-theme="light"] [class*="text-red-400"] { color: #b91c1c; }
-[data-theme="light"] [class*="bg-amber-950"] { background-color: #fffbeb; }
-[data-theme="light"] [class*="border-amber-900"] { border-color: #fde68a; }
-[data-theme="light"] [class*="text-amber-200"],
-[data-theme="light"] [class*="text-amber-300"],
-[data-theme="light"] [class*="text-amber-400"],
-[data-theme="light"] [class*="text-yellow-400"] { color: #b45309; }
-[data-theme="light"] [class*="text-sky-400"] { color: #0369a1; }
+  --status-ok: #4cc46e;
+  --status-ok-soft: #11281a;
+  --status-warn: #e2b443;
+  --status-warn-soft: #2b2310;
+  --status-err: #ff7e76;
+  --status-err-soft: #2f1515;
+  --status-live: #93a8ff;
+  --status-live-soft: #1b2246;
+
+  --code: #09090b;
+  --code-foreground: #e4e4e7;
+  --code-muted: #8b8b94;
+  --code-error: #ff8f87;
+
+  --chart-grid: #28282d;
+  --chart-axis: #a3a3ac;
+  --chart-cursor: #3f3f46;
+  --chart-tooltip-bg: #151518;
+  --chart-tooltip-border: #28282d;
+  --chart-1: #6b87f5;
+  --chart-2: #22b8cf;
+  --chart-3: #4cc46e;
+  --chart-4: #e2b443;
+  --chart-5: #f06595;
+  --chart-6: #a78bfa;
+  color-scheme: dark;
+}
 
 @theme inline {
   /* Tetra AI Cloud core palette */
@@ -165,6 +130,14 @@
   --color-border: var(--border);
   --color-primary: var(--primary);
   --color-accent-cyan: var(--accent-cyan);
+  --color-link: var(--link);
+  --color-sidebar: var(--sidebar);
+  --color-selected: var(--selected);
+  --color-scrim: var(--scrim);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
+  --color-code-muted: var(--code-muted);
+  --color-code-error: var(--code-error);
 
   /* shadcn/ui semantic tokens */
   --color-card: var(--card);
@@ -200,6 +173,10 @@
   --color-status-warn: var(--status-warn);
   --color-status-err: var(--status-err);
   --color-status-live: var(--status-live);
+  --color-status-ok-soft: var(--status-ok-soft);
+  --color-status-warn-soft: var(--status-warn-soft);
+  --color-status-err-soft: var(--status-err-soft);
+  --color-status-live-soft: var(--status-live-soft);
 
   /* Fonts — Geist type system (professional SaaS): Geist for text + display,
      Geist Mono for data/status. */
@@ -215,10 +192,6 @@
   --radius-xl: 8px;
   --radius-2xl: 10px;
   --radius-3xl: 12px;
-}
-
-html {
-  color-scheme: dark;
 }
 
 body {
@@ -238,7 +211,7 @@ body {
 }
 
 ::selection {
-  background: rgb(124 58 237 / 35%);
+  background: rgb(61 99 240 / 25%);
 }
 
 /* Live status dot pulse (auth control-plane legend) */
@@ -313,7 +286,7 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   .card-lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px -12px rgb(124 58 237 / 25%);
+    box-shadow: 0 8px 24px -12px rgb(24 24 27 / 18%);
   }
   .card-lift:active {
     transform: translateY(0);

@@ -32,7 +32,7 @@ export default async function LogsPage({ params }: LogsPageProps) {
 
   return (
     <div className="space-y-8">
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Observability"
         title="Logs"
         description="Live runtime output from the running container, plus per-deployment build logs."

@@ -18,17 +18,17 @@ export default async function DocDetailPage({ params }: DocDetailPageProps) {
   return (
     <div className="min-h-screen bg-background px-6 py-10 lg:px-10">
       <div className="mx-auto max-w-3xl">
-        <Link href="/docs" className="text-sm text-zinc-500 hover:text-zinc-300">
+        <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to docs
         </Link>
         <h1 className="mt-8 text-4xl font-semibold tracking-tight">{entry.title}</h1>
-        <p className="mt-3 text-zinc-400">{entry.summary}</p>
+        <p className="mt-3 text-muted-foreground">{entry.summary}</p>
 
         <div className="mt-10 space-y-8">
           {entry.sections.map((section) => (
             <section key={section.heading}>
               <h2 className="text-2xl font-semibold">{section.heading}</h2>
-              <ul className="mt-4 space-y-3 text-zinc-300">
+              <ul className="mt-4 space-y-3 text-foreground">
                 {section.body.map((line) => (
                   <li key={line} className="rounded-xl border border-border bg-muted px-4 py-3 text-sm">
                     {line}

@@ -29,7 +29,7 @@ export default async function EnvPage({ params }: EnvPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader as="h2"
         eyebrow="Configuration"
         title="Environment variables"
         description="Manage secrets and runtime configuration for this app."

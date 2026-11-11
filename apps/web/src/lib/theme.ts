@@ -7,6 +7,9 @@ export const THEME_COOKIE = "tetra-theme"
 
 export type Theme = "dark" | "light"
 
+/** Cookie holding the desktop sidebar state ("collapsed" | "expanded"). */
+export const SIDEBAR_COOKIE = "tetra-sidebar"
+
 export function normalizeTheme(raw: string | undefined | null): Theme {
   return raw === "dark" ? "dark" : "light"
 }
