@@ -21,7 +21,6 @@ from app.db import session_scope
 from app.models import AdminUser, Tenant
 from app.models.tenant import TENANT_PENDING
 
-
 # ---------------------------------------------------------------------------
 # From the task brief (verbatim)
 # ---------------------------------------------------------------------------

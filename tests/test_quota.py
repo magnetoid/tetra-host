@@ -17,7 +17,6 @@ from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.modules.auth.service import AuthService
 from app.services.quota import Allocation, QuotaExceeded, QuotaService
 
-
 # ---------------------------------------------------------------------------
 # Seed helpers
 # ---------------------------------------------------------------------------

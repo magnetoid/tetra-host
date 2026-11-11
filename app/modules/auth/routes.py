@@ -1,8 +1,8 @@
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Form, Request, status
-from pydantic import ValidationError
 from fastapi.responses import RedirectResponse
+from pydantic import ValidationError
 
 from app.modules.auth.schemas import LoginFormData
 from app.modules.auth.service import AuthService

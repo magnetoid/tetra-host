@@ -359,7 +359,8 @@ def test_git_deploy_duplicate_name_returns_409(client, monkeypatch):
 
     # Confirm no extra TenantResource row was created.
     async def count_rows():
-        from sqlalchemy import func, select as sa_select
+        from sqlalchemy import func
+        from sqlalchemy import select as sa_select
         async with session_scope() as session:
             from app.models import Tenant
             tenant = (await session.scalars(sa_select(Tenant).where(Tenant.slug == "appst"))).first()

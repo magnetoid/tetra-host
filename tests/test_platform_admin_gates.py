@@ -12,7 +12,6 @@ from app.models import AdminUser, Tenant
 from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
 from app.modules.auth.service import AuthService
 
-
 # ---------------------------------------------------------------------------
 # Seed helpers
 # ---------------------------------------------------------------------------

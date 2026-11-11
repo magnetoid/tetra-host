@@ -6,7 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-
 RESOURCE_TYPE_SITE = "site"
 RESOURCE_TYPE_MAIL_DOMAIN = "mail_domain"
 RESOURCE_TYPE_MAILBOX = "mailbox"

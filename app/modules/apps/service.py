@@ -8,9 +8,9 @@ catalog (``app/services/app_catalog.py``). No Coolify in the data path. Installe
 import logging
 
 from fastapi import Request
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
 from app.config import get_settings
 from app.models import Deployment, TenantResource
@@ -22,11 +22,11 @@ from app.services.app_catalog import (
     normalize_compose_for_engine,
     render_service_vars,
 )
+from app.services.compute import ComputeSample, parse_compute_samples
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
-from app.services.quota import QuotaService
-from app.services.compute import ComputeSample, parse_compute_samples
 from app.services.limits import apply_resource_limits
+from app.services.quota import QuotaService
 from app.services.tenant_resources import TenantResourceFilter
 
 logger = logging.getLogger(__name__)

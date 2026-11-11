@@ -1,6 +1,6 @@
-from sqlalchemy import func, select
-
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db_session
 from app.models import AdminUser
@@ -10,8 +10,6 @@ from app.modules.projects.service import ProjectsService
 from app.routes import require_admin
 from app.services.http import ProviderAPIError
 from app.templating import build_templates
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 templates = build_templates()
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])

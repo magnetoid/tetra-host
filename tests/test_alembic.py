@@ -18,7 +18,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 
-from app.db.session import ALEMBIC_INI, _REPO_ROOT, close_db, get_engine, init_db
+from app.db.session import _REPO_ROOT, ALEMBIC_INI, close_db, get_engine, init_db
 
 
 def _alembic_config() -> Config:

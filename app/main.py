@@ -18,7 +18,6 @@ from app.cache import TTLCache
 from app.config import get_settings
 from app.csrf import CSRFMiddleware
 from app.db import close_db, init_db, session_scope
-from app.services.scheduler import start_scheduler, stop_scheduler
 from app.modules import load_plugins
 from app.modules.auth.service import AuthService
 from app.observability import (
@@ -30,6 +29,7 @@ from app.plugins import registry
 from app.rate_limit import InMemoryRateLimiter
 from app.services.http import ProviderAPIError
 from app.services.quota import QuotaExceeded
+from app.services.scheduler import start_scheduler, stop_scheduler
 from app.templating import build_templates
 
 

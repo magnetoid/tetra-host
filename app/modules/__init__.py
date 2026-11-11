@@ -1,4 +1,3 @@
-from app.plugins import registry
 from app.modules.account.plugin import AccountPlugin
 from app.modules.admin.plugin import AdminPlugin
 from app.modules.auth.plugin import AuthPlugin
@@ -6,13 +5,15 @@ from app.modules.dashboard.plugin import DashboardPlugin
 from app.modules.databases.plugin import DatabasesPlugin
 from app.modules.dns.plugin import DnsPlugin
 from app.modules.domains.plugin import DomainsPlugin
+from app.modules.importers.plugin import ImportersPlugin
 from app.modules.mail.plugin import MailPlugin
 from app.modules.maintenance.plugin import MaintenancePlugin
 from app.modules.oidc.plugin import OIDCPlugin
 from app.modules.plans.plugin import PlansPlugin
+from app.modules.projects.plugin import ProjectsPlugin
 from app.modules.public.plugin import PublicPlugin
 from app.modules.servers.plugin import ServersPlugin
-from app.modules.projects.plugin import ProjectsPlugin
+from app.plugins import registry
 
 
 def load_plugins() -> None:
@@ -31,3 +32,4 @@ def load_plugins() -> None:
     registry.add(PlansPlugin())
     registry.add(AccountPlugin())
     registry.add(AdminPlugin())
+    registry.add(ImportersPlugin())

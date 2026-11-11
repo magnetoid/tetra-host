@@ -1,7 +1,6 @@
 import asyncio
 from urllib.parse import parse_qs, urlparse
 
-
 import app.modules.sso.service as sso_module
 from app.db import session_scope
 from app.models import AdminUser, Tenant

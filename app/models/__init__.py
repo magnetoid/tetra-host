@@ -12,6 +12,7 @@ from app.models.billing import (
 from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.domain import Domain
+from app.models.import_run import ImportRun
 from app.models.job import JobRun, ScheduledJob
 from app.models.notification import NotificationChannel
 from app.models.plan import Plan
@@ -32,6 +33,7 @@ __all__ = [
     "DeployHook",
     "Deployment",
     "Domain",
+    "ImportRun",
     "JobRun",
     "NotificationChannel",
     "Plan",

@@ -10,7 +10,6 @@ from app.modules.auth.service import AuthService
 from app.modules.deploys.service import DeploysService
 from app.services.build_diagnostics import Diagnosis, analyze_build_log
 
-
 # ── Pure heuristic analyzer (deterministic, no network) ────────────────────
 
 

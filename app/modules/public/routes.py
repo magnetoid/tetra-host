@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+
 from app.templating import build_templates
 
 templates = build_templates()

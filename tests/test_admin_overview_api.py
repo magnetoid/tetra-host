@@ -13,7 +13,6 @@ from app.models.admin import ROLE_OWNER
 from app.models.tenant import TENANT_PENDING
 from app.modules.auth.service import AuthService
 
-
 # ---------------------------------------------------------------------------
 # Seed helpers
 # ---------------------------------------------------------------------------

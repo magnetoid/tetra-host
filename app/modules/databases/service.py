@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.models import TenantResource
 from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_DATABASE
-from app.services.coolify import CoolifyClient, CoolifyDatabase, DB_TYPE_ALLOWLIST
+from app.services.coolify import DB_TYPE_ALLOWLIST, CoolifyClient, CoolifyDatabase
 from app.services.http import ProviderAPIError
 from app.services.tenant_resources import TenantResourceFilter
 
