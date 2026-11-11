@@ -46,11 +46,6 @@ async def _load_admin_page_data(request: Request, session: AsyncSession, current
     )
     platform_checks = [
         {
-            "name": "Coolify",
-            "configured": bool(request.state.settings.coolify_url and request.state.settings.coolify_token),
-            "detail": request.state.settings.coolify_url or "Missing URL and token",
-        },
-        {
             "name": "Mailcow",
             "configured": bool(request.state.settings.mailcow_url and request.state.settings.mailcow_api_key),
             "detail": request.state.settings.mailcow_url or "Missing URL and API key",
@@ -67,8 +62,8 @@ async def _load_admin_page_data(request: Request, session: AsyncSession, current
         "resources": resources,
         "tenant_name": current_admin.tenant.name if current_admin.tenant else "",
         "platform_checks": platform_checks,
-        "provider_options": ["coolify", "mailcow", "cloudflare"],
-        "resource_type_options": ["site", "database", "server", "mail_domain", "mailbox", "dns_zone", "dns_record"],
+        "provider_options": ["docker", "mailcow", "cloudflare"],
+        "resource_type_options": ["app", "mail_domain", "mailbox", "dns_zone", "dns_record"],
         "error": request.query_params.get("error"),
         "success": request.query_params.get("success"),
         "csrf_token": request.state.csrf_token,

@@ -96,8 +96,8 @@ def test_owner_cannot_create_tenant_resource(client):
         headers=headers,
         json={
             "tenant_slug": "ownertenant",
-            "provider": "coolify",
-            "resource_type": "site",
+            "provider": "docker",
+            "resource_type": "app",
             "external_id": "site-123",
             "display_name": "Test Site",
         },

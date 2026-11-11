@@ -1,4 +1,4 @@
-"""Umami analytics client + per-project analytics endpoint."""
+"""Umami analytics client + per-app analytics endpoint (engine apps)."""
 
 import asyncio
 import json
@@ -6,7 +6,7 @@ import json
 import httpx
 
 from app.cache import TTLCache
-from app.modules.analytics.service import _domain_of, _num, _series, _summary, _valid_domain
+from app.modules.analytics.service import _num, _series, _summary, _valid_domain
 from app.services.umami import UmamiClient
 
 
@@ -93,34 +93,51 @@ def test_analytics_helpers():
     )
     assert series == [{"date": "2026-06-30", "pageviews": 5, "sessions": 2}]
 
-    assert _domain_of("https://shop.example.com/path") == "shop.example.com"
-    assert _domain_of("a.com,b.com") == "a.com"
-
-    # Coolify's "No domain" placeholder + other non-hostnames are rejected.
+    # Non-hostnames are rejected.
     assert _valid_domain("shop.example.com") is True
-    assert _valid_domain("No domain") is False
     assert _valid_domain("") is False
     assert _valid_domain("localhost") is False  # no dot
 
 
 # ── endpoint ────────────────────────────────────────────────────────────
 
-def test_project_analytics_requires_auth(client):
-    assert client.get("/api/v1/projects/app-x/analytics").status_code == 401
+
+def _seed_engine_app(project: str = "app-x") -> None:
+    """Give the bootstrap admin's tenant an engine app (TenantResource docker/app)."""
+    import asyncio as _asyncio
+
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import AdminUser, TenantResource
+    from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
+
+    async def go() -> None:
+        async with session_scope() as session:
+            admin = await session.scalar(select(AdminUser).where(AdminUser.email == "admin@example.com"))
+            session.add(TenantResource(
+                tenant_id=admin.tenant_id, provider=PROVIDER_DOCKER, resource_type=RESOURCE_TYPE_APP,
+                external_id=project, display_name=project,
+            ))
+
+    _asyncio.run(go())
 
 
-def test_project_analytics_not_configured(client, monkeypatch):
-    """With Umami unset (test env), an accessible project returns configured=false."""
+def test_app_analytics_requires_auth(client):
+    assert client.get("/api/v1/apps/app-x/analytics").status_code == 401
 
-    async def fake_ensure(self, session, tenant_id, application_id):
-        return None  # bypass the real tenant/Coolify guard for this test
 
-    monkeypatch.setattr(
-        "app.modules.projects.service.ProjectsService.ensure_access_for_tenant", fake_ensure
-    )
+def test_app_analytics_not_configured(client):
+    """With Umami unset (test env), an accessible engine app returns configured=false."""
+    _seed_engine_app()
     headers = _login_as(client, "admin@example.com", "supersecurepassword")
-    resp = client.get("/api/v1/projects/app-x/analytics", headers=headers)
+    resp = client.get("/api/v1/apps/app-x/analytics", headers=headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["configured"] is False
     assert body["ready"] is False
+
+
+def test_app_analytics_unknown_app_is_404(client):
+    headers = _login_as(client, "admin@example.com", "supersecurepassword")
+    assert client.get("/api/v1/apps/nope/analytics", headers=headers).status_code == 404

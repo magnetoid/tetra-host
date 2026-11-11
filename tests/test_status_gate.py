@@ -163,20 +163,16 @@ def test_suspended_tenant_panel_post_redirects_not_403(client):
     asyncio.run(_seed_suspended_owner())
     _panel_login_suspended(client)
 
-    # Fetch the maintenance page to get a CSRF token from the panel session
-    page = client.get("/maintenance")
-    # If a redirect to login occurred, login first via session and retry
-    if page.status_code in (303, 302):
-        # Follow the redirect chain manually
-        page = client.get("/maintenance", follow_redirects=True)
+    # The login page renders a CSRF token from the panel session.
+    page = client.get("/auth/login", follow_redirects=True)
     match = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
-    assert match is not None, f"No CSRF token found on maintenance page (status {page.status_code})"
+    assert match is not None, f"No CSRF token found (status {page.status_code})"
     csrf_token = match.group(1)
 
-    # POST to the maintenance /run route — a CSRF-protected panel POST
+    # A CSRF-protected panel POST.
     resp = client.post(
-        "/maintenance/run",
-        data={"command": "cleanup:database", "csrf_token": csrf_token},
+        "/account/profile",
+        data={"full_name": "Changed While Suspended", "csrf_token": csrf_token},
         follow_redirects=False,
     )
 
@@ -187,6 +183,17 @@ def test_suspended_tenant_panel_post_redirects_not_403(client):
     # Must redirect somewhere meaningful (dashboard or login), not to a JSON error
     location = resp.headers.get("location", "")
     assert location, "Redirect must have a Location header"
+
+    async def full_name() -> str:
+        from sqlalchemy import select
+
+        async with session_scope() as session:
+            return await session.scalar(
+                select(AdminUser.full_name).where(AdminUser.email == "owner@suspended.test")
+            )
+
+    # The gate blocked the write.
+    assert asyncio.run(full_name()) == "Suspended Owner"
 
 
 def test_api_status_gate_still_returns_403_json(client):

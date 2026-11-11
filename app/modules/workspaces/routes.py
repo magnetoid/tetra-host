@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,14 +21,11 @@ from app.api.routes import get_current_api_admin, require_platform_admin
 from app.db.session import get_db_session
 from app.models import AdminUser, Environment, Tenant, WorkspaceProject
 from app.modules.workspaces.service import AppRow, WorkspaceError, WorkspaceService
-from app.services.coolify import CoolifyClient
-from app.services.http import ProviderAPIError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
-DEGRADED_HEADER = "X-Tetra-Degraded"
 
 
 # ── Contracts ─────────────────────────────────────────────────────
@@ -148,23 +145,12 @@ def _http(exc: WorkspaceError) -> HTTPException:
 # ── Sync ──────────────────────────────────────────────────────────
 
 
-async def _synced(request: Request, response: Response, session: AsyncSession) -> WorkspaceService:
-    """The service, with the hierarchy index refreshed. A Coolify outage leaves its rows as
-    they were and flags the response instead of failing the listing."""
+async def _synced(session: AsyncSession) -> WorkspaceService:
+    """The service, with the hierarchy index refreshed."""
     service = WorkspaceService(session)
-    coolify_apps = None
-    coolify = CoolifyClient.from_settings(
-        http_client=request.app.state.http_client, cache=request.app.state.cache
-    )
-    if coolify.is_configured():
-        try:
-            coolify_apps = await coolify.list_applications()
-        except ProviderAPIError as exc:
-            logger.warning("workspaces: Coolify listing failed, keeping indexed rows: %s", exc)
-            response.headers[DEGRADED_HEADER] = "coolify"
     try:
         async with session.begin_nested():
-            await service.sync(coolify_apps)
+            await service.sync()
     except IntegrityError:
         # A concurrent request indexed the same rows first; its result is just as good.
         logger.info("workspaces: concurrent sync, using the rows already indexed")
@@ -194,12 +180,10 @@ async def api_list_teams(
 @router.get("/teams/{team}", response_model=TeamDetail)
 async def api_get_team(
     team: str,
-    request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> TeamDetail:
-    service = await _synced(request, response, session)
+    service = await _synced(session)
     tenant = await _team(team, current_admin, service)
     counts = await service.team_counts(tenant.id)
     return TeamDetail(
@@ -218,12 +202,10 @@ async def api_get_team(
 @router.get("/teams/{team}/projects", response_model=list[ProjectOut])
 async def api_list_team_projects(
     team: str,
-    request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[ProjectOut]:
-    service = await _synced(request, response, session)
+    service = await _synced(session)
     tenant = await _team(team, current_admin, service)
     return [
         ProjectOut(
@@ -269,12 +251,10 @@ async def api_create_team_project(
 async def api_get_team_project(
     team: str,
     project: str,
-    request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> ProjectOut:
-    service = await _synced(request, response, session)
+    service = await _synced(session)
     tenant = await _team(team, current_admin, service)
     try:
         found = await service.get_project(tenant.id, project)
@@ -337,12 +317,10 @@ async def api_delete_team_project(
 async def api_list_project_environments(
     team: str,
     project: str,
-    request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[EnvironmentOut]:
-    service = await _synced(request, response, session)
+    service = await _synced(session)
     tenant = await _team(team, current_admin, service)
     try:
         found = await service.get_project(tenant.id, project)
@@ -407,15 +385,13 @@ async def api_delete_project_environment(
 @router.get("/teams/{team}/apps", response_model=list[WorkspaceAppOut])
 async def api_list_team_apps(
     team: str,
-    request: Request,
-    response: Response,
     project: str | None = None,
     environment: str | None = None,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(get_current_api_admin),
 ) -> list[WorkspaceAppOut]:
     """A team's apps, optionally narrowed to one project (and one of its environments)."""
-    service = await _synced(request, response, session)
+    service = await _synced(session)
     tenant = await _team(team, current_admin, service)
     project_id = env_id = None
     try:
@@ -456,11 +432,9 @@ async def api_move_team_app(
 
 @router.get("/platform/apps", response_model=list[WorkspaceAppOut])
 async def api_list_platform_apps(
-    request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(require_platform_admin),
 ) -> list[WorkspaceAppOut]:
     """Every app on the platform with its team — the super-admin view."""
-    service = await _synced(request, response, session)
+    service = await _synced(session)
     return [_app_out(row) for row in await service.list_apps(tenant_id=None)]

@@ -4,18 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Tenant, TenantResource
 from app.models.tenant_resource import (
     PROVIDER_CLOUDFLARE,
-    PROVIDER_COOLIFY,
     PROVIDER_MAILCOW,
-    RESOURCE_TYPE_DATABASE,
     RESOURCE_TYPE_DNS_RECORD,
     RESOURCE_TYPE_DNS_ZONE,
     RESOURCE_TYPE_MAIL_DOMAIN,
     RESOURCE_TYPE_MAILBOX,
-    RESOURCE_TYPE_SERVER,
-    RESOURCE_TYPE_SITE,
 )
 from app.services.cloudflare import CloudflareDNSRecord, CloudflareZone
-from app.services.coolify import CoolifyApplication, CoolifyDatabase, CoolifyServer
 from app.services.mailcow import MailcowAlias, MailcowDomain, MailcowMailbox
 
 
@@ -45,6 +40,10 @@ class TenantResourceFilter:
         self._platform_scope_cache = result
         return result
 
+    async def is_platform(self) -> bool:
+        """True when this tenant sees every tenant's resources (platform scope)."""
+        return await self._is_platform_scope()
+
     async def _fall_open(self) -> bool:
         """Fall open ONLY for tenants with is_platform_scope=True."""
         return await self._is_platform_scope()
@@ -64,12 +63,6 @@ class TenantResourceFilter:
     async def is_resource_accessible(self, *, provider: str, resource_type: str, external_id: str) -> bool:
         mapped_ids = await self._mapped_values(provider=provider, resource_type=resource_type)
         return external_id in mapped_ids or await self._fall_open()
-
-    async def filter_sites(self, sites: list[CoolifyApplication]) -> list[CoolifyApplication]:
-        if await self._fall_open():
-            return sites
-        mapped_ids = await self._mapped_values(provider=PROVIDER_COOLIFY, resource_type=RESOURCE_TYPE_SITE)
-        return [site for site in sites if site.id in mapped_ids]
 
     async def filter_mail(
         self,
@@ -123,15 +116,3 @@ class TenantResourceFilter:
             if record.id in mapped_records or (normalized_selected_zone and record.name.endswith(tuple(zone.name for zone in filtered_zones if zone.id == normalized_selected_zone)))
         ]
         return filtered_zones, filtered_records, normalized_selected_zone
-
-    async def filter_databases(self, databases: list[CoolifyDatabase]) -> list[CoolifyDatabase]:
-        if await self._fall_open():
-            return databases
-        mapped_ids = await self._mapped_values(provider=PROVIDER_COOLIFY, resource_type=RESOURCE_TYPE_DATABASE)
-        return [database for database in databases if database.id in mapped_ids]
-
-    async def filter_servers(self, servers: list[CoolifyServer]) -> list[CoolifyServer]:
-        if await self._fall_open():
-            return servers
-        mapped_ids = await self._mapped_values(provider=PROVIDER_COOLIFY, resource_type=RESOURCE_TYPE_SERVER)
-        return [server for server in servers if server.id in mapped_ids]

@@ -81,8 +81,7 @@ async def stream_deploy_log_events(
 ) -> AsyncIterator[str]:
     """Poll a native deployment via ``fetch`` and emit incremental SSE events.
 
-    Mirrors the Coolify streamer (``app.api.routes._stream_deployment_logs``): the
-    Deployment row carries a growing newline-joined log, so each poll diffs by line
+    The Deployment row carries a growing newline-joined log, so each poll diffs by line
     count and emits new lines + status transitions, terminating on a terminal status,
     client disconnect, or the safety timeout. ``fetch`` returns ``(status, log)`` or
     ``None`` when the deployment is missing/not owned by the caller.

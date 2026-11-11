@@ -8,11 +8,11 @@
 - Prefer explicit contracts, typed boundaries, and testable service layers over implicit coupling.
 - UI and backend work should feel premium: clean, modern, reliable, and production-minded.
 - Markdown under `.torsor/` is project memory and architectural intent; keep it accurate as the codebase evolves.
-- Build provider integrations against the latest official API docs, not memory: before adding or changing Coolify/Cloudflare/Mailcow code, consult and combine the current upstream API reference (use the `provider-api-docs` skill) and verify a capability exists upstream before building on it.
+- Build provider integrations against the latest official API docs, not memory: before adding or changing Cloudflare/Mailcow code (or the Coolify importer), consult and combine the current upstream API reference (use the `provider-api-docs` skill) and verify a capability exists upstream before building on it.
 - Tetra Host is a cutting-edge, Vercel-like, open-source hosting platform; hold every part to that bar — premium UX, modern architecture, and production-grade reliability — and keep it suitable for public open-source release.
 - Compose the platform from best-in-class open source: prefer integrating high-quality, well-known open-source apps/services to build the hosting infrastructure over reinventing them, and use the right language for the job (Python + TypeScript today; Go or other languages where they fit).
 - Keep `tetra-cli` in step with the dashboard: when adding a dashboard feature, also implement the best, most-automatable parts in the CLI, so the whole platform is operable from the command line (Vercel-style dashboard + CLI parity).
-- Platform direction (ADR 0017, supersedes the earlier Coolify-symbiosis rule): the native Tetra Engine is the deploy backend and Coolify is migrated off; Cloudflare stays the DNS provider; production disk pressure remains a design constraint. Plan of record: docs/architecture/roadmap.md.
+- Platform direction (ADR 0017 + ADR 0018): the native Tetra Engine is the deploy backend; Tetra Host replaces Coolify + Plesk, and Coolify is an import source only (the importer is the only Coolify code — no panel/API/CLI/MCP features through Coolify); Cloudflare stays the DNS provider; production disk pressure remains a design constraint. Plan of record: docs/architecture/roadmap.md.
 - Email runs on a Tetra-Host-compatible solution OFF the shared host: Mailcow can't coexist there (the existing Plesk/Postfix mail server already owns the mail ports), so use a dedicated mail host or a managed/API email service and build the panel integration to match — don't force self-hosted mail onto the constrained box.
 <!-- /torsor:rules -->
 

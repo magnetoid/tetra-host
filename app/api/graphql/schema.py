@@ -22,10 +22,10 @@ from app.api.graphql import types
 from app.api.security import read_api_token
 from app.db.session import get_db_session
 from app.models import AdminUser
+from app.modules.apps.service import AppsService
 from app.modules.auth.service import AuthService
 from app.modules.dns.service import DnsService
 from app.modules.mail.service import MailService
-from app.modules.projects.service import ProjectsService
 from app.services.http import ProviderAPIError
 
 
@@ -76,23 +76,16 @@ class Query:
         admin = require_admin(info)
         request = info.context["request"]
         session = info.context["session"]
-        projects_service = ProjectsService(request)
+        apps_service = AppsService(request)
         mail_service = MailService(request)
         dns_service = DnsService(request)
 
         providers: list[types.Provider] = []
-        sites: list[Any] = []
         domains: list[Any] = []
         zones: list[Any] = []
 
-        try:
-            sites = await projects_service.list_sites_for_tenant(session, admin.tenant_id)
-            configured = projects_service.client.is_configured()
-            providers.append(
-                _provider("Coolify", configured, f"{len(sites)} applications" if configured else "Credentials missing")
-            )
-        except ProviderAPIError as exc:
-            providers.append(types.Provider(name="Coolify", status="degraded", detail=str(exc)))
+        apps = await apps_service.list_installed_for_tenant(session, admin.tenant_id)
+        providers.append(_provider("Tetra Engine", True, f"{len(apps)} apps"))
 
         try:
             domains, _mailboxes = await mail_service.load_for_tenant(session, admin.tenant_id)
@@ -115,37 +108,18 @@ class Query:
         admin_count = await session.scalar(
             select(func.count()).select_from(AdminUser).where(AdminUser.tenant_id == admin.tenant_id)
         ) or 0
-        unhealthy = sum(1 for site in sites if "unhealthy" in site.status or "exited" in site.status)
+        unhealthy = sum(1 for a in apps if "unhealthy" in a.status or "exited" in a.status)
 
         return types.Dashboard(
             providers=providers,
             metrics=types.DashboardMetrics(
-                projects=len(sites),
+                projects=len(apps),
                 unhealthy_projects=unhealthy,
                 mail_domains=len(domains),
                 dns_zones=len(zones),
                 admins=int(admin_count),
             ),
         )
-
-    @strawberry.field(description="Coolify applications in the current tenant.")
-    async def projects(self, info: strawberry.Info) -> list[types.Project]:
-        admin = require_admin(info)
-        service = ProjectsService(info.context["request"])
-        sites = await service.list_sites_for_tenant(info.context["session"], admin.tenant_id)
-        return [types.Project(**contracts.ProjectSummary(**s.model_dump()).model_dump()) for s in sites]
-
-    @strawberry.field(description="Deployments for a project.")
-    async def deployments(self, info: strawberry.Info, application_id: str) -> list[types.Deployment]:
-        admin = require_admin(info)
-        service = ProjectsService(info.context["request"])
-        try:
-            rows = await service.list_deployments_for_tenant(
-                info.context["session"], admin.tenant_id, application_id
-            )
-        except ProviderAPIError as exc:
-            raise Exception(str(exc)) from exc
-        return [types.Deployment(**contracts.ProjectDeploymentSummary(**d.model_dump()).model_dump()) for d in rows]
 
     @strawberry.field(description="DNS zones + records for the current tenant.")
     async def dns(self, info: strawberry.Info) -> types.Dns:

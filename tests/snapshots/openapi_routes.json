@@ -146,26 +146,6 @@
     "request": null,
     "response": "object"
   },
-  "DELETE /api/v1/projects/{application_id}/envs/{env_uuid}": {
-    "operationId": "api_delete_env_api_v1_projects__application_id__envs__env_uuid__delete",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "path:env_uuid!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
-  "DELETE /api/v1/projects/{application_id}/storages/{storage_uuid}": {
-    "operationId": "api_delete_app_storage_api_v1_projects__application_id__storages__storage_uuid__delete",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "path:storage_uuid!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
   "DELETE /api/v1/sso": {
     "operationId": "api_delete_sso_api_v1_sso_delete",
     "parameters": [
@@ -351,6 +331,16 @@
     "request": null,
     "response": "list[AppTemplateSummary]"
   },
+  "GET /api/v1/apps/{project}/analytics": {
+    "operationId": "api_app_analytics_api_v1_apps__project__analytics_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!",
+      "query:period"
+    ],
+    "request": null,
+    "response": "ProjectAnalytics"
+  },
   "GET /api/v1/apps/{project}/compute": {
     "operationId": "api_apps_compute_api_v1_apps__project__compute_get",
     "parameters": [
@@ -359,6 +349,25 @@
     ],
     "request": null,
     "response": "AppComputeResponse"
+  },
+  "GET /api/v1/apps/{project}/errors": {
+    "operationId": "api_app_errors_api_v1_apps__project__errors_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "ProjectErrors"
+  },
+  "GET /api/v1/apps/{project}/errors/{issue_id}/explain": {
+    "operationId": "api_explain_error_api_v1_apps__project__errors__issue_id__explain_get",
+    "parameters": [
+      "header:authorization",
+      "path:issue_id!",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "ErrorDiagnosis"
   },
   "GET /api/v1/apps/{project}/logs": {
     "operationId": "api_apps_logs_api_v1_apps__project__logs_get",
@@ -501,35 +510,6 @@
     ],
     "request": null,
     "response": "DashboardResponse"
-  },
-  "GET /api/v1/databases": {
-    "operationId": "api_list_databases_api_v1_databases_get",
-    "parameters": [
-      "header:authorization",
-      "query:limit",
-      "query:offset"
-    ],
-    "request": null,
-    "response": "list[DatabaseSummary]"
-  },
-  "GET /api/v1/databases/targets": {
-    "operationId": "api_database_targets_api_v1_databases_targets_get",
-    "parameters": [
-      "header:authorization"
-    ],
-    "request": null,
-    "response": "DatabaseTargets"
-  },
-  "GET /api/v1/databases/{db_uuid}/backups": {
-    "operationId": "api_list_database_backups_api_v1_databases__db_uuid__backups_get",
-    "parameters": [
-      "header:authorization",
-      "path:db_uuid!",
-      "query:limit",
-      "query:offset"
-    ],
-    "request": null,
-    "response": "list[BackupConfigSummary]"
   },
   "GET /api/v1/deploy-hooks": {
     "operationId": "api_list_deploy_hooks_api_v1_deploy_hooks_get",
@@ -777,108 +757,6 @@
     "request": null,
     "response": "list[PreviewSummary]"
   },
-  "GET /api/v1/projects": {
-    "operationId": "api_projects_api_v1_projects_get",
-    "parameters": [
-      "header:authorization",
-      "query:limit",
-      "query:offset"
-    ],
-    "request": null,
-    "response": "list[ProjectSummary]"
-  },
-  "GET /api/v1/projects/{application_id}/analytics": {
-    "operationId": "api_project_analytics_api_v1_projects__application_id__analytics_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "query:period"
-    ],
-    "request": null,
-    "response": "ProjectAnalytics"
-  },
-  "GET /api/v1/projects/{application_id}/deployments": {
-    "operationId": "api_project_deployments_api_v1_projects__application_id__deployments_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "query:limit",
-      "query:offset"
-    ],
-    "request": null,
-    "response": "list[ProjectDeploymentSummary]"
-  },
-  "GET /api/v1/projects/{application_id}/deployments/{deployment_id}": {
-    "operationId": "api_deployment_detail_api_v1_projects__application_id__deployments__deployment_id__get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "path:deployment_id!"
-    ],
-    "request": null,
-    "response": "DeploymentDetail"
-  },
-  "GET /api/v1/projects/{application_id}/deployments/{deployment_id}/logs/stream": {
-    "operationId": "api_stream_deployment_logs_api_v1_projects__application_id__deployments__deployment_id__logs_stream_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "path:deployment_id!"
-    ],
-    "request": null,
-    "response": null
-  },
-  "GET /api/v1/projects/{application_id}/envs": {
-    "operationId": "api_project_envs_api_v1_projects__application_id__envs_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "query:limit",
-      "query:offset"
-    ],
-    "request": null,
-    "response": "list[object]"
-  },
-  "GET /api/v1/projects/{application_id}/errors": {
-    "operationId": "api_project_errors_api_v1_projects__application_id__errors_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": "ProjectErrors"
-  },
-  "GET /api/v1/projects/{application_id}/errors/{issue_id}/explain": {
-    "operationId": "api_explain_error_api_v1_projects__application_id__errors__issue_id__explain_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "path:issue_id!"
-    ],
-    "request": null,
-    "response": "ErrorDiagnosis"
-  },
-  "GET /api/v1/projects/{application_id}/logs": {
-    "operationId": "api_project_logs_api_v1_projects__application_id__logs_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "query:lines"
-    ],
-    "request": null,
-    "response": "object"
-  },
-  "GET /api/v1/projects/{application_id}/storages": {
-    "operationId": "api_list_app_storages_api_v1_projects__application_id__storages_get",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "query:limit",
-      "query:offset"
-    ],
-    "request": null,
-    "response": "list[AppStorageSummary]"
-  },
   "GET /api/v1/sso": {
     "operationId": "api_get_sso_api_v1_sso_get",
     "parameters": [
@@ -1006,12 +884,6 @@
     "request": null,
     "response": null
   },
-  "GET /databases": {
-    "operationId": "list_databases_databases_get",
-    "parameters": [],
-    "request": null,
-    "response": null
-  },
   "GET /dns": {
     "operationId": "dns_index_dns_get",
     "parameters": [],
@@ -1032,12 +904,6 @@
   },
   "GET /mail": {
     "operationId": "mail_index_mail_get",
-    "parameters": [],
-    "request": null,
-    "response": null
-  },
-  "GET /maintenance": {
-    "operationId": "maintenance_page_maintenance_get",
     "parameters": [],
     "request": null,
     "response": null
@@ -1075,45 +941,9 @@
     "request": null,
     "response": null
   },
-  "GET /projects": {
-    "operationId": "list_projects_projects_get",
-    "parameters": [],
-    "request": null,
-    "response": null
-  },
-  "GET /projects/{application_id}": {
-    "operationId": "project_detail_projects__application_id__get",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": null
-  },
-  "GET /projects/{application_id}/logs": {
-    "operationId": "project_logs_partial_projects__application_id__logs_get",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": null
-  },
   "GET /ready": {
     "operationId": "ready_ready_get",
     "parameters": [],
-    "request": null,
-    "response": null
-  },
-  "GET /servers": {
-    "operationId": "list_servers_servers_get",
-    "parameters": [],
-    "request": null,
-    "response": null
-  },
-  "GET /servers/{server_id}": {
-    "operationId": "server_detail_servers__server_id__get",
-    "parameters": [
-      "path:server_id!"
-    ],
     "request": null,
     "response": null
   },
@@ -1178,15 +1008,6 @@
     ],
     "request": "PlanUpdateRequest",
     "response": "PlanSummary"
-  },
-  "PATCH /api/v1/projects/{application_id}": {
-    "operationId": "api_update_project_api_v1_projects__application_id__patch",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": "ProjectUpdateRequest",
-    "response": "ActionResponse"
   },
   "PATCH /api/v1/teams/{team}/projects/{project}": {
     "operationId": "api_update_team_project_api_v1_teams__team__projects__project__patch",
@@ -1419,23 +1240,6 @@
     "request": "PlanActivateRequest",
     "response": "ZoneSubscriptionSummary"
   },
-  "POST /api/v1/databases": {
-    "operationId": "api_provision_database_api_v1_databases_post",
-    "parameters": [
-      "header:authorization"
-    ],
-    "request": "DatabaseProvisionRequest",
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/databases/{db_uuid}/backups": {
-    "operationId": "api_create_database_backup_api_v1_databases__db_uuid__backups_post",
-    "parameters": [
-      "header:authorization",
-      "path:db_uuid!"
-    ],
-    "request": "BackupCreateRequest",
-    "response": "ActionResponse"
-  },
   "POST /api/v1/deploy-hooks": {
     "operationId": "api_create_deploy_hook_api_v1_deploy_hooks_post",
     "parameters": [
@@ -1622,70 +1426,6 @@
     "request": null,
     "response": "PlanSummary"
   },
-  "POST /api/v1/projects/{application_id}/deploy": {
-    "operationId": "api_deploy_project_api_v1_projects__application_id__deploy_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/projects/{application_id}/deployments/{deployment_id}/cancel": {
-    "operationId": "api_cancel_deployment_api_v1_projects__application_id__deployments__deployment_id__cancel_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!",
-      "path:deployment_id!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/projects/{application_id}/envs": {
-    "operationId": "api_create_env_api_v1_projects__application_id__envs_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": "EnvVarCreateRequest",
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/projects/{application_id}/restart": {
-    "operationId": "api_restart_project_api_v1_projects__application_id__restart_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/projects/{application_id}/start": {
-    "operationId": "api_start_project_api_v1_projects__application_id__start_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/projects/{application_id}/stop": {
-    "operationId": "api_stop_project_api_v1_projects__application_id__stop_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": null,
-    "response": "ActionResponse"
-  },
-  "POST /api/v1/projects/{application_id}/storages": {
-    "operationId": "api_create_app_storage_api_v1_projects__application_id__storages_post",
-    "parameters": [
-      "header:authorization",
-      "path:application_id!"
-    ],
-    "request": "AppStorageCreateRequest",
-    "response": "ActionResponse"
-  },
   "POST /api/v1/storage/buckets": {
     "operationId": "api_provision_bucket_api_v1_storage_buckets_post",
     "parameters": [
@@ -1838,30 +1578,6 @@
     "request": "Body_logout_auth_logout_post",
     "response": null
   },
-  "POST /databases/{db_id}/restart": {
-    "operationId": "restart_database_databases__db_id__restart_post",
-    "parameters": [
-      "path:db_id!"
-    ],
-    "request": "Body_restart_database_databases__db_id__restart_post",
-    "response": null
-  },
-  "POST /databases/{db_id}/start": {
-    "operationId": "start_database_databases__db_id__start_post",
-    "parameters": [
-      "path:db_id!"
-    ],
-    "request": "Body_start_database_databases__db_id__start_post",
-    "response": null
-  },
-  "POST /databases/{db_id}/stop": {
-    "operationId": "stop_database_databases__db_id__stop_post",
-    "parameters": [
-      "path:db_id!"
-    ],
-    "request": "Body_stop_database_databases__db_id__stop_post",
-    "response": null
-  },
   "POST /dns/records/create": {
     "operationId": "create_dns_record_dns_records_create_post",
     "parameters": [],
@@ -1890,149 +1606,10 @@
     "request": null,
     "response": null
   },
-  "POST /maintenance/run": {
-    "operationId": "run_command_maintenance_run_post",
-    "parameters": [],
-    "request": "Body_run_command_maintenance_run_post",
-    "response": null
-  },
   "POST /oidc/token": {
     "operationId": "token_oidc_token_post",
     "parameters": [],
     "request": "Body_token_oidc_token_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/deploy": {
-    "operationId": "deploy_project_projects__application_id__deploy_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_deploy_project_projects__application_id__deploy_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/deployments/{deployment_id}/cancel": {
-    "operationId": "cancel_deployment_projects__application_id__deployments__deployment_id__cancel_post",
-    "parameters": [
-      "path:application_id!",
-      "path:deployment_id!"
-    ],
-    "request": "Body_cancel_deployment_projects__application_id__deployments__deployment_id__cancel_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/envs/create": {
-    "operationId": "create_env_projects__application_id__envs_create_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_create_env_projects__application_id__envs_create_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/envs/{env_uuid}/delete": {
-    "operationId": "delete_env_projects__application_id__envs__env_uuid__delete_post",
-    "parameters": [
-      "path:application_id!",
-      "path:env_uuid!"
-    ],
-    "request": "Body_delete_env_projects__application_id__envs__env_uuid__delete_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/execute": {
-    "operationId": "execute_command_projects__application_id__execute_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_execute_command_projects__application_id__execute_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/restart": {
-    "operationId": "restart_project_projects__application_id__restart_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_restart_project_projects__application_id__restart_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/settings": {
-    "operationId": "update_settings_projects__application_id__settings_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_update_settings_projects__application_id__settings_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/start": {
-    "operationId": "start_project_projects__application_id__start_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_start_project_projects__application_id__start_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/stop": {
-    "operationId": "stop_project_projects__application_id__stop_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_stop_project_projects__application_id__stop_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/storages/create": {
-    "operationId": "create_storage_projects__application_id__storages_create_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_create_storage_projects__application_id__storages_create_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/storages/update": {
-    "operationId": "update_storage_projects__application_id__storages_update_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_update_storage_projects__application_id__storages_update_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/storages/{storage_uuid}/delete": {
-    "operationId": "delete_storage_projects__application_id__storages__storage_uuid__delete_post",
-    "parameters": [
-      "path:application_id!",
-      "path:storage_uuid!"
-    ],
-    "request": "Body_delete_storage_projects__application_id__storages__storage_uuid__delete_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/tasks/create": {
-    "operationId": "create_task_projects__application_id__tasks_create_post",
-    "parameters": [
-      "path:application_id!"
-    ],
-    "request": "Body_create_task_projects__application_id__tasks_create_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/tasks/{task_uuid}/delete": {
-    "operationId": "delete_task_projects__application_id__tasks__task_uuid__delete_post",
-    "parameters": [
-      "path:application_id!",
-      "path:task_uuid!"
-    ],
-    "request": "Body_delete_task_projects__application_id__tasks__task_uuid__delete_post",
-    "response": null
-  },
-  "POST /projects/{application_id}/tasks/{task_uuid}/update": {
-    "operationId": "update_task_projects__application_id__tasks__task_uuid__update_post",
-    "parameters": [
-      "path:application_id!",
-      "path:task_uuid!"
-    ],
-    "request": "Body_update_task_projects__application_id__tasks__task_uuid__update_post",
-    "response": null
-  },
-  "POST /servers/{server_id}/validate": {
-    "operationId": "validate_server_servers__server_id__validate_post",
-    "parameters": [
-      "path:server_id!"
-    ],
-    "request": "Body_validate_server_servers__server_id__validate_post",
     "response": null
   },
   "PUT /api/v1/billing/pricing/{offering_key}": {

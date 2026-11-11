@@ -4,57 +4,30 @@ import asyncio
 import os
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.db import session_scope
 from app.models import (
     AdminUser,
     Deployment,
-    ImportRun,
     PreviewEnv,
     Tenant,
     TenantResource,
     WorkspaceApp,
 )
 from app.models.admin import ROLE_OWNER
-from app.models.import_run import IMPORT_LIVE
 from app.models.team import ROLE_MEMBER
-from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_SITE
+from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.modules.auth.service import AuthService
-from app.services.coolify import CoolifyApplication, CoolifyClient
-from app.services.http import ProviderAPIError
 
 PASSWORD = "tenant-password"
 
 
-def _coolify_app(uuid: str, name: str, project: str, env: str = "production") -> CoolifyApplication:
-    return CoolifyApplication(
-        id=uuid, name=name, primary_domain=f"{name}.test", status="running", repository="",
-        environment=env, updated_at="", project_name=project,
+def _engine_app(tenant_id: str, project: str) -> TenantResource:
+    return TenantResource(
+        tenant_id=tenant_id, provider=PROVIDER_DOCKER, resource_type=RESOURCE_TYPE_APP,
+        external_id=project, display_name=project,
     )
-
-
-class CoolifyStub:
-    def __init__(self) -> None:
-        self.apps = [
-            _coolify_app("c-alpha", "alpha-site", "Alpha Co"),
-            _coolify_app("c-platform", "platform-site", "Marketing", env="staging"),
-            _coolify_app("c-moving", "moving-site", "Marketing"),
-        ]
-        self.fail = False
-
-    async def list_applications(self, refresh: bool = False):
-        if self.fail:
-            raise ProviderAPIError(service="Coolify", message="down", status_code=502)
-        return list(self.apps)
-
-
-@pytest.fixture
-def coolify(monkeypatch) -> CoolifyStub:
-    stub = CoolifyStub()
-    monkeypatch.setattr(CoolifyClient, "is_configured", lambda self: True)
-    monkeypatch.setattr(CoolifyClient, "list_applications", lambda self, refresh=False: stub.list_applications())
-    return stub
 
 
 async def _seed() -> None:
@@ -73,18 +46,20 @@ async def _seed() -> None:
                     tenant_id=tenant.id, email="alpha-member@x.test", full_name="m",
                     password_hash=auth.hash_password(PASSWORD), is_active=True, role=ROLE_MEMBER,
                 ))
-                session.add(TenantResource(
-                    tenant_id=tenant.id, provider=PROVIDER_COOLIFY,
-                    resource_type=RESOURCE_TYPE_SITE, external_id="c-alpha", display_name="alpha",
-                ))
+                # A git deploy, its preview, and a marketplace install with no deployment row.
+                session.add(_engine_app(tenant.id, "shop"))
                 session.add(Deployment(tenant_id=tenant.id, project="shop", domain="shop.test", status="ready"))
                 session.add(Deployment(tenant_id=tenant.id, project="shop-pr-x", domain="x.shop.test"))
                 session.add(PreviewEnv(
                     tenant_id=tenant.id, project="shop", branch="feature/x",
                     preview_project="shop-pr-x", domain="x.shop.test",
                 ))
+                session.add(_engine_app(tenant.id, "wiki"))
             else:
+                session.add(_engine_app(tenant.id, "blog"))
                 session.add(Deployment(tenant_id=tenant.id, project="blog", domain="blog.test"))
+        platform = await session.scalar(select(Tenant).where(Tenant.is_platform_scope.is_(True)))
+        session.add(_engine_app(platform.id, "platform-app"))
 
 
 def _login(client, email: str, password: str = PASSWORD) -> dict[str, str]:
@@ -98,7 +73,7 @@ def _root(client) -> dict[str, str]:
 
 
 @pytest.fixture
-def seeded(client, coolify):
+def seeded(client):
     asyncio.run(_seed())
     return client
 
@@ -114,7 +89,7 @@ def test_team_sees_only_its_hierarchy(seeded):
 
     assert [t["slug"] for t in seeded.get("/api/v1/teams", headers=alpha).json()] == ["alpha"]
     projects = {p["slug"]: p for p in seeded.get("/api/v1/teams/alpha/projects", headers=alpha).json()}
-    assert set(projects) == {"shop", "alpha-co"}
+    assert set(projects) == {"shop", "wiki"}
     assert (projects["shop"]["environments"], projects["shop"]["apps"]) == (2, 2)
 
     envs = seeded.get("/api/v1/teams/alpha/projects/shop/environments", headers=alpha).json()
@@ -123,9 +98,9 @@ def test_team_sees_only_its_hierarchy(seeded):
         ("preview-feature-x", "preview", 1),
     ]
     apps = _apps(seeded, alpha, "alpha")
-    assert set(apps) == {"shop", "shop-pr-x", "alpha-site"}
+    assert set(apps) == {"shop", "shop-pr-x", "wiki"}
     assert apps["shop-pr-x"]["environment"]["kind"] == "preview"
-    assert apps["alpha-site"]["driver"] == "coolify"
+    assert {a["driver"] for a in apps.values()} == {"engine"}
     assert {a["team"]["slug"] for a in apps.values()} == {"alpha"}
     narrowed = _apps(seeded, alpha, "alpha", project="shop", environment="production")
     assert [(a["external_id"], a["domain"]) for a in narrowed.values()] == [("shop", "shop.test")]
@@ -170,11 +145,9 @@ def test_platform_admin_sees_every_team(seeded):
     root = _root(seeded)
     apps = seeded.get("/api/v1/platform/apps", headers=root).json()
     by_name = {a["name"]: a["team"]["slug"] for a in apps}
-    assert by_name["shop"] == by_name["alpha-site"] == "alpha"
+    assert by_name["shop"] == by_name["wiki"] == "alpha"
     assert by_name["blog"] == "beta"
-    # Unassigned Coolify apps belong to the platform team.
-    platform_slug = by_name["platform-site"]
-    assert platform_slug not in {"alpha", "beta"}
+    assert by_name["platform-app"] not in {"alpha", "beta"}
     assert seeded.get("/api/v1/teams/beta/projects", headers=root).status_code == 200
     assert len(seeded.get("/api/v1/teams", headers=root).json()) == 3
 
@@ -215,36 +188,36 @@ def test_members_cannot_write(seeded):
     assert seeded.post("/api/v1/teams/alpha/projects", headers=member, json={"name": "x"}).status_code == 403
 
 
-def test_coolify_outage_keeps_rows_and_flags_response(seeded, coolify):
-    root = _root(seeded)
-    first = seeded.get("/api/v1/platform/apps", headers=root)
-    coolify.fail = True
-    second = seeded.get("/api/v1/platform/apps", headers=root)
-    assert second.headers.get("X-Tetra-Degraded") == "coolify"
-    assert {a["name"] for a in second.json()} == {a["name"] for a in first.json()}
+def test_removed_app_is_pruned(seeded):
+    alpha = _login(seeded, "alpha@x.test")
+    assert "wiki" in _apps(seeded, alpha, "alpha")
 
-    coolify.fail = False
-    coolify.apps = [a for a in coolify.apps if a.id != "c-platform"]
-    pruned = {a["name"] for a in seeded.get("/api/v1/platform/apps", headers=root).json()}
-    assert "platform-site" not in pruned and "alpha-site" in pruned
+    async def remove_wiki() -> None:
+        async with session_scope() as session:
+            await session.execute(delete(TenantResource).where(TenantResource.external_id == "wiki"))
+
+    asyncio.run(remove_wiki())
+    assert "wiki" not in _apps(seeded, alpha, "alpha")
 
 
-def test_imported_app_keeps_its_row(seeded):
-    root = _root(seeded)
-    before = {a["name"]: a for a in seeded.get("/api/v1/platform/apps", headers=root).json()}
-    moving = before["moving-site"]
-    assert moving["driver"] == "coolify"
+def test_imported_app_appears_as_engine_app(seeded):
+    """An import registers an engine stack; it shows up like any other engine app."""
+    alpha = _login(seeded, "alpha@x.test")
 
     async def import_it() -> None:
         async with session_scope() as session:
-            tenant_id = (await session.scalar(select(WorkspaceApp).where(WorkspaceApp.id == moving["id"]))).tenant_id
-            session.add(ImportRun(tenant_id=tenant_id, source="coolify", source_ref="c-moving",
-                                  project="moving-stack", state=IMPORT_LIVE))
-            session.add(Deployment(tenant_id=tenant_id, project="moving-stack", domain="moving.test"))
+            tenant = await session.scalar(select(Tenant).where(Tenant.slug == "alpha"))
+            session.add(_engine_app(tenant.id, "moving-stack"))
+            session.add(Deployment(tenant_id=tenant.id, project="moving-stack", domain="moving.test",
+                                   builder="import"))
 
     asyncio.run(import_it())
-    after = {a["id"]: a for a in seeded.get("/api/v1/platform/apps", headers=root).json()}
-    row = after[moving["id"]]
-    assert (row["driver"], row["external_id"], row["domain"]) == ("engine", "moving-stack", "moving.test")
-    assert row["environment"]["id"] == moving["environment"]["id"]
-    assert sum(1 for a in after.values() if a["external_id"] == "moving-stack") == 1
+    row = _apps(seeded, alpha, "alpha")["moving-stack"]
+    assert (row["driver"], row["domain"], row["environment"]["kind"]) == ("engine", "moving.test", "production")
+
+    async def count_rows() -> int:
+        async with session_scope() as session:
+            rows = await session.scalars(select(WorkspaceApp).where(WorkspaceApp.external_id == "moving-stack"))
+            return len(rows.all())
+
+    assert asyncio.run(count_rows()) == 1

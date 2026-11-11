@@ -84,88 +84,10 @@ class DashboardResponse(BaseModel):
     recent_deployments: list[RecentDeployment] = []
 
 
-class ProjectSummary(BaseModel):
-    id: str
-    name: str
-    status: str
-    primary_domain: str
-    repository: str
-    environment: str
-    updated_at: str
-    healthcheck_enabled: bool
-    # Coolify project grouping (tenant > project > deployment). Empty for native
-    # platform deployments, which group on their own.
-    project_uuid: str = ""
-    project_name: str = ""
-    # Editable build/run settings (surfaced on the app Settings tab).
-    fqdn: str = ""
-    build_pack: str = ""
-    install_command: str = ""
-    build_command: str = ""
-    start_command: str = ""
-    base_directory: str = ""
-    publish_directory: str = ""
-    ports_exposes: str = ""
-
-
-class ProjectUpdateRequest(BaseModel):
-    """Editable app settings — only provided (non-null) fields are sent to Coolify."""
-
-    name: str | None = None
-    description: str | None = None
-    fqdn: str | None = None
-    build_pack: str | None = None
-    install_command: str | None = None
-    build_command: str | None = None
-    start_command: str | None = None
-    base_directory: str | None = None
-    publish_directory: str | None = None
-    ports_exposes: str | None = None
-
-
-class AppStorageSummary(BaseModel):
-    id: str
-    name: str = ""
-    mount_path: str = ""
-    host_path: str = ""
-
-
-class AppStorageCreateRequest(BaseModel):
-    name: str
-    mount_path: str
-    host_path: str = ""
-
-
 class ActionResponse(BaseModel):
     ok: bool = True
     message: str
     deployment_id: str = ""
-
-
-class ProjectDeploymentSummary(BaseModel):
-    id: str
-    status: str
-    created_at: str
-    updated_at: str
-    commit: str
-    branch: str
-    source: str = "coolify"  # deployment origin — Coolify-backed application
-
-
-class DeploymentLogLine(BaseModel):
-    output: str
-    type: str = "stdout"
-    timestamp: str = ""
-
-
-class DeploymentDetail(BaseModel):
-    id: str
-    status: str
-    created_at: str
-    updated_at: str
-    commit: str
-    branch: str
-    log_lines: list[DeploymentLogLine] = []
 
 
 class MailDomainSummary(BaseModel):
@@ -339,13 +261,6 @@ class DNSRecordCreateRequest(BaseModel):
     ttl: int = 1
     proxied: bool = False
     priority: int | None = None
-
-
-class EnvVarCreateRequest(BaseModel):
-    key: str
-    value: str
-    is_preview: bool = False
-    is_build_time: bool = False
 
 
 class ZoneSettings(BaseModel):
@@ -1155,57 +1070,6 @@ class ProjectErrors(BaseModel):
     project_slug: str = ""
     dsn: str = ""
     issues: list[ErrorIssue] = []
-
-
-class DatabaseSummary(BaseModel):
-    id: str
-    name: str
-    type: str = ""
-    status: str = "unknown"
-    internal_db_url: str = ""
-    image: str = ""
-
-
-class DatabaseProvisionRequest(BaseModel):
-    """Request to provision a new managed database via Coolify.
-
-    db_type must be one of the Coolify-supported database types.
-    No tenant_id, role, or owner fields — tenant is always the caller's tenant.
-    """
-
-    db_type: str = Field(
-        ...,
-        description="One of: postgresql, mysql, mariadb, mongodb, redis, keydb, dragonfly, clickhouse",
-    )
-    name: str = Field(..., min_length=1, max_length=120)
-    server_uuid: str
-    project_uuid: str
-    environment_name: str
-
-
-class BackupConfigSummary(BaseModel):
-    id: str
-    frequency: str = ""
-    retention_days: int = 0
-    s3_storage_id: str = ""
-
-
-class BackupCreateRequest(BaseModel):
-    frequency: str = "0 2 * * *"
-    retention_days: int = 7
-    s3_storage_id: str = ""
-
-
-class DatabaseTargetOption(BaseModel):
-    uuid: str
-    name: str
-
-
-class DatabaseTargets(BaseModel):
-    """Coolify servers + projects offered as pickers in the provisioning form."""
-
-    servers: list[DatabaseTargetOption] = []
-    projects: list[DatabaseTargetOption] = []
 
 
 # ── Object storage (Cloudflare R2 bucket reselling) ─────────────────────────

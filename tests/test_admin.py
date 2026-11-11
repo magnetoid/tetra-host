@@ -96,8 +96,8 @@ def test_admin_page_supports_resource_assignment(authenticated_client):
         "/admin/resources",
         data={
             "tenant_slug": "gamma",
-            "provider": "coolify",
-            "resource_type": "site",
+            "provider": "docker",
+            "resource_type": "app",
             "external_id": "app-gamma",
             "display_name": "Gamma App",
             "csrf_token": csrf_token,
@@ -107,7 +107,7 @@ def test_admin_page_supports_resource_assignment(authenticated_client):
 
     assert response.status_code == 200
     assert "Gamma App" in response.text
-    assert "coolify · site" in response.text
+    assert "docker · app" in response.text
 
 
 def test_admin_page_lists_all_tenants_and_supports_deactivation(authenticated_client):

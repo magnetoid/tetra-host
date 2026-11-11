@@ -7,7 +7,8 @@
 
 ## Provider checks
 
-- Coolify: verify `COOLIFY_URL` and `COOLIFY_TOKEN`, then confirm the `/projects` page lists applications and deployments.
+- Tetra Engine: confirm `docker compose ls` works for the service user, then that `tetra deploys list` shows deployments.
+- Coolify importer (optional, only while apps are being moved off Coolify): set `COOLIFY_URL`, `COOLIFY_TOKEN` and `COOLIFY_DATA_DIR`, then `tetra import coolify <app_uuid>` returns a plan.
 - Mailcow: verify `MAILCOW_URL` and `MAILCOW_API_KEY`, then confirm the `/mail` page lists domains and mailboxes.
 - Cloudflare: verify `CLOUDFLARE_API_TOKEN`, then confirm the `/dns` page lists zones and records.
 

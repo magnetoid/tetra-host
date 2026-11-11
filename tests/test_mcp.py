@@ -286,7 +286,7 @@ def test_api_tokens_list_only_never_create_or_revoke():
 
 def test_call_explain_error_hits_endpoint():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/projects/app-7/errors/42/explain"
+        assert request.url.path == "/api/v1/apps/app-7/errors/42/explain"
         return httpx.Response(200, json={"issue_id": "42", "title": "TypeError",
                                          "summary": "type error", "category": "type-error",
                                          "source": "heuristic"})
@@ -294,7 +294,7 @@ def test_call_explain_error_hits_endpoint():
     server = MCPServer(make_client(handler))
     response = server.handle_message(
         _rpc("tools/call",
-             {"name": "explain_error", "arguments": {"application_id": "app-7", "issue_id": "42"}})
+             {"name": "explain_error", "arguments": {"project": "app-7", "issue_id": "42"}})
     )
     assert response["result"]["isError"] is False
     assert "type error" in response["result"]["content"][0]["text"]

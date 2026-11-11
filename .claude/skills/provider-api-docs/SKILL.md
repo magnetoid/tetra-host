@@ -1,6 +1,6 @@
 ---
 name: provider-api-docs
-description: Use when implementing, modifying, or debugging Coolify or Cloudflare (or Mailcow) API integration — e.g. app/services/coolify.py, app/services/cloudflare.py, app/services/mailcow.py, deploy/DNS/mail features, or any /api/v1 provider endpoint. Fetches and combines the LATEST official upstream API docs into one reference so code matches current API truth instead of stale or remembered assumptions.
+description: Use when implementing, modifying, or debugging Cloudflare or Mailcow API integration, or the Coolify importer's read-only client — e.g. app/services/cloudflare.py, app/services/mailcow.py, app/modules/importers/coolify_source.py, DNS/mail features, or any /api/v1 provider endpoint. Fetches and combines the LATEST official upstream API docs into one reference so code matches current API truth instead of stale or remembered assumptions.
 ---
 
 # Provider API Docs (Coolify + Cloudflare + Mailcow)
@@ -13,7 +13,8 @@ memory.**
 
 ## When to use
 
-- Adding or changing a method in `app/services/{coolify,cloudflare,mailcow}.py`.
+- Adding or changing a method in `app/services/{cloudflare,mailcow}.py` or the importer's
+  `app/modules/importers/coolify_source.py` (Coolify is an import source only, ADR 0018).
 - Building a feature on a provider capability (deploy, rollback, DNS CRUD, mailboxes).
 - Debugging a provider call (wrong shape, 4xx/5xx, missing field).
 - Any time you're about to assume "the API supports X" — verify X exists first.

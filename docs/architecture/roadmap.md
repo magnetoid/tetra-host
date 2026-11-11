@@ -1,13 +1,14 @@
 # Tetra Host roadmap (2026-11)
 
 Status: accepted 2026-11-10. Supersedes the phase list in ADR 0004 (P0–P6) and the build order in
-`tetra-engine.md` where they conflict. Decision record: ADR 0017.
+`tetra-engine.md` where they conflict. Decision records: ADR 0017; ADR 0018 (2026-11-11) amends it —
+the panel no longer manages Coolify apps, Coolify and Plesk are import sources only.
 
 ## Goal
 
 A hosting platform for apps, AI workloads, websites (including PHP/WordPress), email and DNS, serving
-both end customers and hosting companies. It sits between Coolify (developer PaaS) and Plesk
-(traditional hosting panel): one control plane, separate panels per role, features as plugins that can
+both end customers and hosting companies. It is an open-source replacement for Coolify (developer
+PaaS) and Plesk (traditional hosting panel): one control plane, separate panels per role, features as plugins that can
 be switched on and off at runtime.
 
 ## Owner decisions this plan rests on
@@ -60,8 +61,9 @@ be switched on and off at runtime.
    hierarchy so handlers are touched once.
 5. **Org hierarchy in the database, no OpenFGA**: `tenants.parent_id` + `kind`, a `tenant_closure`
    table, and `memberships` (one login, many orgs). Depth is at most four.
-6. **One `apps` resource + `WorkloadDriver`** (`engine`, `coolify`). Migrating a Coolify app flips
-   `driver` on the same row, so it keeps its id, URL and history.
+6. **One `apps` resource** over engine stacks (the `apps` table, step 3 of the console redesign).
+   Coolify is not a driver: ADR 0018 (2026-11-11) removed the panel's Coolify integration, and
+   Coolify/Plesk are import sources only. `driver` stays on the row for other runtimes later.
 7. **Postgres as the system of record; schema changes only through Alembic** (one linear chain).
 8. **A plain Postgres task table** (`platform_tasks`, `FOR UPDATE SKIP LOCKED`, separate
    `python -m app.worker`), not Temporal or DBOS.
@@ -80,7 +82,7 @@ be switched on and off at runtime.
 | 0 | Hygiene | Green CI (ruff), dead legacy files removed, OpenAPI contract snapshot test, ADR 0017, refreshed `CLAUDE.md`/`.torsor/` | `ruff` and `pytest` green on main |
 | 1 | Kernel + authz seam | Manifest; `app/api/deps.py`; `routes.py` becomes an aggregator and modules move one per PR (`jobs` first, then the engine cluster: apps, deploys, previews, domains, edge, webhooks, infra); install-level toggle; `/meta/capabilities`; `AuthContext`; `AuditService` with `tenant_id`; CLI and MCP split per plugin | OpenAPI snapshot unchanged; disabling a plugin returns 404 and removes it from nav, CLI and MCP without a restart |
 | 2 | Postgres + tasks | Production on Postgres; real Alembic baseline; `init_db()` for SQLite tests only; `app/worker.py` + `platform_tasks`; builds off the web process; CI on both databases | Suite green on both; a build survives a web restart; `alembic check` clean |
-| 3 | Unified apps + node 1 | `apps` table, `EngineDriver`/`CoolifyDriver`, `nodes` table, second server with its own IPv4, Caddy on-demand TLS, per-app network + cap-drop, Railpack, health-gated cutover | One list shows Coolify and engine apps; a custom domain gets a certificate on node 1 without Cloudflare for SaaS |
+| 3 | Unified apps + node 1 | `apps` table (engine only, ADR 0018); engine replacements for what Coolify gave the panel — managed databases + backups, volumes, restart, cancel, exec, build settings; `nodes` table, second server with its own IPv4, Caddy on-demand TLS, per-app network + cap-drop, Railpack, health-gated cutover | Managed databases and volumes work on the engine; a custom domain gets a certificate on node 1 without Cloudflare for SaaS |
 | 4 | Dogfood migration | `site` type (PHP/WordPress/static, PHP version, per-site DB, SFTP, cron, WP-CLI tools, staging/clone, restic backups); Plesk→engine and Coolify→engine importers as per-site state machines; then operator mail to a dedicated Mailcow | All Coolify apps and Plesk sites served by the engine after a 7-day soak; a restore drill passes; Plesk switched off |
 | 5 | Organisations | Hierarchy, memberships, roles, impersonation, branding by panel hostname, three panels; remaining routers moved | Isolation matrix (platform / reseller A / reseller B / customer) passes; one login switches orgs; a reseller hostname shows its branding |
 | 6 | Commercial | Plan and org entitlements; all plan caps enforced; plan changes; metering into the existing ledger; Stripe; invoices; provisioning API + WHMCS module | Stripe test signup provisions a plan; a downgrade disables a plugin at runtime; WHMCS creates, suspends and terminates |

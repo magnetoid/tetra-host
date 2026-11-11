@@ -1,7 +1,7 @@
 """Team → project → environment → app: queries, writes and the index sync.
 
-The hierarchy tables index workloads that live elsewhere (engine stacks, Coolify
-applications). ``sync`` keeps the index current and is idempotent; it runs before every
+The hierarchy tables index engine stacks (git deploys, marketplace installs, imports and
+previews). ``sync`` keeps the index current and is idempotent; it runs before every
 listing, so nothing has to remember to call it when a deploy or an import happens.
 
 Placement is owned by the user: sync only *creates* an app row (in the environment its
@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -24,7 +23,6 @@ from app.models import (
     AuditEvent,
     Deployment,
     Environment,
-    ImportRun,
     PreviewEnv,
     Tenant,
     TenantResource,
@@ -32,23 +30,18 @@ from app.models import (
     WorkspaceProject,
 )
 from app.models.admin import ROLE_OWNER, ROLE_PLATFORM_ADMIN
-from app.models.import_run import IMPORT_LIVE
 from app.models.team import ROLE_ADMIN
-from app.models.tenant_resource import PROVIDER_COOLIFY, RESOURCE_TYPE_SITE
+from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
 from app.models.workspace import (
-    DRIVER_COOLIFY,
     DRIVER_ENGINE,
     ENV_PREVIEW,
     ENV_PRODUCTION,
-    ENV_STAGING,
     ENVIRONMENT_KINDS,
 )
-from app.services.coolify import CoolifyApplication
 
 logger = logging.getLogger(__name__)
 
 WRITE_ROLES = frozenset({ROLE_PLATFORM_ADMIN, ROLE_OWNER, ROLE_ADMIN})
-_PRODUCTION_NAMES = {"production", "prod", "main", "live"}
 
 
 class WorkspaceError(Exception):
@@ -311,56 +304,42 @@ class WorkspaceService:
 
     # ── Index sync ────────────────────────────────────────────────
 
-    async def sync(self, coolify_apps: list[CoolifyApplication] | None) -> None:
-        """Index engine workloads and (when the listing is available) Coolify apps.
-
-        ``coolify_apps=None`` means Coolify could not be listed: its rows are left alone
-        rather than pruned on a partial view."""
-        imported = await self._live_imports()
-        await self._sync_engine(imported)
-        if coolify_apps is not None:
-            await self._sync_coolify(coolify_apps, imported)
-        await self.session.flush()
-
-    async def _live_imports(self) -> dict[str, tuple[str, str]]:
-        """Coolify uuid → (tenant, engine project) for apps the importer moved to the engine."""
-        rows = await self.session.execute(
-            select(ImportRun.source_ref, ImportRun.tenant_id, ImportRun.project).where(
-                ImportRun.source == "coolify", ImportRun.state == IMPORT_LIVE
-            )
-        )
-        return {ref: (tenant, project) for ref, tenant, project in rows.all()}
-
-    async def _sync_engine(self, imported: dict[str, tuple[str, str]]) -> None:
+    async def sync(self) -> None:
+        """Index engine workloads: every git deploy, marketplace install and import
+        (``TenantResource`` docker/app or a ``Deployment``), plus preview stacks. Rows for
+        stacks that no longer exist are pruned; where a row sits is the user's choice and
+        is never changed here."""
         previews = (await self.session.scalars(select(PreviewEnv))).all()
         preview_stacks = {p.preview_project for p in previews}
 
         latest: dict[tuple[str, str], str] = {}
+        resources = await self.session.execute(
+            select(TenantResource.tenant_id, TenantResource.external_id).where(
+                TenantResource.provider == PROVIDER_DOCKER,
+                TenantResource.resource_type == RESOURCE_TYPE_APP,
+            )
+        )
+        for tenant_id, stack in resources.all():
+            latest.setdefault((tenant_id, stack), "")
         rows = await self.session.execute(
             select(Deployment.tenant_id, Deployment.project, Deployment.domain)
             .order_by(Deployment.created_at)
         )
-        for tenant_id, project, domain in rows.all():
-            if project in preview_stacks:
-                continue
-            key = (tenant_id, project)
+        for tenant_id, stack, domain in rows.all():
+            key = (tenant_id, stack)
             latest[key] = domain or latest.get(key, "")
 
-        by_stack = {project: (tenant, ref) for ref, (tenant, project) in imported.items()}
+        live: set[tuple[str, str]] = set()
         for (tenant_id, stack), domain in latest.items():
-            source = by_stack.get(stack)
-            if source and source[0] == tenant_id:
-                # Imported from Coolify: convert its existing row in place.
-                row = await self._app(tenant_id, DRIVER_COOLIFY, source[1])
-                if row is not None:
-                    row.driver, row.external_id = DRIVER_ENGINE, stack
-                    row.domain = domain or row.domain
-                    continue
+            if stack in preview_stacks:
+                continue
+            live.add((tenant_id, stack))
             project = await self._ensure_project(tenant_id, stack, stack)
             env = await self._ensure_env(project, ENV_PRODUCTION, "Production", ENV_PRODUCTION)
             await self._upsert_app(tenant_id, DRIVER_ENGINE, stack, env=env, name=stack, domain=domain)
 
         for preview in previews:
+            live.add((preview.tenant_id, preview.preview_project))
             project = await self._ensure_project(preview.tenant_id, preview.project, preview.project)
             env = await self._ensure_env(
                 project, slugify(f"preview-{preview.branch}"), preview.branch, ENV_PREVIEW
@@ -370,51 +349,11 @@ class WorkspaceService:
                 env=env, name=preview.preview_project, domain=preview.domain,
             )
 
-    async def _sync_coolify(
-        self, coolify_apps: Iterable[CoolifyApplication], imported: dict[str, tuple[str, str]]
-    ) -> None:
-        owners = await self._coolify_owners()
-        platform_tenant = await self.session.scalar(
-            select(Tenant.id).where(Tenant.is_platform_scope.is_(True)).order_by(Tenant.created_at)
-        )
-        seen: set[tuple[str, str]] = set()
-        for source in coolify_apps:
-            if source.id in imported:
-                continue  # the engine row stands for it now
-            tenant_id = owners.get(source.id) or platform_tenant
-            if not tenant_id:
-                continue
-            seen.add((tenant_id, source.id))
-            project_name = source.project_name or "Coolify"
-            project = await self._ensure_project(tenant_id, slugify(project_name, fallback="coolify"), project_name)
-            env_name = source.environment or "production"
-            kind = ENV_PRODUCTION if env_name.lower() in _PRODUCTION_NAMES else ENV_STAGING
-            env = await self._ensure_env(project, slugify(env_name, fallback=kind), env_name, kind)
-            await self._upsert_app(
-                tenant_id, DRIVER_COOLIFY, source.id, env=env,
-                name=source.name, domain=source.primary_domain,
-            )
-
-        # Prune rows for Coolify apps that no longer exist (or changed owner).
-        stale = await self.session.scalars(select(WorkspaceApp).where(WorkspaceApp.driver == DRIVER_COOLIFY))
-        for row in stale.all():
-            # An imported app keeps its row until the engine side converts it.
-            if (row.tenant_id, row.external_id) not in seen and row.external_id not in imported:
+        # A removed app (or a rolled-back import) leaves no stack behind: drop its row.
+        for row in (await self.session.scalars(select(WorkspaceApp))).all():
+            if (row.tenant_id, row.external_id) not in live:
                 await self.session.delete(row)
-
-    async def _coolify_owners(self) -> dict[str, str]:
-        rows = await self.session.execute(
-            select(TenantResource.external_id, TenantResource.tenant_id)
-            .where(
-                TenantResource.provider == PROVIDER_COOLIFY,
-                TenantResource.resource_type == RESOURCE_TYPE_SITE,
-            )
-            .order_by(TenantResource.created_at)
-        )
-        owners: dict[str, str] = {}
-        for external_id, tenant_id in rows.all():
-            owners.setdefault(external_id, tenant_id)
-        return owners
+        await self.session.flush()
 
     # ── Helpers ───────────────────────────────────────────────────
 

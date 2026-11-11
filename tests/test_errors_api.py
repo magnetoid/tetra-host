@@ -83,19 +83,41 @@ def test_errors_helpers():
 
 # ── endpoint ────────────────────────────────────────────────────────────
 
-def test_project_errors_requires_auth(client):
-    assert client.get("/api/v1/projects/app-x/errors").status_code == 401
+
+def _seed_engine_app(project: str = "app-x") -> None:
+    """Give the bootstrap admin's tenant an engine app (TenantResource docker/app)."""
+    import asyncio as _asyncio
+
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import AdminUser, TenantResource
+    from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
+
+    async def go() -> None:
+        async with session_scope() as session:
+            admin = await session.scalar(select(AdminUser).where(AdminUser.email == "admin@example.com"))
+            session.add(TenantResource(
+                tenant_id=admin.tenant_id, provider=PROVIDER_DOCKER, resource_type=RESOURCE_TYPE_APP,
+                external_id=project, display_name=project,
+            ))
+
+    _asyncio.run(go())
 
 
-def test_project_errors_not_configured(client, monkeypatch):
-    async def fake_get_site(self, session, tenant_id, application_id):
-        return None
+def test_app_errors_requires_auth(client):
+    assert client.get("/api/v1/apps/app-x/errors").status_code == 401
 
-    monkeypatch.setattr(
-        "app.modules.projects.service.ProjectsService.get_site_for_tenant", fake_get_site
-    )
+
+def test_app_errors_not_configured(client):
+    _seed_engine_app()
     headers = _login_as(client, "admin@example.com", "supersecurepassword")
-    resp = client.get("/api/v1/projects/app-x/errors", headers=headers)
+    resp = client.get("/api/v1/apps/app-x/errors", headers=headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["configured"] is False and body["ready"] is False
+
+
+def test_app_errors_unknown_app_is_404(client):
+    headers = _login_as(client, "admin@example.com", "supersecurepassword")
+    assert client.get("/api/v1/apps/nope/errors", headers=headers).status_code == 404

@@ -279,8 +279,8 @@ fi
 cat <<'EOF'
 
 Next steps:
-  - Edit /opt/tetra-host/.env to wire providers (COOLIFY_*, CLOUDFLARE_API_TOKEN, MAILCOW_*),
-    then: systemctl restart tetra-host
+  - Edit /opt/tetra-host/.env to wire providers (CLOUDFLARE_API_TOKEN, MAILCOW_*; COOLIFY_* only
+    for importing existing Coolify apps), then: systemctl restart tetra-host
   - Logs:  journalctl -u tetra-host -f   (and -u tetra-console if installed)
   - Mail:  run scripts/install-mailcow.sh on a DEDICATED host (see mail-server notes).
 EOF

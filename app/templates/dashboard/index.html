@@ -9,7 +9,7 @@
       <p class="mt-3 max-w-2xl text-zinc-400">Operational command center for the current native-hosted stack, with live provider visibility and secured administrative access.</p>
     </div>
     <div class="flex gap-2">
-      <a href="/sites?refresh=1" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh providers</a>
+      <a href="/dashboard" class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200">Refresh providers</a>
       {% if request.state.current_admin_role == 'platform_admin' %}
       <a href="/admin" class="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-zinc-900">Platform controls</a>
       {% endif %}
@@ -58,19 +58,18 @@
   <section class="grid gap-4 lg:grid-cols-3">
     <div class="rounded-2xl border border-border bg-muted p-6">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">Recent sites</h2>
-        <a href="/sites" class="text-sm text-zinc-400 hover:text-white">View all</a>
+        <h2 class="text-lg font-semibold">Apps</h2>
       </div>
       <div class="mt-4 space-y-3">
-        {% if recent_sites %}
-          {% for site in recent_sites %}
+        {% if recent_apps %}
+          {% for app in recent_apps %}
           <div class="rounded-xl border border-border bg-background p-4">
-            <div class="font-medium">{{ site.name }}</div>
-            <div class="mt-1 text-sm text-zinc-500">{{ site.primary_domain }}</div>
+            <div class="font-medium">{{ app.name }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ app.domain }}</div>
           </div>
           {% endfor %}
         {% else %}
-          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">No Coolify applications available yet.</div>
+          <div class="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-zinc-500">No apps yet.</div>
         {% endif %}
       </div>
     </div>

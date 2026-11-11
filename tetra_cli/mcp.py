@@ -81,17 +81,17 @@ _TOOLS: list[dict[str, Any]] = [
     {
         "name": "explain_error",
         "description": "Diagnose a captured runtime error (from the Errors tab) and get suggested "
-                       "fixes (heuristic analysis, AI-enriched when configured). Needs the app id "
-                       "and the GlitchTip issue id.",
+                       "fixes (heuristic analysis, AI-enriched when configured). Needs the engine "
+                       "app name and the GlitchTip issue id.",
         "inputSchema": _schema(
             {
-                "application_id": {"type": "string", "description": "App/project id"},
+                "project": {"type": "string", "description": "Engine app (compose project) name"},
                 "issue_id": {"type": "string", "description": "GlitchTip issue id"},
             },
-            ["application_id", "issue_id"],
+            ["project", "issue_id"],
         ),
         "write": False,
-        "handler": lambda c, a: c.explain_error(a["application_id"], a["issue_id"]),
+        "handler": lambda c, a: c.explain_error(a["project"], a["issue_id"]),
     },
     # Workspace hierarchy (team → project → environment → app). Read-only by design:
     # creating, moving and deleting stays with the dashboard and CLI (ADR 0012), and the
@@ -132,8 +132,8 @@ _TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "list_team_apps",
-        "description": "A team's apps with their project, environment, driver (engine or "
-                       "coolify) and domain; optionally narrowed to a project/environment.",
+        "description": "A team's apps with their project, environment, driver and domain; "
+                       "optionally narrowed to a project/environment.",
         "inputSchema": _schema(
             {
                 "team": {"type": "string", "description": "Team slug or id"},

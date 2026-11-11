@@ -4,9 +4,7 @@ from app.db import session_scope
 from app.models import AdminUser, Tenant, TenantResource
 from app.models.tenant_resource import (
     PROVIDER_CLOUDFLARE,
-    PROVIDER_COOLIFY,
     RESOURCE_TYPE_DNS_ZONE,
-    RESOURCE_TYPE_SITE,
 )
 from app.modules.auth.service import AuthService
 
@@ -34,13 +32,6 @@ async def _seed_writer_tenant() -> None:
                     resource_type=RESOURCE_TYPE_DNS_ZONE,
                     external_id="zone-writer",
                     display_name="writer.test",
-                ),
-                TenantResource(
-                    tenant_id=tenant.id,
-                    provider=PROVIDER_COOLIFY,
-                    resource_type=RESOURCE_TYPE_SITE,
-                    external_id="app-writer",
-                    display_name="Writer App",
                 ),
             ]
         )
@@ -256,48 +247,3 @@ def test_dns_import_is_tenant_scoped(client, monkeypatch):
     assert denied.status_code == 403
 
     assert imported == [("zone-writer", "www 1 IN A 1.2.3.4\n")]
-
-
-def test_create_env_is_tenant_scoped(client, monkeypatch):
-    asyncio.run(_seed_writer_tenant())
-
-    created: list[tuple[str, str]] = []
-
-    async def fake_create_env(self, application_uuid, key, value, is_preview=False, is_build_time=False):
-        created.append((application_uuid, key))
-        return {"ok": True}
-
-    monkeypatch.setattr("app.services.coolify.CoolifyClient.create_env", fake_create_env)
-
-    headers = _login(client)
-    body = {"key": "API_KEY", "value": "secret"}
-
-    allowed = client.post("/api/v1/projects/app-writer/envs", headers=headers, json=body)
-    assert allowed.status_code == 200
-
-    denied = client.post("/api/v1/projects/app-foreign/envs", headers=headers, json=body)
-    assert denied.status_code == 403
-
-    assert created == [("app-writer", "API_KEY")]
-
-
-def test_delete_env_is_tenant_scoped(client, monkeypatch):
-    asyncio.run(_seed_writer_tenant())
-
-    deleted: list[tuple[str, str]] = []
-
-    async def fake_delete_env(self, application_uuid, env_uuid):
-        deleted.append((application_uuid, env_uuid))
-        return {"ok": True}
-
-    monkeypatch.setattr("app.services.coolify.CoolifyClient.delete_env", fake_delete_env)
-
-    headers = _login(client)
-
-    allowed = client.delete("/api/v1/projects/app-writer/envs/env-1", headers=headers)
-    assert allowed.status_code == 200
-
-    denied = client.delete("/api/v1/projects/app-foreign/envs/env-1", headers=headers)
-    assert denied.status_code == 403
-
-    assert deleted == [("app-writer", "env-1")]

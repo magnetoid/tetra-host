@@ -16,8 +16,8 @@ from app.api.routes import require_platform_admin
 from app.db.session import get_db_session
 from app.models.admin import AdminUser
 from app.models.import_run import ImportRun
+from app.modules.importers.coolify_source import CoolifyClient
 from app.modules.importers.service import CoolifyImporter, ImporterError, spawn_background
-from app.services.coolify import CoolifyClient
 
 router = APIRouter(prefix="/api/v1/importers", tags=["api"])
 

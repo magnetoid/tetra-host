@@ -63,7 +63,7 @@ _READY = {
 }
 
 def test_explain_error_requires_auth(client):
-    assert client.get("/api/v1/projects/app-x/errors/42/explain").status_code == 401
+    assert client.get("/api/v1/apps/app-x/errors/42/explain").status_code == 401
 
 
 def test_explain_error_200_with_diagnosis(client, monkeypatch):
@@ -74,7 +74,7 @@ def test_explain_error_200_with_diagnosis(client, monkeypatch):
 
     monkeypatch.setattr(ErrorsService, "get_errors_for_project", fake_errors)
     headers = _login_as(client, "admin@example.com", "supersecurepassword")
-    resp = client.get("/api/v1/projects/app-x/errors/42/explain", headers=headers)
+    resp = client.get("/api/v1/apps/app-x/errors/42/explain", headers=headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["issue_id"] == "42"
@@ -92,7 +92,7 @@ def test_explain_error_404_when_issue_missing(client, monkeypatch):
 
     monkeypatch.setattr(ErrorsService, "get_errors_for_project", fake_errors)
     headers = _login_as(client, "admin@example.com", "supersecurepassword")
-    resp = client.get("/api/v1/projects/app-x/errors/999/explain", headers=headers)
+    resp = client.get("/api/v1/apps/app-x/errors/999/explain", headers=headers)
     assert resp.status_code == 404, resp.text
 
 
@@ -104,5 +104,5 @@ def test_explain_error_404_when_not_ready(client, monkeypatch):
 
     monkeypatch.setattr(ErrorsService, "get_errors_for_project", fake_errors)
     headers = _login_as(client, "admin@example.com", "supersecurepassword")
-    resp = client.get("/api/v1/projects/app-x/errors/42/explain", headers=headers)
+    resp = client.get("/api/v1/apps/app-x/errors/42/explain", headers=headers)
     assert resp.status_code == 404, resp.text

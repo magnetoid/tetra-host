@@ -2,8 +2,8 @@
 
 Config-gated (like the analytics integration): with no ``GLITCHTIP_URL`` the Errors
 tab shows a "connect error tracking" state. Each project maps to a GlitchTip project
-(found or created on demand by a slug derived from the project), tenant-isolated via the
-ProjectsService access guard. Returns the project DSN (to wire the SDK) plus recent issues.
+(found or created on demand by a slug derived from the engine app), tenant-isolated by
+``resolve_engine_app``. Returns the project DSN (to wire the SDK) plus recent issues.
 """
 
 import re
@@ -12,8 +12,8 @@ from typing import Any
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.projects.service import ProjectsService
 from app.services.build_diagnostics import Diagnosis
+from app.services.engine_apps import resolve_engine_app
 from app.services.error_diagnostics import analyze_error, anthropic_error_diagnoser
 from app.services.glitchtip import GlitchtipClient
 
@@ -47,7 +47,6 @@ class ErrorsService:
             http_client=request.app.state.http_client,
             cache=request.app.state.cache,
         )
-        self.projects = ProjectsService(request)
 
     def is_configured(self) -> bool:
         return self.glitchtip.is_configured()
@@ -56,15 +55,15 @@ class ErrorsService:
         self,
         session: AsyncSession,
         tenant_id: str | None,
-        application_id: str,
+        project: str,
     ) -> dict[str, Any]:
-        # Tenant isolation + project fetch in one guarded call (raises 403/404).
-        app = await self.projects.get_site_for_tenant(session, tenant_id, application_id)
+        # Tenant isolation (raises EngineAppNotFound if the app isn't this tenant's).
+        app = await resolve_engine_app(session, tenant_id, project)
 
         if not self.glitchtip.is_configured():
             return {"configured": False, "ready": False}
 
-        name = (getattr(app, "name", "") if app else "") or application_id
+        name = app.name
         slug = _slugify(name)
 
         project = await self.glitchtip.find_or_create_project(slug=slug, name=name)
@@ -91,7 +90,7 @@ class ErrorsService:
         self,
         session: AsyncSession,
         tenant_id: str | None,
-        application_id: str,
+        project: str,
         issue_id: str,
         *,
         diagnoser: object = _UNSET,
@@ -103,7 +102,7 @@ class ErrorsService:
         ``issue_id`` is in the project's recent issues. The offline heuristic always runs;
         AI enrichment is best-effort (any failure falls back to it). Pass ``diagnoser=None``
         to force heuristic-only (used in tests)."""
-        data = await self.get_errors_for_project(session, tenant_id, application_id)
+        data = await self.get_errors_for_project(session, tenant_id, project)
         if not data.get("ready"):
             return None
         issue = next(

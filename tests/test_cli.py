@@ -97,17 +97,6 @@ def test_client_two_factor_methods_build_requests():
     assert seen[("POST", "/api/v1/account/2fa/disable")] == {"password": "hunter2000"}
 
 
-def test_client_deploy_passes_force_and_returns_deployment_id():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/projects/app-1/deploy"
-        assert request.url.params.get("force") == "1"
-        assert request.headers["Authorization"] == "Bearer tok"
-        return httpx.Response(200, json={"ok": True, "message": "queued", "deployment_id": "dep-9"})
-
-    result = make_client(handler).deploy("app-1", force=True)
-    assert result["deployment_id"] == "dep-9"
-
-
 def test_client_dns_add_builds_body():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
@@ -227,24 +216,6 @@ def test_client_raises_on_error_with_detail():
     assert "not assigned" in str(exc.value)
 
 
-def test_client_stream_logs_parses_sse():
-    sse = (
-        "event: status\ndata: {\"status\": \"in_progress\"}\n\n"
-        "event: log\ndata: {\"output\": \"Building\", \"type\": \"stdout\"}\n\n"
-        "event: log\ndata: {\"output\": \"boom\", \"type\": \"stderr\"}\n\n"
-        "event: done\ndata: {\"status\": \"finished\"}\n\n"
-    )
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/projects/app-1/deployments/dep-1/logs/stream"
-        return httpx.Response(200, text=sse)
-
-    events = list(make_client(handler).stream_logs("app-1", "dep-1"))
-    assert [e for e, _ in events] == ["status", "log", "log", "done"]
-    assert events[1][1]["output"] == "Building"
-    assert events[3][1]["status"] == "finished"
-
-
 def test_client_stream_deploy_logs_parses_sse():
     # Native deploy stream: `log` events carry a raw line string, status/done carry dicts.
     sse = (
@@ -332,8 +303,8 @@ def test_client_apps_compute_gets():
 
 def test_parser_dispatches_subcommands():
     parser = build_parser()
-    args = parser.parse_args(["deploy", "app-1", "--force", "--follow"])
-    assert args.command == "deploy" and args.project == "app-1" and args.force and args.follow
+    args = parser.parse_args(["analytics", "shop", "--period", "30d"])
+    assert args.project == "shop" and args.period == "30d"
     args = parser.parse_args(["dns", "add", "z1", "A", "app", "1.2.3.4", "--proxied"])
     assert args.func is not None and args.proxied is True
     args = parser.parse_args(["dns", "export", "z1", "-o", "zone.txt"])
@@ -346,37 +317,6 @@ def test_parser_dispatches_subcommands():
     assert args.slug == "wordpress-with-mariadb" and args.name == "blog"
     args = parser.parse_args(["apps", "catalog", "--search", "wp"])
     assert args.search == "wp"
-
-
-def test_main_projects_renders_table(monkeypatch, capsys):
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/projects"
-        return httpx.Response(200, json=[
-            {"id": "app-1", "name": "App One", "status": "running", "primary_domain": "a.test"},
-        ])
-
-    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
-    code = main(["projects"])
-    out = capsys.readouterr().out
-    assert code == 0
-    assert "app-1" in out and "App One" in out
-
-
-def test_main_logs_streams_and_reports_failure(monkeypatch, capsys):
-    sse = (
-        "event: log\ndata: {\"output\": \"step\", \"type\": \"stdout\"}\n\n"
-        "event: done\ndata: {\"status\": \"failed\"}\n\n"
-    )
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/projects/app-1/deployments/dep-1/logs/stream"
-        return httpx.Response(200, text=sse)
-
-    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
-    code = main(["logs", "app-1", "dep-1"])
-    out = capsys.readouterr().out
-    assert "step" in out
-    assert code == 1  # terminal status was "failed"
 
 
 def test_main_deploys_git_streams_sse_then_reports_domain(monkeypatch, capsys):
@@ -407,7 +347,7 @@ def test_main_deploys_git_streams_sse_then_reports_domain(monkeypatch, capsys):
 def test_main_requires_login(monkeypatch, tmp_path):
     monkeypatch.setenv("TETRA_CONFIG_DIR", str(tmp_path))
     monkeypatch.delenv("TETRA_TOKEN", raising=False)
-    code = main(["projects"])
+    code = main(["dashboard"])
     assert code == 1  # not logged in
 
 
@@ -560,62 +500,6 @@ def test_main_usage_renders_table(monkeypatch, capsys):
 # ── Databases client ──────────────────────────────────────────────────────
 
 
-def test_client_databases_issues_get():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert request.url.path == "/api/v1/databases"
-        return httpx.Response(200, json=[
-            {"uuid": "db-uuid-1", "name": "mydb", "type": "postgresql", "status": "running"},
-        ])
-
-    result = make_client(handler).databases()
-    assert isinstance(result, list)
-    assert result[0]["uuid"] == "db-uuid-1"
-
-
-def test_client_provision_database_posts_body():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert request.url.path == "/api/v1/databases"
-        body = json.loads(request.content)
-        assert body == {
-            "type": "postgresql",
-            "name": "mydb",
-            "server_uuid": "srv-1",
-            "project_uuid": "proj-1",
-            "environment_name": "production",
-        }
-        return httpx.Response(201, json={"uuid": "db-uuid-1", "name": "mydb", "type": "postgresql"})
-
-    result = make_client(handler).provision_database(
-        "postgresql", "mydb", "srv-1", "proj-1", "production"
-    )
-    assert result["uuid"] == "db-uuid-1"
-
-
-def test_client_database_backups_issues_get():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert request.url.path == "/api/v1/databases/db-uuid-1/backups"
-        return httpx.Response(200, json=[
-            {"uuid": "bk-1", "status": "success", "created_at": "2026-06-28T12:00:00Z"},
-        ])
-
-    result = make_client(handler).database_backups("db-uuid-1")
-    assert isinstance(result, list)
-    assert result[0]["uuid"] == "bk-1"
-
-
-def test_client_create_database_backup_posts():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert request.url.path == "/api/v1/databases/db-uuid-1/backups"
-        return httpx.Response(200, json={"message": "Backup queued."})
-
-    result = make_client(handler).create_database_backup("db-uuid-1")
-    assert result["message"] == "Backup queued."
-
-
 # ── Admin overview (super-admin command center) ───────────────────────────
 
 
@@ -645,30 +529,14 @@ def test_parser_admin_overview_dispatches():
     assert args.func is not None
 
 
-def test_client_project_runtime_logs_passes_lines():
+def test_client_app_analytics_passes_period():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
-        assert request.url.path == "/api/v1/projects/app-1/logs"
-        assert request.url.params.get("lines") == "300"
-        return httpx.Response(200, json={"logs": "line a\nline b"})
-
-    result = make_client(handler).project_runtime_logs("app-1", lines=300)
-    assert result["logs"] == "line a\nline b"
-
-
-def test_parser_runtime_logs_dispatches():
-    args = build_parser().parse_args(["runtime-logs", "app-1", "--lines", "500"])
-    assert args.command == "runtime-logs" and args.project == "app-1" and args.lines == 500
-
-
-def test_client_project_analytics_passes_period():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        assert request.url.path == "/api/v1/projects/app-1/analytics"
+        assert request.url.path == "/api/v1/apps/app-1/analytics"
         assert request.url.params.get("period") == "30d"
         return httpx.Response(200, json={"configured": True, "ready": True, "summary": {"visitors": 9}})
 
-    result = make_client(handler).project_analytics("app-1", period="30d")
+    result = make_client(handler).app_analytics("app-1", period="30d")
     assert result["summary"]["visitors"] == 9
 
 
@@ -689,13 +557,13 @@ def test_main_analytics_renders(monkeypatch, capsys):
     assert "visitors=12" in out and "google.com" in out
 
 
-def test_client_project_errors_issues_get():
+def test_client_app_errors_issues_get():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
-        assert request.url.path == "/api/v1/projects/app-1/errors"
+        assert request.url.path == "/api/v1/apps/app-1/errors"
         return httpx.Response(200, json={"configured": True, "ready": True, "issues": []})
 
-    result = make_client(handler).project_errors("app-1")
+    result = make_client(handler).app_errors("app-1")
     assert result["ready"] is True
 
 
@@ -871,7 +739,7 @@ def test_main_ai_explain_renders(monkeypatch, capsys):
 
 def test_client_explain_error_issues_get():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/projects/app-7/errors/42/explain"
+        assert request.url.path == "/api/v1/apps/app-7/errors/42/explain"
         return httpx.Response(200, json={
             "issue_id": "42", "title": "TypeError: x is not a function", "culprit": "a.js",
             "summary": "type error", "category": "type-error", "likely_causes": ["wrong type"],
@@ -1208,7 +1076,3 @@ def test_main_project_delete_needs_yes(monkeypatch, capsys):
                         lambda require_auth=True: make_client(_workspace_handler))
     assert main(["project", "delete", "shop"]) == 1
     assert "--yes" in capsys.readouterr().out
-
-
-def test_legacy_projects_command_still_parses():
-    assert build_parser().parse_args(["projects"]).func.__name__ == "cmd_projects"

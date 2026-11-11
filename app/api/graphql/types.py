@@ -32,28 +32,6 @@ class Dashboard:
     metrics: DashboardMetrics
 
 
-@strawberry.type(description="A Coolify application in the current tenant.")
-class Project:
-    id: str
-    name: str
-    status: str
-    primary_domain: str
-    repository: str
-    environment: str
-    updated_at: str
-    healthcheck_enabled: bool
-
-
-@strawberry.type(description="A deployment of a project.")
-class Deployment:
-    id: str
-    status: str
-    created_at: str
-    updated_at: str
-    commit: str
-    branch: str
-
-
 @strawberry.type(description="A Cloudflare DNS zone.")
 class DnsZone:
     id: str
