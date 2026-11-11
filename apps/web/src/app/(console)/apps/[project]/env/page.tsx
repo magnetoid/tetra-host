@@ -31,7 +31,7 @@ export default async function AppEnvPage({
         description="Variables injected into this app's containers — secrets are encrypted at rest."
       />
       <DegradedBanner sources={degradedSources([varsRes])} />
-      <EnvManager target={{ kind: "deploy", project }} vars={vars} />
+      <EnvManager project={project} vars={vars} />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { classifyDeploy, computeDeployStats, isDeploymentActive } from "@/lib/deploy-stats"
-import type { ProjectDeploymentRecord } from "@/lib/types"
+import type { DeployLike } from "@/lib/deploy-stats"
 
 describe("isDeploymentActive", () => {
   it("is true while building/queued, false when finished or failed", () => {
@@ -14,8 +14,8 @@ describe("isDeploymentActive", () => {
   })
 })
 
-function dep(status: string, created_at: string, id = created_at): ProjectDeploymentRecord {
-  return { id, status, created_at, updated_at: created_at, commit: "abc", branch: "main" }
+function dep(status: string, created_at: string): DeployLike {
+  return { status, created_at }
 }
 
 describe("classifyDeploy", () => {

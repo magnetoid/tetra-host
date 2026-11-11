@@ -89,7 +89,7 @@ export type AppStatusView = {
 }
 
 /**
- * Turn a raw provider status (Coolify's `running:healthy`, `exited:unhealthy`,
+ * Turn a raw container status (`running:healthy`, `exited:unhealthy`,
  * `restarting`, `0:unhealthy`, `unknown`, …) into a clear human state, so it's
  * obvious whether an app is running, stopped, or mid-deploy.
  */

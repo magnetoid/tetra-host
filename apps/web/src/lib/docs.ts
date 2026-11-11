@@ -10,7 +10,7 @@ export const docEntries: DocEntry[] = [
         heading: "Prerequisites",
         body: [
           "Python 3.11+, Node.js 20+, and pnpm 9+.",
-          "Optional provider credentials for Coolify, Mailcow, and Cloudflare.",
+          "Docker for the Tetra Engine, plus optional Mailcow and Cloudflare credentials.",
         ],
       },
       {
@@ -54,7 +54,7 @@ export const docEntries: DocEntry[] = [
       {
         heading: "Provider adapters",
         body: [
-          "Coolify powers application inventory and deploy/start/restart actions.",
+          "The Tetra Engine builds and runs apps on Docker directly (git deploys, catalog installs, previews).",
           "Mailcow exposes domain and mailbox visibility.",
           "Cloudflare exposes DNS zone and record visibility.",
         ],

@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils"
 import type {
   DashboardResponse,
   DNSResponse,
+  InstalledApp,
   MailResponse,
-  ProjectRecord,
   ProviderSummary,
 } from "@/lib/types"
 
@@ -24,25 +24,10 @@ const PROVIDER_TONE: Record<string, string> = {
   not_configured: "bg-muted-foreground",
 }
 
-const HEALTHY = new Set(["running", "healthy", "active"])
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+const HEALTHY = new Set(["running", "healthy", "active", "ready"])
 
-type Portfolio = { slug: string; name: string; domain: string; unhealthy: boolean; appCount: number }
-
-/** Group the flat app list into projects, tracking a display domain + health. */
-function groupPortfolio(apps: ProjectRecord[]): Portfolio[] {
-  const groups = new Map<string, Portfolio>()
-  for (const app of apps) {
-    const slug = app.project_uuid || `name:${norm(app.project_name || app.name)}`
-    const g =
-      groups.get(slug) ??
-      ({ slug, name: app.project_name || app.name, domain: "", unhealthy: false, appCount: 0 } as Portfolio)
-    g.appCount += 1
-    if (!g.domain && app.primary_domain) g.domain = app.primary_domain
-    if (app.status && !HEALTHY.has(app.status.toLowerCase())) g.unhealthy = true
-    groups.set(slug, g)
-  }
-  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+function isUnhealthy(app: InstalledApp): boolean {
+  return Boolean(app.status) && !HEALTHY.has(app.status.toLowerCase())
 }
 
 function pct(n: number, d: number): string {
@@ -63,8 +48,8 @@ function providerWarn(status: string): boolean {
 export default async function DashboardPage() {
   const session = await requireConsoleSession()
   const dashboard = await fetchBackend<DashboardResponse>("/dashboard", { token: session.token })
-  const [projectsRes, mailRes, dnsRes] = await Promise.all([
-    fetchDegraded<ProjectRecord[]>("/projects", "Projects", [], { token: session.token }),
+  const [appsRes, mailRes, dnsRes] = await Promise.all([
+    fetchDegraded<InstalledApp[]>("/apps", "Apps", [], { token: session.token }),
     fetchDegraded<MailResponse>(
       "/mail",
       "Mail",
@@ -78,14 +63,14 @@ export default async function DashboardPage() {
       { token: session.token },
     ),
   ])
-  const projects = groupPortfolio(projectsRes.data)
+  const apps = [...appsRes.data].sort((a, b) => (a.name || a.project).localeCompare(b.name || b.project))
   const mail = mailRes.data
   const dns = dnsRes.data
-  const degraded = degradedSources([projectsRes, mailRes, dnsRes])
+  const degraded = degradedSources([appsRes, mailRes, dnsRes])
   const m = dashboard.metrics
 
   const kpis: Kpi[] = [
-    { label: "Projects", value: String(projects.length || m.projects), sub: `${m.unhealthy_projects} unhealthy`, tone: m.unhealthy_projects > 0 ? "warn" : "muted" },
+    { label: "Apps", value: String(apps.length || m.projects), sub: `${m.unhealthy_projects} unhealthy`, tone: m.unhealthy_projects > 0 ? "warn" : "muted" },
     { label: "Deploys / 24h", value: String(m.deploys_24h), sub: m.deploys_24h > 0 ? `${pct(m.deploys_ok_24h, m.deploys_24h)} success` : "none yet", tone: "ok" },
     { label: "Uptime", value: pct(m.monitors_up, m.monitors_total), sub: m.monitors_total > 0 ? `${m.monitors_up}/${m.monitors_total} up` : "no monitors", tone: m.monitors_total > 0 && m.monitors_up < m.monitors_total ? "err" : "ok" },
     { label: "DNS zones", value: String(m.dns_zones), sub: "Cloudflare", tone: "muted" },
@@ -115,37 +100,35 @@ export default async function DashboardPage() {
       <KpiRail items={kpis} />
 
       <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
-        {/* Left — deployments + portfolio */}
+        {/* Left — deployments + apps */}
         <div className="space-y-8">
           <DeploymentsPanel deployments={dashboard.recent_deployments} />
 
           <section>
             <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Projects</h2>
-              <Link href="/projects" className="text-sm text-primary transition-colors hover:text-primary/80">
+              <h2 className="text-sm font-semibold">Apps</h2>
+              <Link href="/apps" className="text-sm text-primary transition-colors hover:text-primary/80">
                 Manage all →
               </Link>
             </div>
-            {projects.length === 0 ? (
+            {apps.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-                No projects yet. Deploy from a Git repo or the app catalog.
+                No apps yet. Deploy from a Git repo or the app catalog.
               </div>
             ) : (
               <div className="divide-y divide-border border-t border-border">
-                {projects.slice(0, 8).map((project) => (
+                {apps.slice(0, 8).map((app) => (
                   <Link
-                    key={project.slug}
-                    href={`/projects/${project.slug}`}
+                    key={app.project}
+                    href={`/apps/${encodeURIComponent(app.project)}/compute`}
                     className="flex items-center gap-4 py-3 text-sm transition-colors hover:bg-accent/50"
                   >
-                    <span className={cn("size-1.5 shrink-0 rounded-full", project.unhealthy ? "bg-status-err" : "bg-status-ok")} />
-                    <span className="w-40 shrink-0 truncate font-medium">{project.name}</span>
+                    <span className={cn("size-1.5 shrink-0 rounded-full", isUnhealthy(app) ? "bg-status-err" : "bg-status-ok")} />
+                    <span className="w-40 shrink-0 truncate font-medium">{app.name || app.project}</span>
                     <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                      {project.domain || "no domain yet"}
+                      {app.domain || "no domain yet"}
                     </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {project.appCount} app{project.appCount === 1 ? "" : "s"}
-                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{app.status}</span>
                   </Link>
                 ))}
               </div>

@@ -7,7 +7,6 @@ import { Command } from "cmdk"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 import { platformSections, teamSections, type NavSection } from "@/lib/navigation"
-import { projectSlug } from "@/lib/projects"
 import { toggleTheme } from "@/lib/theme"
 import {
   faArrowRightFromBracket,
@@ -17,18 +16,18 @@ import {
   faServer,
 } from "@/lib/icons"
 
-type ProjectLite = { id: string; name: string; slug: string }
+type AppLite = { project: string; name: string }
 
 /**
- * ⌘K command palette — global search + actions (navigation, project jump, theme, docs,
+ * ⌘K command palette — global search + actions (navigation, app jump, theme, docs,
  * sign out). Opens on ⌘/Ctrl-K anywhere or via the topbar trigger. Radix Dialog gives the
  * focus trap + Esc; cmdk gives the ARIA combobox + fuzzy filtering. Nav model is reused
- * from lib/navigation; projects are fetched lazily on first open.
+ * from lib/navigation; engine apps are fetched lazily on first open.
  */
 export function CommandMenu({ adminRole }: { adminRole?: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [projects, setProjects] = useState<ProjectLite[]>([])
+  const [apps, setApps] = useState<AppLite[]>([])
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -42,20 +41,20 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
   }, [])
 
   useEffect(() => {
-    if (!open || projects.length > 0) return
+    if (!open || apps.length > 0) return
     let active = true
-    fetch("/api/proxy/projects", { headers: { Accept: "application/json" } })
+    fetch("/api/proxy/apps", { headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: (ProjectLite & Parameters<typeof projectSlug>[0])[]) => {
+      .then((data: AppLite[]) => {
         if (active && Array.isArray(data)) {
-          setProjects(data.map((p) => ({ id: p.id, name: p.name, slug: projectSlug(p) })))
+          setApps(data.map((a) => ({ project: a.project, name: a.name || a.project })))
         }
       })
       .catch(() => {})
     return () => {
       active = false
     }
-  }, [open, projects.length])
+  }, [open, apps.length])
 
   const run = useCallback((fn: () => void) => {
     setOpen(false)
@@ -104,7 +103,7 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
               <div className="flex items-center gap-2 border-b border-border px-4">
                 <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4 text-muted-foreground" />
                 <Command.Input
-                  placeholder="Search projects, pages, actions…"
+                  placeholder="Search apps, pages, actions…"
                   className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-muted-foreground"
                 />
               </div>
@@ -138,13 +137,13 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
                   )
                 })}
 
-                {projects.length > 0 ? (
-                  <Command.Group heading="Projects">
-                    {projects.map((project) => (
+                {apps.length > 0 ? (
+                  <Command.Group heading="Apps">
+                    {apps.map((app) => (
                       <Command.Item
-                        key={project.id}
-                        value={`project ${project.name}`}
-                        onSelect={() => go(`/projects/${project.slug}/apps/${project.id}`)}
+                        key={app.project}
+                        value={`app ${app.name} ${app.project}`}
+                        onSelect={() => go(`/apps/${encodeURIComponent(app.project)}/compute`)}
                         className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground data-[selected=true]:bg-accent"
                       >
                         <FontAwesomeIcon
@@ -152,7 +151,7 @@ export function CommandMenu({ adminRole }: { adminRole?: string }) {
                           className="h-4 w-4 text-muted-foreground"
                           fixedWidth
                         />
-                        <span className="truncate">{project.name}</span>
+                        <span className="truncate">{app.name}</span>
                       </Command.Item>
                     ))}
                   </Command.Group>

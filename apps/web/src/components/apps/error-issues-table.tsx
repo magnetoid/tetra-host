@@ -4,7 +4,7 @@ import { useMemo } from "react"
 
 import type { ColumnDef } from "@tanstack/react-table"
 
-import { ErrorExplainButton } from "@/components/projects/error-explain-button"
+import { ErrorExplainButton } from "@/components/apps/error-explain-button"
 import { DataTable } from "@/components/ui/data-table"
 import { StatusBadge } from "@/components/ui/status-badge"
 import type { ErrorIssue } from "@/lib/types"

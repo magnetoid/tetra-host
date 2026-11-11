@@ -14,7 +14,7 @@ type LoginPageProps = {
 }
 
 const PLANES = [
-  { code: "APPS", provider: "Coolify" },
+  { code: "APPS", provider: "Tetra Engine" },
   { code: "MAIL", provider: "Mailcow" },
   { code: "DNS", provider: "Cloudflare" },
   { code: "EDGE", provider: "Operational" },
@@ -81,7 +81,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </span>
           </h1>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
-            Applications, databases, DNS, and mail — orchestrated behind a single, tenant-aware
+            Applications, DNS, and mail — orchestrated behind a single, tenant-aware
             control plane.
           </p>
 

@@ -4,7 +4,8 @@
  * Umami wired). Pure + testable: pass `now` in tests to pin the activity window.
  */
 
-import type { ProjectDeploymentRecord } from "@/lib/types"
+/** The fields deploy statistics need — any deployment record carries them. */
+export type DeployLike = { status: string; created_at: string }
 
 export type DeployOutcome = "succeeded" | "failed" | "running"
 
@@ -42,7 +43,7 @@ function dayKey(iso: string): string {
 }
 
 export function computeDeployStats(
-  deployments: ProjectDeploymentRecord[],
+  deployments: DeployLike[],
   opts: { now?: Date; windowDays?: number } = {},
 ): DeployStats {
   const windowDays = opts.windowDays ?? 14

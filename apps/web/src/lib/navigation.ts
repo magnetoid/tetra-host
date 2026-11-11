@@ -6,15 +6,12 @@ import {
   faBuilding,
   faChartBar,
   faChartLine,
-  faCircleInfo,
   faClockRotateLeft,
   faCloud,
   faCoins,
-  faDatabase,
   faEarthAmericas,
   faEnvelope,
   faGaugeHigh,
-  faGear,
   faGlobe,
   faHeartPulse,
   faKey,
@@ -22,7 +19,6 @@ import {
   faListCheck,
   faServer,
   faStore,
-  faTerminal,
   faUserShield,
   faUsers,
   faWandSparkles,
@@ -31,14 +27,14 @@ import {
 /**
  * Console navigation model.
  *
- * The console is organised as nested scopes — platform → team → project → app —
- * and the left sidebar only ever shows the menu of the scope you are in, plus a
- * "back" link to the scope above. `resolveScope()` maps a pathname onto a scope;
+ * The console is organised as nested scopes — platform → team → app — and the
+ * left sidebar only ever shows the menu of the scope you are in, plus a "back"
+ * link to the scope above. `resolveScope()` maps a pathname onto a scope;
  * `sidebarFor()` returns that scope's menu. Both are pure so they are unit-tested
  * and shared by the sidebar, the mobile drawer, the breadcrumbs and ⌘K.
  *
- * Until the backend has real projects/environments (redesign step 3) the team
- * scope is the signed-in tenant and a "project" is the Coolify project grouping.
+ * An app is a Tetra Engine stack addressed by its project name (`/apps/{project}/…`).
+ * The project and environment levels arrive with the hierarchy screens.
  */
 
 export type NavItem = {
@@ -56,8 +52,7 @@ export type NavSection = { title?: string; items: NavItem[] }
 export type Scope =
   | { kind: "platform" }
   | { kind: "team" }
-  | { kind: "project"; project: string }
-  | { kind: "app"; project: string; app: string }
+  | { kind: "app"; app: string }
 
 export type SidebarModel = {
   /** Link to the enclosing scope (absent at the top scope). */
@@ -121,8 +116,8 @@ export const teamSections: NavSection[] = [
   {
     items: [
       { href: "/dashboard", label: "Overview", icon: faGaugeHigh, exact: true },
-      { href: "/projects", label: "Projects", icon: faServer },
-      { href: "/apps", label: "App catalog", icon: faBox },
+      { href: "/deploys", label: "Deploys", icon: faServer },
+      { href: "/apps", label: "Apps", icon: faBox },
     ],
   },
   {
@@ -143,7 +138,6 @@ export const teamSections: NavSection[] = [
     title: "Services",
     items: [
       { href: "/mail", label: "Mail", icon: faEnvelope },
-      { href: "/databases", label: "Databases", icon: faDatabase },
       { href: "/storage", label: "Storage", icon: faCloud },
       { href: "/ai", label: "AI", icon: faWandSparkles },
     ],
@@ -161,24 +155,19 @@ export const teamSections: NavSection[] = [
 /** Flat list of team-scope destinations (⌘K, tests). */
 export const consoleNavItems: NavItem[] = teamSections.flatMap((s) => s.items)
 
-// ── Project and app ───────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────
 
-export function projectNavItems(projectSlug: string, appId: string): NavItem[] {
-  const base = `/projects/${projectSlug}/apps/${appId}`
+/** Team-scope paths under /apps that are not an app (the catalog). */
+const APP_SCOPE_EXCLUDED = new Set(["catalog", "install"])
+
+export function appNavItems(app: string): NavItem[] {
+  const base = `/apps/${encodeURIComponent(app)}`
   return [
-    { href: base, label: "Overview", icon: faCircleInfo, exact: true },
-    { href: `${base}/deployments`, label: "Deployments", icon: faListCheck },
-    { href: `${base}/logs`, label: "Logs", icon: faTerminal },
+    { href: `${base}/compute`, label: "Compute", icon: faGaugeHigh },
     { href: `${base}/env`, label: "Variables", icon: faKey },
-    { href: `${base}/domains`, label: "Domains", icon: faEarthAmericas },
     { href: `${base}/metrics`, label: "Metrics", icon: faChartLine },
     { href: `${base}/errors`, label: "Errors", icon: faBug },
-    { href: `${base}/settings`, label: "Settings", icon: faGear },
   ]
-}
-
-function projectSections(projectSlug: string): NavSection[] {
-  return [{ items: [{ href: `/projects/${projectSlug}`, label: "Apps", icon: faServer, exact: true }] }]
 }
 
 // ── Resolution ────────────────────────────────────────────────────────────
@@ -191,18 +180,16 @@ export function resolveScope(pathname: string, isPlatformAdmin: boolean): Scope 
   if (isPlatformAdmin && superAdminPaths.some((p) => underPrefix(pathname, p))) {
     return { kind: "platform" }
   }
-  const match = pathname.match(/^\/projects\/([^/]+)(?:\/apps\/([^/]+))?/)
-  if (match) {
-    const project = decodeURIComponent(match[1])
-    if (match[2]) return { kind: "app", project, app: decodeURIComponent(match[2]) }
-    return { kind: "project", project }
+  const match = pathname.match(/^\/apps\/([^/]+)/)
+  if (match && !APP_SCOPE_EXCLUDED.has(match[1])) {
+    return { kind: "app", app: decodeURIComponent(match[1]) }
   }
   return { kind: "team" }
 }
 
-export type ScopeLabels = { team?: string; project?: string; app?: string }
+export type ScopeLabels = { team?: string; app?: string }
 
-export function sidebarFor(scope: Scope, isPlatformAdmin: boolean, labels: ScopeLabels = {}): SidebarModel {
+export function sidebarFor(scope: Scope, isPlatformAdmin: boolean): SidebarModel {
   switch (scope.kind) {
     case "platform":
       return { sections: platformSections }
@@ -211,15 +198,10 @@ export function sidebarFor(scope: Scope, isPlatformAdmin: boolean, labels: Scope
         back: isPlatformAdmin ? { href: SUPER_ADMIN_ROOT, label: "Platform" } : undefined,
         sections: teamSections,
       }
-    case "project":
-      return {
-        back: { href: "/projects", label: labels.team || "Projects" },
-        sections: projectSections(scope.project),
-      }
     case "app":
       return {
-        back: { href: `/projects/${scope.project}`, label: labels.project || scope.project },
-        sections: [{ items: projectNavItems(scope.project, scope.app) }],
+        back: { href: "/apps", label: "Apps" },
+        sections: [{ items: appNavItems(scope.app) }],
       }
   }
 }
@@ -231,7 +213,7 @@ export function isActive(item: NavItem, pathname: string): boolean {
 /** The active item of a sidebar model, if any (used for the page crumb). */
 export function activeItem(model: SidebarModel, pathname: string): NavItem | undefined {
   const items = model.sections.flatMap((s) => s.items)
-  // Prefer the longest matching href so /projects/x/apps/y/logs beats /projects/x/apps/y.
+  // Prefer the longest matching href when several items match the path.
   return items
     .filter((item) => isActive(item, pathname))
     .sort((a, b) => b.href.length - a.href.length)[0]
@@ -239,7 +221,7 @@ export function activeItem(model: SidebarModel, pathname: string): NavItem | und
 
 export type Crumb = { label: string; href?: string }
 
-/** Breadcrumb trail: Platform / team / project / app [/ page]. Last crumb has no href. */
+/** Breadcrumb trail: Platform / team / app [/ page]. Last crumb has no href. */
 export function breadcrumbsFor(
   scope: Scope,
   pathname: string,
@@ -251,13 +233,10 @@ export function breadcrumbsFor(
   if (scope.kind !== "platform") {
     crumbs.push({ label: labels.team || "Team", href: "/dashboard" })
   }
-  if (scope.kind === "project" || scope.kind === "app") {
-    crumbs.push({ label: labels.project || scope.project, href: `/projects/${scope.project}` })
-  }
   if (scope.kind === "app") {
-    crumbs.push({ label: labels.app || scope.app, href: `/projects/${scope.project}/apps/${scope.app}` })
+    crumbs.push({ label: labels.app || scope.app, href: appNavItems(scope.app)[0].href })
   }
-  const page = activeItem(sidebarFor(scope, isPlatformAdmin, labels), pathname)
+  const page = activeItem(sidebarFor(scope, isPlatformAdmin), pathname)
   const isScopeRoot = !page || page.exact
   if (page && !isScopeRoot) crumbs.push({ label: page.label, href: page.href })
   const last = crumbs[crumbs.length - 1]
