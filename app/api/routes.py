@@ -3542,12 +3542,6 @@ async def api_usage(
     )
 
 
-# ---------------------------------------------------------------------------
-# Databases endpoints  (/api/v1/databases)
-# ---------------------------------------------------------------------------
-
-
-
 # ── Object storage: resell Cloudflare R2 buckets ───────────────────────────
 @router.get("/storage/status", response_model=StorageStatusResponse)
 async def api_storage_status(
