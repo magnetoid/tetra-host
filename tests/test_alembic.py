@@ -91,3 +91,53 @@ def test_baseline_revision_is_base() -> None:
     script = ScriptDirectory.from_config(_alembic_config())
     bases = script.get_bases()
     assert "0001_baseline" in bases
+
+
+def test_upgrade_from_0003_sets_aside_the_early_projects_table(tmp_path) -> None:
+    """Production sits at 0003 with an early-model ``projects`` table (integer ids, no
+    ``slug``). ``upgrade head`` must keep its rows under ``legacy_projects`` and build the
+    hierarchy tables, with ``environments`` pointing at the new ``projects``."""
+    from sqlalchemy import create_engine
+
+    from alembic import command
+    from app.db.base import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'prod_shape.db'}")
+    with engine.begin() as conn:
+        Base.metadata.create_all(conn)
+        for table in ("apps", "environments", "projects", "import_runs"):
+            conn.execute(text(f"DROP TABLE {table}"))
+        conn.execute(text(
+            "CREATE TABLE projects (id INTEGER NOT NULL PRIMARY KEY, tenant_id INTEGER NOT NULL, "
+            "external_id VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, "
+            "primary_domain VARCHAR(255) NOT NULL, environment VARCHAR(100) NOT NULL, "
+            "status VARCHAR(100) NOT NULL, repository VARCHAR(255) NOT NULL, "
+            "created_at DATETIME NOT NULL)"
+        ))
+        conn.execute(text("CREATE INDEX ix_projects_tenant_id ON projects (tenant_id)"))
+        conn.execute(text("CREATE INDEX ix_projects_external_id ON projects (external_id)"))
+        conn.execute(text(
+            "INSERT INTO projects VALUES (1, 1, 'x', 'Cloud Industry Panel', '', 'Production', "
+            "'active', '', '2026-06-27 02:10:11')"
+        ))
+        conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
+        conn.execute(text("INSERT INTO alembic_version VALUES ('0003_admin_totp')"))
+
+    config = _alembic_config()
+    with engine.begin() as conn:
+        config.attributes["connection"] = conn
+        command.upgrade(config, "head")
+
+    with engine.connect() as conn:
+        inspector = inspect(conn)
+        tables = set(inspector.get_table_names())
+        assert {"legacy_projects", "projects", "environments", "apps", "import_runs"} <= tables
+        assert "slug" in {c["name"] for c in inspector.get_columns("projects")}
+        assert conn.execute(text("SELECT name FROM legacy_projects")).scalars().all() == [
+            "Cloud Industry Panel"
+        ]
+        referred = {fk["referred_table"] for fk in inspector.get_foreign_keys("environments")}
+        assert "projects" in referred
+        head = ScriptDirectory.from_config(config).get_current_head()
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == head
+    engine.dispose()

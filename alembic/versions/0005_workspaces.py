@@ -7,6 +7,8 @@ Create Date: 2026-11-11
 New tables only, filled lazily by the workspaces service (engine deployments, previews and
 Coolify applications are indexed on first listing). ``create_all`` also creates them on
 boot, so each table may already exist when ``alembic upgrade head`` runs; it is skipped then.
+An early-model ``projects`` table (no ``slug`` column) is renamed to ``legacy_projects``
+first; downgrade does not restore it.
 """
 
 from __future__ import annotations
@@ -30,8 +32,41 @@ def _timestamps() -> list[sa.Column]:
     ]
 
 
+LEGACY_PROJECTS = "legacy_projects"
+
+
+def _set_aside_legacy_projects(bind, existing: set[str]) -> None:
+    """Rename an early-model ``projects`` table out of the way, keeping its rows.
+
+    Databases created before multi-tenancy (production among them) carry a
+    ``projects`` table with integer ids and Coolify columns that no code reads. It
+    has no ``slug`` column, which is how it is told apart from the hierarchy table.
+    Its indexes are dropped because SQLite index names are global and the new
+    table reuses ``ix_projects_tenant_id``.
+    """
+    if "projects" not in existing:
+        return
+    columns = {c["name"] for c in sa.inspect(bind).get_columns("projects")}
+    if "slug" in columns:
+        return
+    for index in sa.inspect(bind).get_indexes("projects"):
+        if index["name"]:
+            op.drop_index(index["name"], table_name="projects")
+    if bind.dialect.name == "sqlite":
+        # Keep foreign keys in other tables pointing at the name "projects",
+        # which the new table takes over below.
+        op.execute("PRAGMA legacy_alter_table=ON")
+    op.rename_table("projects", LEGACY_PROJECTS)
+    if bind.dialect.name == "sqlite":
+        op.execute("PRAGMA legacy_alter_table=OFF")
+    existing.discard("projects")
+    existing.add(LEGACY_PROJECTS)
+
+
 def upgrade() -> None:
-    existing = set(sa.inspect(op.get_bind()).get_table_names())
+    bind = op.get_bind()
+    existing = set(sa.inspect(bind).get_table_names())
+    _set_aside_legacy_projects(bind, existing)
     if "projects" not in existing:
         op.create_table(
             "projects",
