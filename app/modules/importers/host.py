@@ -123,9 +123,33 @@ class HostOps:
     async def tag_image(self, source: str, target: str) -> None:
         await self.engine._docker("tag", _check_ref(source), _check_ref(target))
 
+    async def coolify_proxy_url(self) -> str | None:
+        """Loopback HTTPS address of Coolify's Traefik (``docker port coolify-proxy 443``)."""
+        try:
+            out = await self.engine._docker("port", "coolify-proxy", "443/tcp")
+        except DockerEngineError:
+            return None
+        for line in out.splitlines():
+            addr = line.strip()
+            if addr.startswith("0.0.0.0:"):
+                addr = "127.0.0.1:" + addr.split(":", 1)[1]
+            if re.fullmatch(r"127\.0\.0\.1:\d+", addr):
+                return f"https://{addr}"
+        return None
 
-async def probe_port(port: int, *, host: str = "127.0.0.1", timeout: float = 5.0) -> str:
-    """Classify what answers on a local port: ``http:<status>``, ``tcp`` or ``closed``."""
+
+def _vhost_headers(vhost: str | None) -> dict[str, str]:
+    # The app sits behind TLS-terminating proxies; say so, or it may redirect to https.
+    return {"Host": vhost, "X-Forwarded-Proto": "https"} if vhost else {}
+
+
+async def probe_port(
+    port: int, *, vhost: str | None = None, host: str = "127.0.0.1", timeout: float = 5.0
+) -> str:
+    """Classify what answers on a local port: ``http:<status>``, ``tcp`` or ``closed``.
+
+    ``vhost`` sends that Host header (for apps that only answer their own hostnames).
+    """
     try:
         _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
     except (OSError, asyncio.TimeoutError):
@@ -137,7 +161,21 @@ async def probe_port(port: int, *, host: str = "127.0.0.1", timeout: float = 5.0
         pass
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(f"http://{host}:{port}/", follow_redirects=False)
+            response = await client.get(
+                f"http://{host}:{port}/", headers=_vhost_headers(vhost), follow_redirects=False
+            )
         return f"http:{response.status_code}"
     except httpx.HTTPError:
         return "tcp"
+
+
+async def probe_upstream(url: str, vhost: str, *, timeout: float = 10.0) -> str:
+    """What ``vhost`` answers through a local proxy (Coolify's Traefik): ``http:<status>``."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout, verify=False) as client:  # noqa: S501 — loopback
+            response = await client.get(
+                f"{url.rstrip('/')}/", headers=_vhost_headers(vhost), follow_redirects=False
+            )
+        return f"http:{response.status_code}"
+    except httpx.HTTPError:
+        return "closed"

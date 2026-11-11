@@ -15,7 +15,10 @@ plain compose document the engine can run with ``docker compose -f -``:
 * named volumes are renamed to the target project, bind mounts from the Coolify app
   directory are re-pointed at the engine's files directory;
 * published host ports can be shifted (for a side-by-side trial copy) and services can
-  be excluded (background workers that must not run twice).
+  be excluded (background workers that must not run twice);
+* services Coolify exposes only through its Traefik proxy (labels, no host port) are
+  reported as ``Route`` s, and can be published on a loopback port chosen by the caller
+  so the box's nginx can proxy to them directly.
 
 Everything here is pure: no Docker, no I/O. ``ImportPlan`` lists what the host side
 has to do (images to keep, volumes and files to copy, ports to probe).
@@ -48,6 +51,15 @@ class PortMap:
 
 
 @dataclass(frozen=True)
+class Route:
+    """A service reachable only through Coolify's proxy, and the hostnames it serves."""
+
+    service: str
+    container_port: int
+    hosts: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class VolumeMap:
     key: str
     source_name: str
@@ -71,6 +83,7 @@ class ImportPlan:
     volumes: list[VolumeMap] = field(default_factory=list)
     binds: list[BindMap] = field(default_factory=list)
     background: list[str] = field(default_factory=list)
+    routes: list[Route] = field(default_factory=list)
     excluded: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -291,6 +304,58 @@ def _references(text: str, name: str) -> bool:
     return re.search(rf"(?<![\w.-]){re.escape(name)}(?![\w-])", text) is not None
 
 
+_HOST_RULE = re.compile(r"Host\(([^)]*)\)")
+_BACKTICKED = re.compile(r"`([^`]+)`")
+_TRAEFIK_ROUTER_RULE = re.compile(r"^traefik\.http\.routers\.[^.]+\.rule$")
+_TRAEFIK_LB_PORT = re.compile(r"^traefik\.http\.services\.[^.]+\.loadbalancer\.server\.port$")
+
+
+def _labels_dict(labels: Any) -> dict[str, str]:
+    if isinstance(labels, dict):
+        return {str(k): "" if v is None else str(v) for k, v in labels.items()}
+    if isinstance(labels, list):
+        out: dict[str, str] = {}
+        for item in labels:
+            key, _, value = str(item).partition("=")
+            out[key.strip()] = value.strip()
+        return out
+    return {}
+
+
+def detect_routes(services: dict[str, Any]) -> list[Route]:
+    """Services routed by Coolify's Traefik labels (hostnames + container port).
+
+    Coolify renders one router per hostname and scheme, all pointing at the same
+    ``loadbalancer.server.port``. A service with routers but no such port falls back to
+    a single ``expose`` entry; anything more ambiguous is refused.
+    """
+    routes: list[Route] = []
+    for name, svc in services.items():
+        if not isinstance(svc, dict):
+            continue
+        labels = _labels_dict(svc.get("labels"))
+        hosts: list[str] = []
+        for key, value in labels.items():
+            if _TRAEFIK_ROUTER_RULE.match(key):
+                for group in _HOST_RULE.findall(value):
+                    for host in _BACKTICKED.findall(group):
+                        if host not in hosts:
+                            hosts.append(host)
+        if not hosts:
+            continue
+        ports = {value for key, value in labels.items() if _TRAEFIK_LB_PORT.match(key)}
+        if not ports:
+            exposed = [str(p).split("/", 1)[0] for p in svc.get("expose") or []]
+            ports = set(exposed) if len(exposed) == 1 else set()
+        if len(ports) != 1 or not next(iter(ports)).isdigit():
+            raise ComposeImportError(
+                f"Service {name} is routed by Coolify but its container port is ambiguous "
+                f"({sorted(ports) or 'none'})."
+            )
+        routes.append(Route(name, int(next(iter(ports))), tuple(hosts)))
+    return sorted(routes, key=lambda r: r.service)
+
+
 def detect_background(services: dict[str, Any]) -> list[str]:
     """Services that publish no port and that no other service refers to.
 
@@ -333,8 +398,13 @@ def build_stack(
     port_offset: int = 0,
     exclude: tuple[str, ...] | list[str] = (),
     image_overrides: dict[str, str] | None = None,
+    publish: dict[str, int] | None = None,
 ) -> tuple[str, ImportPlan]:
-    """Return ``(compose_yaml, plan)`` for running the source app as ``project``."""
+    """Return ``(compose_yaml, plan)`` for running the source app as ``project``.
+
+    ``publish`` maps routed services (see ``detect_routes``) to the loopback host port
+    they get on the engine; the port is shifted by ``port_offset`` like any other.
+    """
     try:
         doc = yaml.safe_load(source_yaml)
     except yaml.YAMLError as exc:
@@ -363,6 +433,13 @@ def build_stack(
     external_networks = {
         name for name, spec in top_networks.items() if isinstance(spec, dict) and spec.get("external")
     }
+    plan.routes = detect_routes(services)
+    routed = {r.service: r for r in plan.routes}
+    for name, host_port in (publish or {}).items():
+        if name not in routed:
+            raise ComposeImportError(f"Cannot publish {name}: it is not routed by Coolify.")
+        svc = services[name]
+        svc["ports"] = [*(svc.get("ports") or []), f"127.0.0.1:{int(host_port)}:{routed[name].container_port}"]
     plan.background = detect_background(services)
     excluded = sorted(set(exclude))
     unknown = [name for name in excluded if name not in services]
