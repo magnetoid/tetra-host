@@ -66,12 +66,19 @@ export function Button({
 }: ButtonProps) {
   // Slot requires a single child, so when `asChild` the caller composes its own
   // content (icon included); we only inject the icon for the plain <button>.
-  const Comp = asChild ? Slot : "button"
+  const classes = cn(buttonVariants({ variant, size }), className)
+  if (asChild) {
+    return (
+      <Slot className={classes} {...props}>
+        {children}
+      </Slot>
+    )
+  }
   return (
-    <Comp className={cn(buttonVariants({ variant, size }), className)} {...props}>
-      {!asChild && icon ? <FontAwesomeIcon icon={icon} className="h-3.5 w-3.5" fixedWidth /> : null}
+    <button className={classes} {...props}>
+      {icon ? <FontAwesomeIcon icon={icon} className="h-3.5 w-3.5" fixedWidth /> : null}
       {children}
-    </Comp>
+    </button>
   )
 }
 
