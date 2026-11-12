@@ -28,6 +28,14 @@ describe("unified deployment model", () => {
     expect(capabilitiesFor(d).rollback).toBe(false)
   })
 
+  it("offers cancel only while a git build is queued or building", () => {
+    expect(capabilitiesFor(unifyNative({ ...NATIVE, status: "queued", image: "" })).cancel).toBe(true)
+    expect(capabilitiesFor(unifyNative({ ...NATIVE, status: "building", image: "" })).cancel).toBe(true)
+    expect(capabilitiesFor(unifyNative(NATIVE)).cancel).toBe(false)
+    expect(capabilitiesFor(unifyNative({ ...NATIVE, status: "cancelled" })).cancel).toBe(false)
+    expect(capabilitiesFor(unifyNative({ ...NATIVE, builder: "app", status: "building" })).cancel).toBe(false)
+  })
+
   it("offers AI-explain only when a git build has an error", () => {
     expect(capabilitiesFor(unifyNative({ ...NATIVE, status: "error", error: "boom" })).explain).toBe(true)
     expect(capabilitiesFor(unifyNative(NATIVE)).explain).toBe(false)

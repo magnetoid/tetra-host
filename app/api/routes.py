@@ -31,7 +31,9 @@ from app.api.contracts import (
     AppEnvVarRequest,
     AppEnvVarSummary,
     AppInstallRequest,
+    AppMount,
     AppTemplateSummary,
+    AppVolumesResponse,
     AuditEventSummary,
     AuditLogResponse,
     AuthResponse,
@@ -1788,6 +1790,37 @@ async def api_apps_stop(
     return AppActionResponse(message="App stopped.", project=project)
 
 
+@router.post("/apps/{project}/restart", response_model=AppActionResponse)
+async def api_apps_restart(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppActionResponse:
+    service = AppsService(request)
+    try:
+        await service.control_for_tenant(session, current_admin.tenant_id, project, "restart")
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return AppActionResponse(message="App restarted.", project=project)
+
+
+@router.get("/apps/{project}/volumes", response_model=AppVolumesResponse)
+async def api_apps_volumes(
+    project: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> AppVolumesResponse:
+    """The app's volumes and bind mounts: service, volume name and container path."""
+    service = AppsService(request)
+    try:
+        mounts = await service.volumes_for_tenant(session, current_admin.tenant_id, project)
+    except (ProviderAPIError, DockerEngineError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return AppVolumesResponse(project=project, mounts=[AppMount(**m) for m in mounts])
+
+
 @router.delete("/apps/{project}", response_model=AppActionResponse)
 async def api_apps_remove(
     project: str,
@@ -1972,6 +2005,21 @@ async def api_rollback_deploy(
     except (ProviderAPIError, DockerEngineError, BuildError) as exc:
         raise _engine_exc_to_http(exc) from exc
     return DeployStartResponse(deployment_id=new_id)
+
+
+@router.post("/deploys/{deployment_id}/cancel", response_model=DeployStartResponse)
+async def api_cancel_deploy(
+    deployment_id: str,
+    request: Request,
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DeployStartResponse:
+    """Cancel a queued or building deploy; the app keeps running its current version."""
+    service = DeploysService(request)
+    try:
+        status = await service.cancel_for_tenant(current_admin.tenant_id, deployment_id)
+    except (ProviderAPIError, DockerEngineError, BuildError) as exc:
+        raise _engine_exc_to_http(exc) from exc
+    return DeployStartResponse(deployment_id=deployment_id, status=status)
 
 
 # ── Own infrastructure (Hetzner Cloud, platform-admin only) ───────────────

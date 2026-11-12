@@ -409,3 +409,41 @@ def test_pending_tenant_gets_403_not_402(client, monkeypatch):
     assert response.status_code == 403, (
         f"Expected 403 from status gate, got {response.status_code}: {response.text}"
     )
+
+
+def test_restart_and_volumes_are_tenant_scoped(client, monkeypatch):
+    asyncio.run(_seed_apps_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", True)
+    restarted: list[str] = []
+
+    async def fake_restart(self, project):
+        restarted.append(project)
+        return {"ok": True, "project": project}
+
+    async def fake_mounts(self, project):
+        return [{"service": "web", "type": "volume", "name": f"{project}_data",
+                 "destination": "/data", "read_only": False}]
+
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.restart_stack", fake_restart)
+    monkeypatch.setattr("app.services.docker_engine.DockerEngine.stack_mounts", fake_mounts)
+    headers = _login(client)
+
+    assert client.post("/api/v1/apps/app-writer/restart", headers=headers).status_code == 200
+    assert client.post("/api/v1/apps/app-foreign/restart", headers=headers).status_code == 403
+    assert restarted == ["app-writer"]
+
+    volumes = client.get("/api/v1/apps/app-writer/volumes", headers=headers)
+    assert volumes.status_code == 200
+    assert volumes.json() == {
+        "project": "app-writer",
+        "mounts": [{"service": "web", "type": "volume", "name": "app-writer_data",
+                    "destination": "/data", "read_only": False}],
+    }
+    assert client.get("/api/v1/apps/app-foreign/volumes", headers=headers).status_code == 403
+
+
+def test_restart_blocked_when_actions_disabled(client, monkeypatch):
+    asyncio.run(_seed_apps_tenant())
+    monkeypatch.setattr(get_settings(), "enable_provider_actions", False)
+    headers = _login(client)
+    assert client.post("/api/v1/apps/app-writer/restart", headers=headers).status_code == 403

@@ -35,17 +35,22 @@ export interface DeploymentCapabilities {
   explain: boolean
   /** Stream build logs (all sources). */
   logs: boolean
+  /** Cancel a git build that is still queued or building. */
+  cancel: boolean
 }
+
+const IN_PROGRESS = new Set(["queued", "building"])
 
 export function capabilitiesFor(deployment: UnifiedDeployment): DeploymentCapabilities {
   if (deployment.source === "app") {
-    return { rollback: false, explain: false, logs: true }
+    return { rollback: false, explain: false, logs: true, cancel: false }
   }
   // git — the native Tetra-engine build path, richest controls.
   return {
     rollback: deployment.status === "ready" && Boolean(deployment.image),
     explain: Boolean(deployment.error),
     logs: true,
+    cancel: IN_PROGRESS.has(deployment.status),
   }
 }
 

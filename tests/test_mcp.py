@@ -382,3 +382,27 @@ def test_call_list_team_apps_passes_filters():
         _rpc("tools/call", {"name": "list_team_apps", "arguments": {"team": "alpha", "project": "shop"}})
     )
     assert response["result"]["isError"] is False
+
+
+def test_restart_and_cancel_are_gated_writes_and_volumes_is_a_read():
+    read_only = {
+        t["name"] for t in MCPServer(_noop_client()).handle_message(_rpc("tools/list"))
+        ["result"]["tools"]
+    }
+    assert "app_volumes" in read_only
+    assert not read_only & {"restart_app", "cancel_deployment"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST" and request.url.path == "/api/v1/deploys/dep-7/cancel"
+        return httpx.Response(200, json={"deployment_id": "dep-7", "status": "cancelled"})
+
+    server = MCPServer(make_client(handler), allow_writes=True)
+    unconfirmed = server.handle_message(
+        _rpc("tools/call", {"name": "cancel_deployment", "arguments": {"deployment_id": "dep-7"}})
+    )["result"]
+    assert unconfirmed["isError"] is True
+    confirmed = server.handle_message(
+        _rpc("tools/call", {"name": "cancel_deployment",
+                            "arguments": {"deployment_id": "dep-7", "confirm": True}})
+    )["result"]
+    assert confirmed["isError"] is False and "cancelled" in confirmed["content"][0]["text"]

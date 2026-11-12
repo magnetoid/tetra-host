@@ -721,6 +721,25 @@ def cmd_apps_stop(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_apps_restart(args: argparse.Namespace) -> int:
+    client_from_config().apps_restart(args.project)
+    print(c("✓", "32") + f" restarted {args.project}")
+    return 0
+
+
+def cmd_apps_volumes(args: argparse.Namespace) -> int:
+    result = client_from_config().apps_volumes(args.project)
+    mounts = result.get("mounts", []) if isinstance(result, dict) else []
+    if not mounts:
+        print(c("no volumes or mounts", "90"))
+        return 0
+    for m in mounts:
+        mode = "ro" if m.get("read_only") else "rw"
+        name = m.get("name") or f"({m.get('type', '')})"
+        print(f"{m.get('service', ''):<16} {name:<32} {m.get('destination', '')}  {c(mode, '90')}")
+    return 0
+
+
 def cmd_apps_rm(args: argparse.Namespace) -> int:
     client_from_config().apps_rm(args.project, volumes=args.volumes)
     print(c("✓", "32") + f" removed {args.project}")
@@ -1220,6 +1239,16 @@ def cmd_deploys_rollback(args: argparse.Namespace) -> int:
     if not new_id:
         return die("rollback did not start")
     print(c("✓", "32") + f" rollback started (deployment {new_id[:8]})")
+    return 0
+
+
+def cmd_deploys_cancel(args: argparse.Namespace) -> int:
+    result = client_from_config().cancel_deploy(args.deployment_id)
+    status = result.get("status", "") if isinstance(result, dict) else ""
+    if status != "cancelled":
+        print(c("…", "33") + f" cancel requested; deployment is {status or 'unknown'}")
+        return 0
+    print(c("✓", "32") + f" cancelled deployment {args.deployment_id[:8]}")
     return 0
 
 
@@ -1985,6 +2014,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp = apps.add_parser("stop", help="stop an installed app")
     sp.add_argument("project")
     sp.set_defaults(func=cmd_apps_stop)
+    sp = apps.add_parser("restart", help="restart an installed app's containers")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_apps_restart)
+    sp = apps.add_parser("volumes", help="list an app's volumes and mounts")
+    sp.add_argument("project")
+    sp.set_defaults(func=cmd_apps_volumes)
     sp = apps.add_parser("rm", help="remove an installed app")
     sp.add_argument("project")
     sp.add_argument("--volumes", action="store_true", help="also delete volumes (data loss)")
@@ -2012,6 +2047,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = deploys.add_parser("rollback", help="redeploy a prior deployment's image (no rebuild)")
     sp.add_argument("deployment_id")
     sp.set_defaults(func=cmd_deploys_rollback)
+    sp = deploys.add_parser("cancel", help="cancel a queued or building deploy")
+    sp.add_argument("deployment_id")
+    sp.set_defaults(func=cmd_deploys_cancel)
 
     env = deploys.add_parser("env", help="manage a native app's environment variables").add_subparsers(
         dest="deploys_env_cmd", required=True

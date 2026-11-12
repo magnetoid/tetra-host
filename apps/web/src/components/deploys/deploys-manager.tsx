@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { useAction } from "@/hooks/use-action"
 import { apiFetch } from "@/lib/client-api"
 import { capabilitiesFor, unifyNative } from "@/lib/deployments"
-import { faArrowsRotate, faRocket } from "@/lib/icons"
+import { faArrowsRotate, faBan, faRocket } from "@/lib/icons"
 import type { DeploymentRecord } from "@/lib/types"
 import { cn, formatRelativeLabel } from "@/lib/utils"
 
@@ -54,6 +54,21 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
         if (payload.deployment_id) setExpandedId(payload.deployment_id)
       },
       { key: `rollback:${deploymentId}`, successMessage: "Rollback started" },
+    )
+  }
+
+  function cancel(deploymentId: string) {
+    return run(
+      async () => {
+        const payload = await apiFetch<{ status?: string }>(
+          `/api/proxy/deploys/${deploymentId}/cancel`,
+          { method: "POST", errorMessage: "Could not cancel the deploy." },
+        )
+        if (payload.status && payload.status !== "cancelled") {
+          throw new Error(`Cancel requested; the deploy is still ${payload.status}.`)
+        }
+      },
+      { key: `cancel:${deploymentId}`, successMessage: "Deploy cancelled" },
     )
   }
 
@@ -119,7 +134,17 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
                 expanded={expanded}
                 onToggle={() => setExpandedId(expanded ? null : record.id)}
                 actions={
-                  caps.rollback ? (
+                  caps.cancel ? (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon={faBan}
+                      disabled={pending !== null}
+                      onClick={() => cancel(record.id)}
+                    >
+                      {pending === `cancel:${record.id}` ? "…" : "Cancel"}
+                    </Button>
+                  ) : caps.rollback ? (
                     <Button
                       size="sm"
                       icon={faArrowsRotate}
