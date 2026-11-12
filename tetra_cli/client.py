@@ -332,6 +332,12 @@ class TetraClient:
     def apps_stop(self, project: str) -> Any:
         return self._request("POST", f"/apps/{project}/stop")
 
+    def apps_restart(self, project: str) -> Any:
+        return self._request("POST", f"/apps/{project}/restart")
+
+    def apps_volumes(self, project: str) -> Any:
+        return self._request("GET", f"/apps/{project}/volumes")
+
     def apps_rm(self, project: str, volumes: bool = False) -> Any:
         return self._request("DELETE", f"/apps/{project}", params={"volumes": "1"} if volumes else None)
 
@@ -419,6 +425,9 @@ class TetraClient:
 
     def rollback_deploy(self, deployment_id: str) -> Any:
         return self._request("POST", f"/deploys/{deployment_id}/rollback")
+
+    def cancel_deploy(self, deployment_id: str) -> Any:
+        return self._request("POST", f"/deploys/{deployment_id}/cancel")
 
     def stream_deploy_logs(self, deployment_id: str) -> Iterator[tuple[str, dict]]:
         """Yield (event, data) tuples from a native deploy's SSE build-log stream."""

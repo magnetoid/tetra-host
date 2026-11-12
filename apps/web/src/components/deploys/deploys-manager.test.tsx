@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {} }) }))
@@ -43,5 +43,27 @@ describe("DeploysManager", () => {
     cleanup()
     render(<DeploysManager deployments={[]} />)
     expect(screen.getByText(/no deployments yet/i)).toBeInTheDocument()
+  })
+
+  it("offers cancel for a building deploy and posts to the cancel endpoint", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, deployment_id: "dep-3", status: "cancelled" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    render(
+      <DeploysManager deployments={[{ ...READY, id: "dep-3", status: "building", image: "" }]} />,
+    )
+    expect(screen.queryByRole("button", { name: /rollback/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe("/api/proxy/deploys/dep-3/cancel")
+    expect(init.method).toBe("POST")
+    vi.unstubAllGlobals()
   })
 })

@@ -196,6 +196,13 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.apps_compute(a["project"]),
     },
     {
+        "name": "app_volumes",
+        "description": "An app's volumes and mounts: service, volume name and container path.",
+        "inputSchema": _schema(_project_arg("App/project name"), ["project"]),
+        "write": False,
+        "handler": lambda c, a: c.apps_volumes(a["project"]),
+    },
+    {
         "name": "list_previews",
         "description": "Per-branch preview environments (their branch, stack and URL).",
         "inputSchema": _schema(_project_arg("Optional app/project filter")),
@@ -245,6 +252,24 @@ _TOOLS: list[dict[str, Any]] = [
         ),
         "write": True,
         "handler": lambda c, a: c.rollback_deploy(a["deployment_id"]),
+    },
+    {
+        "name": "cancel_deployment",
+        "description": "Cancel a queued or building deploy; the app keeps its current version.",
+        "inputSchema": _schema(
+            {"deployment_id": {"type": "string", "description": "The deployment to cancel"},
+             **_CONFIRM},
+            ["deployment_id", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.cancel_deploy(a["deployment_id"]),
+    },
+    {
+        "name": "restart_app",
+        "description": "Restart an app's containers (same version, no rebuild).",
+        "inputSchema": _schema({**_project_arg("App/project name"), **_CONFIRM}, ["project", "confirm"]),
+        "write": True,
+        "handler": lambda c, a: c.apps_restart(a["project"]),
     },
     {
         "name": "teardown_preview",

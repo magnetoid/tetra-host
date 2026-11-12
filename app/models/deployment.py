@@ -11,6 +11,7 @@ STATUS_QUEUED = "queued"
 STATUS_BUILDING = "building"
 STATUS_READY = "ready"
 STATUS_ERROR = "error"
+STATUS_CANCELLED = "cancelled"  # stopped by the user before the new version started
 
 
 def utc_now() -> datetime:

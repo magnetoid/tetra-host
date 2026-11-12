@@ -413,6 +413,19 @@ class AppComputeResponse(BaseModel):
     mem_used_mb: float = 0.0
 
 
+class AppMount(BaseModel):
+    service: str = ""
+    type: str = ""  # "volume" | "bind" | "tmpfs"
+    name: str = ""  # volume name; empty for bind/tmpfs mounts (host paths are never exposed)
+    destination: str = ""
+    read_only: bool = False
+
+
+class AppVolumesResponse(BaseModel):
+    project: str
+    mounts: list[AppMount] = []
+
+
 class InfraServerCreateRequest(BaseModel):
     name: str
     server_type: str = ""  # empty = platform default (role-aware)

@@ -72,3 +72,56 @@ def test_sanitize_project_name():
     assert sanitize_project_name("My WP App!") == "my-wp-app"
     assert sanitize_project_name("  ") == "app"
     assert sanitize_project_name("Already-ok_1") == "already-ok_1"
+
+
+def test_restart_stack_runs_compose_restart():
+    calls: list[list[str]] = []
+
+    async def runner(argv, stdin, env):
+        calls.append(argv)
+        return (0, "", "")
+
+    assert asyncio.run(_engine(runner).restart_stack("My Blog")) == {
+        "ok": True, "project": "my-blog"
+    }
+    assert calls == [["docker", "compose", "-p", "my-blog", "restart"]]
+
+
+def test_stack_mounts_lists_volumes_without_host_paths():
+    inspect = """[
+      {"Config": {"Labels": {"com.docker.compose.service": "wordpress"}},
+       "Mounts": [
+         {"Type": "volume", "Name": "blog_wp-data", "Source": "/var/lib/docker/volumes/x",
+          "Destination": "/var/www/html", "RW": true},
+         {"Type": "bind", "Source": "/opt/secret/php.ini",
+          "Destination": "/usr/local/etc/php/php.ini", "RW": false}
+       ]},
+      {"Config": {"Labels": {"com.docker.compose.service": "db"}},
+       "Mounts": [{"Type": "volume", "Name": "blog_db", "Destination": "/var/lib/mysql",
+                   "RW": true}]}
+    ]"""
+
+    async def runner(argv, stdin, env):
+        if argv[1:3] == ["compose", "-p"]:
+            return (0, '[{"ID": "c1"}, {"ID": "c2"}]', "")
+        assert argv[1:] == ["inspect", "c1", "c2"]
+        return (0, inspect, "")
+
+    mounts = asyncio.run(_engine(runner).stack_mounts("blog"))
+    assert mounts == [
+        {"service": "db", "type": "volume", "name": "blog_db",
+         "destination": "/var/lib/mysql", "read_only": False},
+        {"service": "wordpress", "type": "bind", "name": "",
+         "destination": "/usr/local/etc/php/php.ini", "read_only": True},
+        {"service": "wordpress", "type": "volume", "name": "blog_wp-data",
+         "destination": "/var/www/html", "read_only": False},
+    ]
+    assert "/opt/secret" not in str(mounts)
+
+
+def test_stack_mounts_without_containers_skips_inspect():
+    async def runner(argv, stdin, env):
+        assert "inspect" not in argv
+        return (0, "", "")
+
+    assert asyncio.run(_engine(runner).stack_mounts("gone")) == []

@@ -752,3 +752,17 @@ export interface JobRunRecord {
   duration_ms: number
   started_at: string
 }
+
+/** One volume or mount of an engine app (host paths are never exposed). */
+export interface AppMount {
+  service: string
+  type: string
+  name: string
+  destination: string
+  read_only: boolean
+}
+
+export interface AppVolumes {
+  project: string
+  mounts: AppMount[]
+}

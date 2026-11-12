@@ -156,6 +156,42 @@ class DockerEngine:
         await self._docker("compose", "-p", project, "stop")
         return {"ok": True, "project": project}
 
+    async def restart_stack(self, project: str) -> dict[str, Any]:
+        project = sanitize_project_name(project)
+        logger.info("restarting compose stack %s", project)
+        await self._docker("compose", "-p", project, "restart")
+        return {"ok": True, "project": project}
+
+    async def stack_mounts(self, project: str) -> list[dict[str, Any]]:
+        """Volumes and bind mounts of a stack's containers, one entry per mount.
+
+        Host paths are left out on purpose: tenants see the volume name and where it is
+        mounted inside the container, never the layout of the shared host.
+        """
+        containers = await self.stack_ps(project)
+        ids = [str(c.get("ID") or c.get("Id") or "") for c in containers]
+        ids = [cid for cid in ids if cid]
+        if not ids:
+            return []
+        out = await self._docker("inspect", *ids)
+        mounts: list[dict[str, Any]] = []
+        for container in _parse_json_objects(out):
+            labels = (container.get("Config") or {}).get("Labels") or {}
+            service = str(labels.get("com.docker.compose.service") or "")
+            for mount in container.get("Mounts") or []:
+                kind = str(mount.get("Type") or "")
+                mounts.append(
+                    {
+                        "service": service,
+                        "type": kind,
+                        "name": str(mount.get("Name") or "") if kind == "volume" else "",
+                        "destination": str(mount.get("Destination") or ""),
+                        "read_only": not bool(mount.get("RW", True)),
+                    }
+                )
+        mounts.sort(key=lambda m: (m["service"], m["destination"]))
+        return mounts
+
     async def remove_stack(self, project: str, *, volumes: bool = False) -> dict[str, Any]:
         project = sanitize_project_name(project)
         logger.info("removing compose stack %s (volumes=%s)", project, volumes)

@@ -13,7 +13,8 @@ provisioning), plus **Umami**/**GlitchTip** observability sidecars — behind a 
 backend. **Coolify is an import source only** (rule `tetra-coolify-import-source-only`): the panel does
 not list, deploy or configure Coolify apps; the only Coolify code is the importer
 (`app/modules/importers/`, read-only client `coolify_source.py`). Features Coolify used to provide
-(managed databases, volumes, restart, cancel, exec) come back as engine features. Target tenancy is platform → reseller (hosting company) → customer → team member,
+(managed databases, volume management, exec, build settings) come back as engine features; restart,
+cancel and a read-only volume listing are back already. Target tenancy is platform → reseller (hosting company) → customer → team member,
 with plugins toggled at runtime. Check the roadmap phase before starting structural work.
 
 The repo contains **two independent applications**:
@@ -51,7 +52,7 @@ Ops scripts: `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh
 `python -m tetra_cli ...` or `scripts/tetra ...`; `pip install -e .` exposes the `tetra` command.
 
 - `tetra login --url https://panel.cloud-industry.com` saves a token to `~/.config/tetra-host/config.json` (override with `TETRA_API_URL` / `TETRA_TOKEN` env).
-- `tetra deploys list|git|rollback` (git deploys stream build logs live), `tetra deploys env list|set|rm`, `tetra apps catalog|install|logs`, `tetra analytics|errors <app>`, `tetra dns zones|records|add|rm`, `tetra teams`, `tetra project …`, `tetra import list|show|coolify|stage|cutover|rollback`, `tetra dashboard`.
+- `tetra deploys list|git|rollback|cancel` (git deploys stream build logs live), `tetra deploys env list|set|rm`, `tetra apps catalog|install|start|stop|restart|volumes|logs`, `tetra analytics|errors <app>`, `tetra dns zones|records|add|rm`, `tetra teams`, `tetra project …`, `tetra import list|show|coolify|stage|cutover|rollback`, `tetra dashboard`.
 - It's a thin client over [tetra_cli/client.py](tetra_cli/client.py) (injectable httpx transport → tested in-process with `httpx.MockTransport`). **When you add a dashboard feature, add the matching CLI command.**
 - `tetra mcp serve` ([tetra_cli/mcp.py](tetra_cli/mcp.py)) exposes the **third parity surface**: a hand-rolled MCP (JSON-RPC over stdio, no new deps) wrapping the same `/api/v1` contract so an AI agent sees exactly what a human does. Writes are double-gated — `--allow-writes` at startup **and** `confirm=true` per call; billable/admin ops (Hetzner, plans, tenants) and DNS writes are not exposed at all (ADR 0012).
 

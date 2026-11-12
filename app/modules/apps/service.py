@@ -209,6 +209,8 @@ class AppsService:
             return await self.engine.start_stack(project)
         if action == "stop":
             return await self.engine.stop_stack(project)
+        if action == "restart":
+            return await self.engine.restart_stack(project)
         raise DockerEngineError(message=f"Unknown action '{action}'.", code=400)
 
     async def remove_for_tenant(
@@ -250,3 +252,10 @@ class AppsService:
         await self._ensure_app_access(session, tenant_id, project)
         raw = await self.engine.stats_for_project(project)
         return parse_compute_samples(raw)
+
+    async def volumes_for_tenant(
+        self, session: AsyncSession, tenant_id: str | None, project: str
+    ) -> list[dict]:
+        """The app's volumes and bind mounts, without host paths (read-only)."""
+        await self._ensure_app_access(session, tenant_id, project)
+        return await self.engine.stack_mounts(project)

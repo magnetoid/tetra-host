@@ -43,6 +43,16 @@ class BuildResult:
     port: int = 0  # detected from the image's EXPOSE, 0 if none
 
 
+async def _kill(proc: asyncio.subprocess.Process) -> None:
+    """Stop a command whose deploy was cancelled, so git/docker/nixpacks don't keep running."""
+    if proc.returncode is None:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            return
+        await proc.wait()
+
+
 async def _default_runner(argv: list[str], cwd: str | None) -> tuple[int, str, str]:
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -50,7 +60,11 @@ async def _default_runner(argv: list[str], cwd: str | None) -> tuple[int, str, s
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    out_b, err_b = await proc.communicate()
+    try:
+        out_b, err_b = await proc.communicate()
+    except asyncio.CancelledError:
+        await _kill(proc)
+        raise
     return proc.returncode or 0, out_b.decode("utf-8", "replace"), err_b.decode("utf-8", "replace")
 
 
@@ -71,11 +85,15 @@ async def _default_stream_runner(
     )
     captured: list[str] = []
     assert proc.stdout is not None
-    async for raw in proc.stdout:
-        line = raw.decode("utf-8", "replace").rstrip("\r\n")
-        captured.append(line)
-        await sink(line)
-    rc = await proc.wait()
+    try:
+        async for raw in proc.stdout:
+            line = raw.decode("utf-8", "replace").rstrip("\r\n")
+            captured.append(line)
+            await sink(line)
+        rc = await proc.wait()
+    except asyncio.CancelledError:
+        await _kill(proc)
+        raise
     return rc or 0, "\n".join(captured)
 
 

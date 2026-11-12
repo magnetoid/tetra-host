@@ -1076,3 +1076,33 @@ def test_main_project_delete_needs_yes(monkeypatch, capsys):
                         lambda require_auth=True: make_client(_workspace_handler))
     assert main(["project", "delete", "shop"]) == 1
     assert "--yes" in capsys.readouterr().out
+
+
+def test_client_restart_volumes_and_cancel_hit_their_endpoints():
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.url.path.endswith("/volumes"):
+            return httpx.Response(200, json={"project": "blog", "mounts": []})
+        if request.url.path.endswith("/cancel"):
+            return httpx.Response(200, json={"ok": True, "deployment_id": "dep-1",
+                                             "status": "cancelled"})
+        return httpx.Response(200, json={"ok": True, "message": "App restarted."})
+
+    client = make_client(handler)
+    client.apps_restart("blog")
+    assert client.apps_volumes("blog")["mounts"] == []
+    assert client.cancel_deploy("dep-1")["status"] == "cancelled"
+    assert seen == [
+        ("POST", "/api/v1/apps/blog/restart"),
+        ("GET", "/api/v1/apps/blog/volumes"),
+        ("POST", "/api/v1/deploys/dep-1/cancel"),
+    ]
+
+
+def test_parser_has_restart_volumes_and_cancel():
+    parser = build_parser()
+    assert parser.parse_args(["apps", "restart", "blog"]).project == "blog"
+    assert parser.parse_args(["apps", "volumes", "blog"]).project == "blog"
+    assert parser.parse_args(["deploys", "cancel", "dep-1"]).deployment_id == "dep-1"

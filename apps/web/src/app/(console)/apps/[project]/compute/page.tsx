@@ -1,11 +1,13 @@
 import Link from "next/link"
 
+import { AppControls } from "@/components/apps/app-controls"
+import { AppVolumes } from "@/components/apps/app-volumes"
 import { ComputePanel } from "@/components/apps/compute-panel"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
-import type { ComputeMetrics } from "@/lib/types"
+import type { AppVolumes as AppVolumesData, ComputeMetrics } from "@/lib/types"
 
 export default async function AppComputePage({
   params,
@@ -15,12 +17,17 @@ export default async function AppComputePage({
   const session = await requireConsoleSession()
   const { project } = await params
 
-  const initialRes = await fetchDegraded<ComputeMetrics | null>(
-    `/apps/${project}/compute`,
-    "Compute",
-    null,
-    { token: session.token },
-  )
+  const [initialRes, volumesRes] = await Promise.all([
+    fetchDegraded<ComputeMetrics | null>(`/apps/${project}/compute`, "Compute", null, {
+      token: session.token,
+    }),
+    fetchDegraded<AppVolumesData>(
+      `/apps/${project}/volumes`,
+      "Volumes",
+      { project, mounts: [] },
+      { token: session.token },
+    ),
+  ])
   const initial = initialRes.data
 
   return (
@@ -32,9 +39,11 @@ export default async function AppComputePage({
         eyebrow="Compute"
         title={project}
         description="Live CPU, memory, and network usage for this app's containers."
+        action={<AppControls project={project} />}
       />
-      <DegradedBanner sources={degradedSources([initialRes])} />
+      <DegradedBanner sources={degradedSources([initialRes, volumesRes])} />
       <ComputePanel project={project} initial={initial} />
+      <AppVolumes mounts={volumesRes.data.mounts} />
     </div>
   )
 }

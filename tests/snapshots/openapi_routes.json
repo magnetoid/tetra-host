@@ -378,6 +378,15 @@
     "request": null,
     "response": "object"
   },
+  "GET /api/v1/apps/{project}/volumes": {
+    "operationId": "api_apps_volumes_api_v1_apps__project__volumes_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "AppVolumesResponse"
+  },
   "GET /api/v1/audit": {
     "operationId": "api_audit_log_api_v1_audit_get",
     "parameters": [
@@ -1171,6 +1180,15 @@
     "request": "AppInstallRequest",
     "response": "AppActionResponse"
   },
+  "POST /api/v1/apps/{project}/restart": {
+    "operationId": "api_apps_restart_api_v1_apps__project__restart_post",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "AppActionResponse"
+  },
   "POST /api/v1/apps/{project}/start": {
     "operationId": "api_apps_start_api_v1_apps__project__start_post",
     "parameters": [
@@ -1254,6 +1272,15 @@
       "header:authorization"
     ],
     "request": "GitDeployRequest",
+    "response": "DeployStartResponse"
+  },
+  "POST /api/v1/deploys/{deployment_id}/cancel": {
+    "operationId": "api_cancel_deploy_api_v1_deploys__deployment_id__cancel_post",
+    "parameters": [
+      "header:authorization",
+      "path:deployment_id!"
+    ],
+    "request": null,
     "response": "DeployStartResponse"
   },
   "POST /api/v1/deploys/{deployment_id}/rollback": {

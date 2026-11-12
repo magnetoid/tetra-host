@@ -25,6 +25,7 @@ from app.db import session_scope
 from app.models import AppEnvVar, DeployHook, PreviewEnv, TenantResource
 from app.models.deployment import (
     STATUS_BUILDING,
+    STATUS_CANCELLED,
     STATUS_ERROR,
     STATUS_QUEUED,
     STATUS_READY,
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
+_TERMINAL_STATES = {STATUS_READY, STATUS_ERROR, STATUS_CANCELLED}
 
 # Fire-and-forget background builds must outlive the (per-request) service that
 # spawned them. asyncio keeps only a *weak* reference to a task, so without a
@@ -54,11 +55,35 @@ _TERMINAL_STATES = {STATUS_READY, STATUS_ERROR}
 # Hold the ref until the task finishes, then drop it.
 _background_tasks: set[asyncio.Task] = set()
 
+# Running deploy/rollback tasks by deployment id, and the ids that may still be cancelled.
+# A deploy is cancellable while it clones and builds; once the image is built it leaves
+# ``_cancellable`` so cancelling can never leave a half-started stack behind. Both maps are
+# per-process, which matches the single uvicorn worker the panel runs with.
+_deploy_tasks: dict[str, asyncio.Task] = {}
+_cancellable: set[str] = set()
 
-def _spawn_background(coro) -> None:
+
+def _spawn_background(coro, *, deployment_id: str | None = None, cancellable: bool = False) -> None:
     task = asyncio.create_task(coro)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+    if deployment_id is not None:
+        _deploy_tasks[deployment_id] = task
+        if cancellable:
+            _cancellable.add(deployment_id)
+
+        def _forget(_task: asyncio.Task) -> None:
+            _deploy_tasks.pop(deployment_id, None)
+            _cancellable.discard(deployment_id)
+
+        task.add_done_callback(_forget)
+
+def _mark_cancelled(deployment: Deployment, reason: str) -> None:
+    deployment.status = STATUS_CANCELLED
+    deployment.error = "Cancelled by user."
+    line = f"✗ cancelled — {reason}"
+    deployment.log = f"{deployment.log}\n{line}" if deployment.log else line
+
 
 # Sentinel so explain_deployment can distinguish "use the default AI diagnoser" from an
 # explicit diagnoser=None (heuristic-only).
@@ -210,7 +235,11 @@ class DeploysService:
             "deployment %s queued for project '%s' (tenant %s)", deployment_id, project, tenant_id
         )
         _spawn_background(
-            self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
+            self._run_deploy(
+                deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port,
+                release_on_failure=True,
+            ),
+            deployment_id=deployment_id, cancellable=True,
         )
         return deployment_id
 
@@ -244,10 +273,14 @@ class DeploysService:
 
     async def _run_deploy(
         self, deployment_id: str, tenant_id: str | None, *, git_url: str, ref: str, project: str,
-        port: int, env_project: str | None = None,
+        port: int, env_project: str | None = None, release_on_failure: bool = False,
     ) -> None:
         """``env_project`` lets preview stacks inherit the PARENT app's env vars while
-        building/running under their own project name (stack, subdomain, limits)."""
+        building/running under their own project name (stack, subdomain, limits).
+
+        ``release_on_failure`` is set only for an app's first deploy, whose quota
+        reservation is its app record: releasing it after a failed *redeploy* would drop
+        a still-running app from the panel."""
         log: list[str] = []
         try:
             log.append(f"→ cloning {git_url} @ {ref}")
@@ -269,6 +302,9 @@ class DeploysService:
             build = await self.builder.build_from_git(
                 git_url, ref, project=project, on_line=_on_build_line
             )
+            # Point of no return: from here the new version is pushed and started, so a
+            # cancel now could leave a half-started stack. Stop accepting cancels.
+            _cancellable.discard(deployment_id)
             effective_port = build.port or port
             log.append(f"✓ built {build.image} via {build.builder}")
 
@@ -319,14 +355,20 @@ class DeploysService:
                     {"status": STATUS_READY, "domain": domain, "commit": build.commit},
                 )
                 await self._prune_old_images(tenant_id, project)
+        except asyncio.CancelledError:
+            logger.info("deployment %s cancelled (project '%s')", deployment_id, project)
+            log.append("✗ cancelled — the running version was left as it was")
+            await self._set(
+                deployment_id, log, status=STATUS_CANCELLED, error="Cancelled by user."
+            )
+            await self._release_reservation(tenant_id, project, release_on_failure)
+            raise
         except (BuildError, DockerEngineError) as exc:
             logger.warning("deployment %s failed for project '%s': %s", deployment_id, project, exc)
             log.append(f"✗ {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
-            # Release the pre-build reservation so no orphan slot is left.
-            # _run_deploy runs after the request session is closed, so open a fresh scope.
-            async with session_scope() as release_session:
-                await QuotaService(release_session, tenant_id or "").release(project)
+            # Release the first deploy's reservation so no orphan slot is left.
+            await self._release_reservation(tenant_id, project, release_on_failure)
             if env_project is None:
                 await self._notify_deploy(
                     tenant_id, project, deployment_id, DEPLOY_FAILED,
@@ -338,13 +380,65 @@ class DeploysService:
             )
             log.append(f"✗ unexpected: {exc}")
             await self._set(deployment_id, log, status=STATUS_ERROR, error=str(exc)[:500])
-            async with session_scope() as release_session:
-                await QuotaService(release_session, tenant_id or "").release(project)
+            await self._release_reservation(tenant_id, project, release_on_failure)
             if env_project is None:
                 await self._notify_deploy(
                     tenant_id, project, deployment_id, DEPLOY_FAILED,
                     {"status": STATUS_ERROR, "error": str(exc)[:500]},
                 )
+
+    async def _release_reservation(
+        self, tenant_id: str | None, project: str, release: bool
+    ) -> None:
+        if not release:
+            return
+        # _run_deploy runs after the request session is closed, so open a fresh scope.
+        async with session_scope() as session:
+            await QuotaService(session, tenant_id or "").release(project)
+
+    async def cancel_for_tenant(
+        self, tenant_id: str | None, deployment_id: str, *, wait_seconds: float = 10.0
+    ) -> str:
+        """Cancel a queued or building deploy and return its status afterwards.
+
+        A deploy can be cancelled while it clones and builds; the build commands are killed
+        and the app keeps running its current version. Once the image is built, cancelling
+        is refused (409). A deploy marked ``queued``/``building`` with no task in this
+        process was orphaned by a panel restart and is simply marked cancelled.
+        """
+        self._require_actions()
+        async with session_scope() as session:
+            deployment = await session.get(Deployment, deployment_id)
+            if deployment is None or deployment.tenant_id != (tenant_id or ""):
+                raise DockerEngineError(message="Deployment not found.", code=404)
+            if deployment.status in _TERMINAL_STATES:
+                raise DockerEngineError(
+                    message=f"Deployment already finished ({deployment.status}).", code=409
+                )
+            task = _deploy_tasks.get(deployment_id)
+            if task is None:
+                logger.info("marking orphaned deployment %s cancelled", deployment_id)
+                _mark_cancelled(
+                    deployment, "no build was running (the panel restarted mid-deploy)"
+                )
+                return STATUS_CANCELLED
+        if deployment_id not in _cancellable:
+            raise DockerEngineError(
+                message="The build has finished and the new version is starting; "
+                "it can no longer be cancelled.",
+                code=409,
+            )
+        logger.info("cancelling deployment %s", deployment_id)
+        task.cancel()
+        await asyncio.wait({task}, timeout=wait_seconds)
+        async with session_scope() as session:
+            deployment = await session.get(Deployment, deployment_id)
+            if deployment is None:
+                return STATUS_CANCELLED
+            if task.done() and deployment.status not in _TERMINAL_STATES:
+                # Cancelled before its first step ran, so _run_deploy never saw it.
+                _mark_cancelled(deployment, "before the build started")
+            return deployment.status
 
     async def _prune_old_images(self, tenant_id: str | None, project: str) -> None:
         """Retention: keep the newest ``keep_images`` DISTINCT images of ``project``'s
@@ -599,7 +693,8 @@ class DeploysService:
             await session.flush()
             deployment_id = deployment.id
         _spawn_background(
-            self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port)
+            self._run_deploy(deployment_id, tenant_id, git_url=git_url, ref=ref, project=project, port=port),
+            deployment_id=deployment_id, cancellable=True,
         )
         return deployment_id
 
@@ -644,7 +739,8 @@ class DeploysService:
             project, image, port = target.project, target.image, target.port
         logger.info("rollback %s queued for project '%s' -> image %s", new_id, project, image)
         _spawn_background(
-            self._run_rollback(new_id, tenant_id, project=project, image=image, port=port)
+            self._run_rollback(new_id, tenant_id, project=project, image=image, port=port),
+            deployment_id=new_id,
         )
         return new_id
 
@@ -754,7 +850,8 @@ class DeploysService:
             self._run_deploy(
                 deployment_id, tenant_id, git_url=git_url, ref=branch, project=stack,
                 port=port, env_project=project,
-            )
+            ),
+            deployment_id=deployment_id, cancellable=True,
         )
         return deployment_id, domain
 
