@@ -42,7 +42,7 @@ pnpm web:check    # lint + typecheck + vitest (run this before claiming web work
 pnpm web:test     # vitest run
 ```
 
-Ops scripts: `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh` (seed admin),
+Ops scripts: `scripts/deploy.sh` (roll a server forward: DB backup, pull, migrate, restart, console slot swap), `scripts/install.sh` (systemd install), `scripts/bootstrap-admin.sh` (seed admin),
 `scripts/check-production.sh` (run before restarting prod — it gates `systemd/tetra-host.service`).
 
 ## Tetra CLI (`tetra_cli/`)

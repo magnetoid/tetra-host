@@ -13,3 +13,9 @@ node_modules/
 
 # Editable-install build artifact (created by `pip install -e .`)
 *.egg-info/
+
+# Server-side runtime state (scripts/deploy.sh): private Node 22 and pnpm caches/store
+/.node/
+/.local/
+/.cache/
+/logs/
