@@ -48,12 +48,38 @@ The database URL comes from the app `Settings` (same `DATABASE_URL` as the
 running app) — `env.py` reads it, so no URL is hard-coded in `alembic.ini`.
 
 **Deploy order matters:** always run `alembic upgrade head` *before* restarting
-the service so the schema is at head when the app boots. `scripts/install.sh`
-does this automatically; for a manual `git pull` deploy, run it yourself:
+the service so the schema is at head when the app boots. Use the deploy script,
+which does every step in order and stops at the first failure:
+
+```bash
+sudo /opt/tetra-host/scripts/deploy.sh                    # backend + console from origin/main
+sudo /opt/tetra-host/scripts/deploy.sh --backend-only
+sudo /opt/tetra-host/scripts/deploy.sh --rollback-console # back to the previous console build
+```
+
+- **Backend:**
+  - backs up the SQLite database to `data/backups/` (keeps the last 10);
+  - pulls `origin/main`, installs requirements, runs `alembic upgrade head` and
+    `check-production.sh`;
+  - restarts `tetra-host` and waits for `/ready`.
+  - If it isn't ready, it prints the commit and backup to go back to.
+- **Console:**
+  - builds into the idle slot (`apps/web/.next-a` or `.next-b`) while the current
+    build keeps serving;
+  - switches `tetra-console` to the new slot only after a successful build;
+  - switches back if the new build doesn't answer.
+  - The active slot is recorded in `data/console.env`.
+- **Node:** the console needs Node 22. If the system `node` is older, put a Node 22
+  install (with `pnpm`) in `/opt/tetra-host/.node`. Both the script and
+  `tetra-console.service` look there first.
+
+## Manual migrations
+
+To run migrations by hand:
 
 ```bash
 cd /opt/tetra-host && set -a && source ./.env && set +a
-sudo -u tetra .venv/bin/alembic upgrade head
+sudo -u tetrahost .venv/bin/alembic upgrade head
 systemctl restart tetra-host
 ```
 
