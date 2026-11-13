@@ -752,6 +752,144 @@ def cmd_apps_logs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _size(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return str(n)
+
+
+def _db_id(client, ref: str) -> str:
+    """Accept a database name or id."""
+    for db in client.databases():
+        if ref in (db["id"], db["name"]):
+            return db["id"]
+    raise TetraError(f"no database named {ref}")
+
+
+def cmd_db_engines(args: argparse.Namespace) -> int:
+    rows = [
+        [e["key"], e["label"], ", ".join(e["versions"]), "yes" if e["supports_backup"] else "no"]
+        for e in client_from_config().db_engines()
+    ]
+    print_table(["ENGINE", "NAME", "VERSIONS", "BACKUPS"], rows)
+    return 0
+
+
+def cmd_db_list(args: argparse.Namespace) -> int:
+    rows = [
+        [d["name"], f"{d['engine_label']} {d['version']}", status_color(d.get("status", "unknown")),
+         f"{d['host']}:{d['port']}", d["backup_cron"] or "off"]
+        for d in client_from_config().databases()
+    ]
+    print_table(["NAME", "ENGINE", "STATUS", "HOST", "BACKUPS"], rows)
+    return 0
+
+
+def cmd_db_create(args: argparse.Namespace) -> int:
+    d = client_from_config().db_create(args.name, args.engine, args.version)
+    print(c("✓", "32") + f" created {d['name']} ({d['engine_label']} {d['version']})")
+    print(c(f"  reachable from your apps at {d['host']}:{d['port']}", "90"))
+    print(c(f"  tetra db link {d['name']} <app>   puts DATABASE_URL on an app", "90"))
+    return 0
+
+
+def cmd_db_show(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    d = client.db_get(_db_id(client, args.database))
+    for key, value in [
+        ("name", d["name"]), ("engine", f"{d['engine_label']} {d['version']}"),
+        ("status", status_color(d["status"])), ("host", f"{d['host']}:{d['port']}"),
+        ("backups", f"{d['backup_cron'] or 'off'} (keep {d['backup_keep']})"), ("id", d["id"]),
+    ]:
+        print(f"{key:<8} {value}")
+    return 0
+
+
+def cmd_db_connection(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    conn = client.db_connection(_db_id(client, args.database))
+    print(conn["url"])
+    return 0
+
+
+def cmd_db_link(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    result = client.db_link(_db_id(client, args.database), args.app, args.key)
+    print(c("✓", "32") + f" {result.get('message', 'linked')}")
+    return 0
+
+
+def cmd_db_control(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    result = client.db_control(_db_id(client, args.database), args.db_action)
+    print(c("✓", "32") + f" {result.get('message', args.db_action)}")
+    return 0
+
+
+def cmd_db_rm(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print(f"Refusing to delete {args.database} without --yes (removes its data and backups).")
+        return 1
+    client = client_from_config()
+    client.db_rm(_db_id(client, args.database))
+    print(c("✓", "32") + f" removed {args.database}, its data and its backups")
+    return 0
+
+
+def cmd_db_backups(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    rows = []
+    for b in client.db_backups(_db_id(client, args.database)):
+        restore = b["restore_status"] and f"restore {b['restore_status']}"
+        rows.append([b["id"][:8], b["created_at"][:16].replace("T", " "), b["trigger"],
+                     status_color(b["status"]), _size(b["size_bytes"]), restore or b["error"][:40]])
+    print_table(["ID", "CREATED (UTC)", "TRIGGER", "STATUS", "SIZE", "NOTE"], rows)
+    return 0
+
+
+def _backup_id(client, database_id: str, ref: str) -> str:
+    for b in client.db_backups(database_id):
+        if b["id"].startswith(ref):
+            return b["id"]
+    raise TetraError(f"no backup {ref}")
+
+
+def cmd_db_backup(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    b = client.db_backup(_db_id(client, args.database))
+    print(c("✓", "32") + f" backup {b['id'][:8]} started; check it with: tetra db backups {args.database}")
+    return 0
+
+
+def cmd_db_restore(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print(f"Refusing to restore without --yes (replaces the current data in {args.database}).")
+        return 1
+    client = client_from_config()
+    database_id = _db_id(client, args.database)
+    client.db_restore(database_id, _backup_id(client, database_id, args.backup))
+    print(c("✓", "32") + f" restore started; check it with: tetra db backups {args.database}")
+    return 0
+
+
+def cmd_db_backup_rm(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    database_id = _db_id(client, args.database)
+    client.db_backup_rm(database_id, _backup_id(client, database_id, args.backup))
+    print(c("✓", "32") + " backup deleted")
+    return 0
+
+
+def cmd_db_schedule(args: argparse.Namespace) -> int:
+    client = client_from_config()
+    cron = "" if args.off else args.cron
+    d = client.db_update(_db_id(client, args.database), cron=cron, keep=args.keep)
+    print(c("✓", "32") + f" backups: {d['backup_cron'] or 'off'} (keep {d['backup_keep']})")
+    return 0
+
+
 def cmd_apps_compute(args: argparse.Namespace) -> int:
     result = client_from_config().apps_compute(args.project)
     if not isinstance(result, dict):
@@ -2031,6 +2169,57 @@ def build_parser() -> argparse.ArgumentParser:
     sp = apps.add_parser("compute", help="live CPU/mem/net stats for an app")
     sp.add_argument("project")
     sp.set_defaults(func=cmd_apps_compute)
+
+    db = sub.add_parser("db", help="managed databases and backups").add_subparsers(
+        dest="db_cmd", required=True
+    )
+    db.add_parser("list", help="list databases").set_defaults(func=cmd_db_list)
+    db.add_parser("engines", help="engines and versions on offer").set_defaults(func=cmd_db_engines)
+    sp = db.add_parser("create", help="create a database (postgres, mysql, mariadb, redis)")
+    sp.add_argument("name")
+    sp.add_argument("--engine", default="postgres")
+    sp.add_argument("--version")
+    sp.set_defaults(func=cmd_db_create)
+    sp = db.add_parser("show", help="show a database")
+    sp.add_argument("database", help="name or id")
+    sp.set_defaults(func=cmd_db_show)
+    sp = db.add_parser("connection", help="print the connection URL (contains the password)")
+    sp.add_argument("database")
+    sp.set_defaults(func=cmd_db_connection)
+    sp = db.add_parser("link", help="store the connection URL as an env var on an app")
+    sp.add_argument("database")
+    sp.add_argument("app", help="app project")
+    sp.add_argument("--key", default="DATABASE_URL")
+    sp.set_defaults(func=cmd_db_link)
+    for action in ("start", "stop", "restart"):
+        sp = db.add_parser(action, help=f"{action} a database")
+        sp.add_argument("database")
+        sp.set_defaults(func=cmd_db_control, db_action=action)
+    sp = db.add_parser("rm", help="delete a database, its data and its backups")
+    sp.add_argument("database")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_db_rm)
+    sp = db.add_parser("backups", help="list backups")
+    sp.add_argument("database")
+    sp.set_defaults(func=cmd_db_backups)
+    sp = db.add_parser("backup", help="back up now")
+    sp.add_argument("database")
+    sp.set_defaults(func=cmd_db_backup)
+    sp = db.add_parser("restore", help="replace the data with a backup")
+    sp.add_argument("database")
+    sp.add_argument("backup", help="backup id (a prefix is enough)")
+    sp.add_argument("--yes", action="store_true")
+    sp.set_defaults(func=cmd_db_restore)
+    sp = db.add_parser("backup-rm", help="delete a backup")
+    sp.add_argument("database")
+    sp.add_argument("backup")
+    sp.set_defaults(func=cmd_db_backup_rm)
+    sp = db.add_parser("schedule", help="set the backup schedule (UTC cron) and retention")
+    sp.add_argument("database")
+    sp.add_argument("--cron")
+    sp.add_argument("--keep", type=int)
+    sp.add_argument("--off", action="store_true", help="turn scheduled backups off")
+    sp.set_defaults(func=cmd_db_schedule)
 
     deploys = sub.add_parser("deploys", help="build & deploy git repos").add_subparsers(
         dest="deploys_cmd", required=True

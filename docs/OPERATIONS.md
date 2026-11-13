@@ -83,6 +83,21 @@ sudo -u tetrahost .venv/bin/alembic upgrade head
 systemctl restart tetra-host
 ```
 
+## Managed databases
+
+- Each database is a compose stack named `tdb-<id>` with one `db` service and a data volume.
+  It has no published port. It sits on the tenant's network `tetra-t-<tenant>` under its own
+  name; a tenant's git-deployed apps join that network on their next deploy once the tenant
+  has a database.
+- Backups are gzipped SQL dumps in `DATABASE_BACKUP_DIR` (default `data/db-backups`, inside
+  the service's writable `data/`), one folder per tenant and database. The scheduler starts
+  them at each database's `backup_cron` (UTC, daily 03:00 by default) and keeps the newest
+  `backup_keep` scheduled ones. Manual backups stay until deleted.
+- Backups live on the same disk as the databases. Copy `data/db-backups` off the host
+  (rsync, restic or an R2 bucket) until off-host copies are built in.
+- A backup or restore interrupted by a restart is marked failed on the next start.
+- Non-platform tenants may create `MAX_DATABASES_PER_TENANT` databases (default 3).
+
 ## Runtime hardening
 
 - Keep the app behind `nginx` or another TLS-terminating proxy.

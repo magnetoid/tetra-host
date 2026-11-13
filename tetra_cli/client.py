@@ -344,6 +344,56 @@ class TetraClient:
     def apps_logs(self, project: str) -> Any:
         return self._request("GET", f"/apps/{project}/logs")
 
+    # ── Managed databases ─────────────────────────────────────────
+    def db_engines(self) -> Any:
+        return self._request("GET", "/databases/engines")
+
+    def databases(self) -> Any:
+        return self._request("GET", "/databases")
+
+    def db_create(self, name: str, engine: str, version: str | None = None) -> Any:
+        body: dict[str, Any] = {"name": name, "engine": engine}
+        if version:
+            body["version"] = version
+        return self._request("POST", "/databases", json_body=body)
+
+    def db_get(self, database_id: str) -> Any:
+        return self._request("GET", f"/databases/{database_id}")
+
+    def db_update(self, database_id: str, *, cron: str | None = None, keep: int | None = None) -> Any:
+        body: dict[str, Any] = {}
+        if cron is not None:
+            body["backup_cron"] = cron
+        if keep is not None:
+            body["backup_keep"] = keep
+        return self._request("PATCH", f"/databases/{database_id}", json_body=body)
+
+    def db_rm(self, database_id: str) -> Any:
+        return self._request("DELETE", f"/databases/{database_id}")
+
+    def db_control(self, database_id: str, action: str) -> Any:
+        return self._request("POST", f"/databases/{database_id}/{action}")
+
+    def db_connection(self, database_id: str) -> Any:
+        return self._request("GET", f"/databases/{database_id}/connection")
+
+    def db_link(self, database_id: str, project: str, key: str = "DATABASE_URL") -> Any:
+        return self._request(
+            "POST", f"/databases/{database_id}/link", json_body={"project": project, "key": key}
+        )
+
+    def db_backups(self, database_id: str) -> Any:
+        return self._request("GET", f"/databases/{database_id}/backups")
+
+    def db_backup(self, database_id: str) -> Any:
+        return self._request("POST", f"/databases/{database_id}/backups")
+
+    def db_restore(self, database_id: str, backup_id: str) -> Any:
+        return self._request("POST", f"/databases/{database_id}/backups/{backup_id}/restore")
+
+    def db_backup_rm(self, database_id: str, backup_id: str) -> Any:
+        return self._request("DELETE", f"/databases/{database_id}/backups/{backup_id}")
+
     def apps_compute(self, project: str) -> Any:
         return self._request("GET", f"/apps/{project}/compute")
 

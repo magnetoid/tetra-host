@@ -125,3 +125,33 @@ def test_stack_mounts_without_containers_skips_inspect():
         return (0, "", "")
 
     assert asyncio.run(_engine(runner).stack_mounts("gone")) == []
+
+
+def test_pipe_runner_streams_gzip_in_and_out(tmp_path):
+    """The real runner: stdout lands gzipped in a file, a gzip file feeds stdin."""
+    import gzip as _gzip
+
+    from app.services.docker_engine import _default_pipe_runner
+
+    payload = b"row\n" * 50_000  # larger than one chunk
+    src = tmp_path / "in.sql.gz"
+    src.write_bytes(_gzip.compress(payload))
+    out = tmp_path / "out.sql.gz"
+
+    rc, err = asyncio.run(_default_pipe_runner(["sh", "-c", "cat"], str(src), None))
+    assert (rc, err) == (0, "")
+    rc, _ = asyncio.run(_default_pipe_runner(["sh", "-c", "printf hello"], None, str(out)))
+    assert rc == 0 and _gzip.decompress(out.read_bytes()) == b"hello"
+    rc, err = asyncio.run(_default_pipe_runner(["sh", "-c", "echo boom >&2; exit 3"], None, None))
+    assert (rc, err.strip()) == (3, "boom")
+
+
+def test_exec_to_gzip_raises_on_failure():
+    async def pipe(argv, stdin_path, stdout_path):
+        assert argv[1:8] == ["compose", "-p", "tdb-x", "exec", "-T", "db", "sh"]
+        return 1, "pg_dump: error: connection refused"
+
+    engine = DockerEngine(runner=lambda *a: None, pipe_runner=pipe)
+    with pytest.raises(DockerEngineError) as exc:
+        asyncio.run(engine.exec_to_gzip("tdb-x", "db", "pg_dump", "/tmp/never"))
+    assert "connection refused" in exc.value.message and exc.value.code == 502

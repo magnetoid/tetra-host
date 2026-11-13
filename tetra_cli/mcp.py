@@ -203,6 +203,24 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.apps_volumes(a["project"]),
     },
     {
+        "name": "list_databases",
+        "description": "Managed databases: name, engine, status, host:port on the team network "
+        "and backup schedule. Passwords are never returned here.",
+        "inputSchema": _schema({}),
+        "write": False,
+        "handler": lambda c, a: c.databases(),
+    },
+    {
+        "name": "database_backups",
+        "description": "A database's backups (newest first) with status, size and last restore.",
+        "inputSchema": _schema(
+            {"database_id": {"type": "string", "description": "Database id from list_databases"}},
+            ["database_id"],
+        ),
+        "write": False,
+        "handler": lambda c, a: c.db_backups(a["database_id"]),
+    },
+    {
         "name": "list_previews",
         "description": "Per-branch preview environments (their branch, stack and URL).",
         "inputSchema": _schema(_project_arg("Optional app/project filter")),
@@ -270,6 +288,49 @@ _TOOLS: list[dict[str, Any]] = [
         "inputSchema": _schema({**_project_arg("App/project name"), **_CONFIRM}, ["project", "confirm"]),
         "write": True,
         "handler": lambda c, a: c.apps_restart(a["project"]),
+    },
+    {
+        "name": "create_database",
+        "description": "Create a managed database (postgres, mysql, mariadb or redis) reachable "
+        "from the team's apps by its name. Daily backups are on by default.",
+        "inputSchema": _schema(
+            {
+                "name": {"type": "string", "description": "3-32 chars: a-z, 0-9, hyphens"},
+                "engine": {"type": "string", "enum": ["postgres", "mysql", "mariadb", "redis"]},
+                "version": {"type": "string", "description": "Optional; default is the newest"},
+                **_CONFIRM,
+            },
+            ["name", "engine", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.db_create(a["name"], a["engine"], a.get("version")),
+    },
+    {
+        "name": "backup_database",
+        "description": "Start a backup of a database now (runs in the background).",
+        "inputSchema": _schema(
+            {"database_id": {"type": "string"}, **_CONFIRM}, ["database_id", "confirm"]
+        ),
+        "write": True,
+        "handler": lambda c, a: c.db_backup(a["database_id"]),
+    },
+    {
+        "name": "link_database",
+        "description": "Store a database's connection URL as a secret env var on an app "
+        "(DATABASE_URL by default; applied on the app's next deploy).",
+        "inputSchema": _schema(
+            {
+                "database_id": {"type": "string"},
+                **_project_arg("App/project name"),
+                "key": {"type": "string", "description": "Env var name (default DATABASE_URL)"},
+                **_CONFIRM,
+            },
+            ["database_id", "project", "confirm"],
+        ),
+        "write": True,
+        "handler": lambda c, a: c.db_link(
+            a["database_id"], a["project"], a.get("key") or "DATABASE_URL"
+        ),
     },
     {
         "name": "teardown_preview",

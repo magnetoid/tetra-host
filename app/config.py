@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     # Shared external Docker network the Caddy edge is attached to. Empty = edge disabled
     # (apps still deploy, just not routed). See app/services/edge.py.
     edge_network: str = ""
+    # Managed databases (app/modules/databases). Dumps land under DATABASE_BACKUP_DIR,
+    # one folder per tenant and database. Platform-scope tenants are not limited.
+    database_backup_dir: str = "data/db-backups"
+    max_databases_per_tenant: int = 3
     # Mail platform (Phase 2, ADR 0015). MAIL_HOSTNAME is the MX target (the dedicated
     # Mailcow host FQDN) — empty skips the MX record in DNS automation. SPF/DMARC
     # contents are configurable so an ESP include can be added. A non-zero

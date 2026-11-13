@@ -44,6 +44,25 @@
     "request": null,
     "response": "AppActionResponse"
   },
+  "DELETE /api/v1/databases/{database_id}": {
+    "operationId": "api_databases_delete_api_v1_databases__database_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseActionOut"
+  },
+  "DELETE /api/v1/databases/{database_id}/backups/{backup_id}": {
+    "operationId": "api_database_backup_delete_api_v1_databases__database_id__backups__backup_id__delete",
+    "parameters": [
+      "header:authorization",
+      "path:backup_id!",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseActionOut"
+  },
   "DELETE /api/v1/deploy-hooks/{hook_id}": {
     "operationId": "api_delete_deploy_hook_api_v1_deploy_hooks__hook_id__delete",
     "parameters": [
@@ -520,6 +539,49 @@
     "request": null,
     "response": "DashboardResponse"
   },
+  "GET /api/v1/databases": {
+    "operationId": "api_databases_list_api_v1_databases_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[DatabaseOut]"
+  },
+  "GET /api/v1/databases/engines": {
+    "operationId": "api_database_engines_api_v1_databases_engines_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "list[DatabaseEngineOut]"
+  },
+  "GET /api/v1/databases/{database_id}": {
+    "operationId": "api_databases_get_api_v1_databases__database_id__get",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseOut"
+  },
+  "GET /api/v1/databases/{database_id}/backups": {
+    "operationId": "api_database_backups_api_v1_databases__database_id__backups_get",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "list[DatabaseBackupOut]"
+  },
+  "GET /api/v1/databases/{database_id}/connection": {
+    "operationId": "api_databases_connection_api_v1_databases__database_id__connection_get",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseConnectionOut"
+  },
   "GET /api/v1/deploy-hooks": {
     "operationId": "api_list_deploy_hooks_api_v1_deploy_hooks_get",
     "parameters": [
@@ -973,6 +1035,15 @@
     "request": "AiKeyUpdateRequest",
     "response": "AiKeySummary"
   },
+  "PATCH /api/v1/databases/{database_id}": {
+    "operationId": "api_databases_update_api_v1_databases__database_id__patch",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": "DatabaseUpdateRequest",
+    "response": "DatabaseOut"
+  },
   "PATCH /api/v1/dns/zones/{zone_id}/dnssec": {
     "operationId": "api_update_dnssec_api_v1_dns_zones__zone_id__dnssec_patch",
     "parameters": [
@@ -1257,6 +1328,52 @@
     ],
     "request": "PlanActivateRequest",
     "response": "ZoneSubscriptionSummary"
+  },
+  "POST /api/v1/databases": {
+    "operationId": "api_databases_create_api_v1_databases_post",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": "DatabaseCreateRequest",
+    "response": "DatabaseOut"
+  },
+  "POST /api/v1/databases/{database_id}/backups": {
+    "operationId": "api_database_backup_start_api_v1_databases__database_id__backups_post",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseBackupOut"
+  },
+  "POST /api/v1/databases/{database_id}/backups/{backup_id}/restore": {
+    "operationId": "api_database_backup_restore_api_v1_databases__database_id__backups__backup_id__restore_post",
+    "parameters": [
+      "header:authorization",
+      "path:backup_id!",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseBackupOut"
+  },
+  "POST /api/v1/databases/{database_id}/link": {
+    "operationId": "api_databases_link_api_v1_databases__database_id__link_post",
+    "parameters": [
+      "header:authorization",
+      "path:database_id!"
+    ],
+    "request": "DatabaseLinkRequest",
+    "response": "DatabaseActionOut"
+  },
+  "POST /api/v1/databases/{database_id}/{action}": {
+    "operationId": "api_databases_control_api_v1_databases__database_id___action__post",
+    "parameters": [
+      "header:authorization",
+      "path:action!",
+      "path:database_id!"
+    ],
+    "request": null,
+    "response": "DatabaseActionOut"
   },
   "POST /api/v1/deploy-hooks": {
     "operationId": "api_create_deploy_hook_api_v1_deploy_hooks_post",

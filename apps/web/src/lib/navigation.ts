@@ -9,6 +9,7 @@ import {
   faClockRotateLeft,
   faCloud,
   faCoins,
+  faDatabase,
   faEarthAmericas,
   faEnvelope,
   faGaugeHigh,
@@ -118,6 +119,7 @@ export const teamSections: NavSection[] = [
       { href: "/dashboard", label: "Overview", icon: faGaugeHigh, exact: true },
       { href: "/deploys", label: "Deploys", icon: faServer },
       { href: "/apps", label: "Apps", icon: faBox },
+      { href: "/databases", label: "Databases", icon: faDatabase },
     ],
   },
   {
