@@ -184,6 +184,9 @@ if [[ $DO_CONSOLE -eq 1 ]]; then
     > "$APP_DIR/logs/console-build.log" 2>&1 \
     || { tail -n 30 "$APP_DIR/logs/console-build.log" >&2; die "Console build failed; $current is still serving."; }
   [[ -f "$WEB_DIR/$next/BUILD_ID" ]] || die "Console build left no BUILD_ID; $current is still serving."
+  # `next build` may add its build folder's type paths to tsconfig.json; keep the
+  # checkout clean so the next deploy's working-tree check passes.
+  as_app git -C "$APP_DIR" checkout -q -- apps/web/tsconfig.json
 
   log "Switching the console to $next"
   switch_console "$next" "$current"
