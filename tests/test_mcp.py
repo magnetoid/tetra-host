@@ -406,3 +406,35 @@ def test_restart_and_cancel_are_gated_writes_and_volumes_is_a_read():
                             "arguments": {"deployment_id": "dep-7", "confirm": True}})
     )["result"]
     assert confirmed["isError"] is False and "cancelled" in confirmed["content"][0]["text"]
+
+
+def test_database_tools_hide_passwords_restore_and_delete():
+    server = MCPServer(_noop_client(), allow_writes=True)
+    names = {t["name"] for t in server.handle_message(_rpc("tools/list"))["result"]["tools"]}
+    assert {"list_databases", "database_backups", "create_database", "backup_database",
+            "link_database"} <= names
+    # Credentials and data-destroying operations stay human-only.
+    assert not {n for n in names if "connection" in n or "restore" in n or "delete_database" in n}
+    read_only = {t["name"] for t in MCPServer(_noop_client()).handle_message(
+        _rpc("tools/list"))["result"]["tools"]}
+    assert "list_databases" in read_only and "create_database" not in read_only
+
+
+def test_create_database_requires_confirm():
+    calls: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content))
+        return httpx.Response(201, json={"id": "db-1", "name": "blog-db"})
+
+    server = MCPServer(make_client(handler), allow_writes=True)
+    args = {"name": "blog-db", "engine": "postgres"}
+    refused = server.handle_message(
+        _rpc("tools/call", {"name": "create_database", "arguments": args})
+    )
+    assert refused["result"]["isError"] is True and calls == []
+    done = server.handle_message(
+        _rpc("tools/call", {"name": "create_database", "arguments": {**args, "confirm": True}})
+    )
+    assert done["result"]["isError"] is False
+    assert calls == [{"name": "blog-db", "engine": "postgres"}]

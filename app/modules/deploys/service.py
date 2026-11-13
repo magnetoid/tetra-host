@@ -40,6 +40,7 @@ from app.services.notifications import DEPLOY_FAILED, DEPLOY_SUCCEEDED, Notifica
 from app.services.quota import QuotaService
 from app.services.registry import ImageRegistry, is_registry_qualified
 from app.services.secrets import decrypt, encrypt
+from app.services.tenant_network import apply_tenant_network, tenant_network_name
 
 if TYPE_CHECKING:
     from app.services.build_diagnostics import BuildDiagnoser
@@ -335,6 +336,10 @@ class DeploysService:
                 compose, project=project, port=str(effective_port), extra_hosts=extra_hosts
             )
             compose = apply_resource_limits(compose, cpu_millicores=cpu, mem_mb=mem)
+            network = await self._tenant_network(tenant_id)
+            if network:
+                log.append("→ joining the private network shared with this team's databases")
+                compose = apply_tenant_network(compose, network)
             await self.engine.deploy_stack(project, compose, {})
 
             # Reservation made in start_deploy_for_tenant stays on success.
@@ -642,6 +647,21 @@ class DeploysService:
         mem = (row.mem_mb if row and row.mem_mb else 0) or settings.default_app_mem_mb
         return cpu, mem
 
+    async def _tenant_network(self, tenant_id: str | None) -> str:
+        """The tenant's private network, once it has a managed database ("" otherwise).
+
+        Apps join it so they reach their databases by name; tenants without databases
+        deploy exactly as before.
+        """
+        from app.modules.databases.service import tenant_has_databases
+
+        async with session_scope() as session:
+            if not await tenant_has_databases(session, tenant_id):
+                return ""
+        network = tenant_network_name(tenant_id)
+        await self.engine.ensure_network(network, labels={"tetra.tenant": tenant_id or "platform"})
+        return network
+
     async def _custom_hosts(self, tenant_id: str | None, project: str) -> list[str]:
         """Verified custom domains to route alongside the auto subdomain (own session —
         runs post-request). Imported lazily to avoid a deploys↔domains import cycle."""
@@ -780,6 +800,7 @@ class DeploysService:
             compose = compose_for_image(image, port, env)
             compose = apply_edge(compose, project=project, port=str(port), extra_hosts=extra_hosts)
             compose = apply_resource_limits(compose, cpu_millicores=cpu, mem_mb=mem)
+            compose = apply_tenant_network(compose, await self._tenant_network(tenant_id))
             await self.engine.deploy_stack(project, compose, {})
             domain = f"{project}.{self.base_domain}" if self.base_domain else ""
             log.append("✓ rolled back" + (f" — live at https://{domain}" if domain else ""))

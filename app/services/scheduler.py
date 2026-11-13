@@ -66,8 +66,21 @@ async def run_uptime_checks() -> int:
         return await UptimeService(session).run_all_due()
 
 
+async def run_database_backups(now: datetime) -> int:
+    """Start scheduled managed-database backups (they run as background tasks)."""
+    from app.modules.databases.service import run_scheduled_backups
+
+    return await run_scheduled_backups(now)
+
+
 async def scheduler_loop(app) -> None:
     uptime_enabled = getattr(app.state, "uptime_checks_enabled", True)
+    try:
+        from app.modules.databases.service import mark_interrupted_operations
+
+        await mark_interrupted_operations()
+    except Exception:  # noqa: BLE001 — recovery must never stop the scheduler
+        logger.exception("could not close interrupted database backups")
     while True:
         now = datetime.now(UTC)
         await asyncio.sleep(max(1.0, 60 - now.second - now.microsecond / 1_000_000))
@@ -78,6 +91,12 @@ async def scheduler_loop(app) -> None:
                 logger.info("scheduler fired %d job(s) at %s", fired, tick.isoformat())
         except Exception:  # noqa: BLE001 — a scheduler error must never kill the loop
             logger.exception("scheduler tick failed")
+        try:
+            backups = await run_database_backups(tick)
+            if backups:
+                logger.info("started %d scheduled database backup(s)", backups)
+        except Exception:  # noqa: BLE001 — a backup error must never kill the loop
+            logger.exception("database backup tick failed")
         if uptime_enabled:
             try:
                 checked = await run_uptime_checks()

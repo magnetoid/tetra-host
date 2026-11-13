@@ -8,6 +8,7 @@ output.
 """
 
 import asyncio
+import gzip
 import json
 import logging
 import re
@@ -19,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 # (argv, stdin, env) -> (returncode, stdout, stderr)
 CommandRunner = Callable[[list[str], str | None, dict[str, str] | None], Awaitable[tuple[int, str, str]]]
+
+# (argv, gzip file to stream into stdin, gzip file to write stdout into) -> (returncode, stderr)
+PipeRunner = Callable[[list[str], str | None, str | None], Awaitable[tuple[int, str]]]
+
+_CHUNK = 1 << 16
 
 _PROJECT_SANITIZE = re.compile(r"[^a-z0-9_-]+")
 
@@ -54,6 +60,59 @@ async def _default_runner(
     return proc.returncode or 0, out_b.decode("utf-8", "replace"), err_b.decode("utf-8", "replace")
 
 
+async def _default_pipe_runner(
+    argv: list[str], stdin_path: str | None, stdout_path: str | None
+) -> tuple[int, str]:
+    """Run ``argv`` streaming a gzip file into stdin and/or stdout into a gzip file.
+
+    Streams in chunks, so a dump or restore never has to fit in memory.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
+        stdin=asyncio.subprocess.PIPE if stdin_path else asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE if stdout_path else asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    async def feed() -> None:
+        assert proc.stdin is not None
+        try:
+            with gzip.open(stdin_path, "rb") as src:  # type: ignore[arg-type]
+                while chunk := src.read(_CHUNK):
+                    proc.stdin.write(chunk)
+                    await proc.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # the process exited early; its exit code and stderr say why
+        finally:
+            proc.stdin.close()
+
+    async def drain_out() -> None:
+        assert proc.stdout is not None
+        with gzip.open(stdout_path, "wb") as dst:  # type: ignore[arg-type]
+            while chunk := await proc.stdout.read(_CHUNK):
+                dst.write(chunk)
+
+    async def read_err() -> bytes:
+        assert proc.stderr is not None
+        return await proc.stderr.read()
+
+    tasks = [read_err()]
+    if stdin_path:
+        tasks.append(feed())
+    if stdout_path:
+        tasks.append(drain_out())
+    try:
+        results = await asyncio.gather(*tasks)
+        await proc.wait()
+    except asyncio.CancelledError:
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+        raise
+    err = results[0] if isinstance(results[0], bytes) else b""
+    return proc.returncode or 0, err.decode("utf-8", "replace")
+
+
 def _parse_json_objects(text: str) -> list[dict[str, Any]]:
     """Parse `docker compose` JSON output — either a JSON array or newline-delimited objects."""
     text = (text or "").strip()
@@ -86,9 +145,11 @@ class DockerEngine:
         self,
         *,
         runner: CommandRunner | None = None,
+        pipe_runner: PipeRunner | None = None,
         docker_bin: str = "docker",
     ) -> None:
         self._run = runner or _default_runner
+        self._pipe = pipe_runner or _default_pipe_runner
         self.docker = docker_bin
 
     async def _docker(
@@ -226,3 +287,47 @@ class DockerEngine:
             if (c.get("ID") or c.get("Id") or c.get("Name"))
         ]
         return await self.container_stats(ids)
+
+    # ── Networks ─────────────────────────────────────────────────────────
+
+    async def ensure_network(self, name: str, *, labels: dict[str, str] | None = None) -> None:
+        """Create a bridge network unless it already exists (idempotent)."""
+        try:
+            await self._docker("network", "inspect", name, "--format", "{{.Name}}")
+            return
+        except DockerEngineError as exc:
+            if exc.code == 503:
+                raise
+        args = ["network", "create", "--driver", "bridge"]
+        for key, value in (labels or {}).items():
+            args += ["--label", f"{key}={value}"]
+        try:
+            await self._docker(*args, name)
+        except DockerEngineError as exc:
+            if "already exists" not in exc.message:
+                raise
+        logger.info("docker network %s ready", name)
+
+    # ── Streaming exec (database dumps and restores) ─────────────────────
+
+    async def _exec_piped(
+        self, project: str, service: str, script: str, *,
+        stdin_path: str | None = None, stdout_path: str | None = None,
+    ) -> None:
+        project = sanitize_project_name(project)
+        argv = [self.docker, "compose", "-p", project, "exec", "-T", service, "sh", "-c", script]
+        try:
+            rc, err = await self._pipe(argv, stdin_path, stdout_path)
+        except OSError as exc:
+            raise DockerEngineError(message=f"Docker is not available: {exc}", code=503) from exc
+        if rc != 0:
+            detail = err.strip() or "command failed"
+            raise DockerEngineError(message=f"{detail[-500:]} (exit {rc})", code=502)
+
+    async def exec_to_gzip(self, project: str, service: str, script: str, path: str) -> None:
+        """Run ``script`` in the service's container, writing its stdout gzipped to ``path``."""
+        await self._exec_piped(project, service, script, stdout_path=path)
+
+    async def exec_from_gzip(self, project: str, service: str, script: str, path: str) -> None:
+        """Run ``script`` in the service's container with the gzip file ``path`` as stdin."""
+        await self._exec_piped(project, service, script, stdin_path=path)

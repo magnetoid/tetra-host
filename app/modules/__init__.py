@@ -2,6 +2,7 @@ from app.modules.account.plugin import AccountPlugin
 from app.modules.admin.plugin import AdminPlugin
 from app.modules.auth.plugin import AuthPlugin
 from app.modules.dashboard.plugin import DashboardPlugin
+from app.modules.databases.plugin import DatabasesPlugin
 from app.modules.dns.plugin import DnsPlugin
 from app.modules.domains.plugin import DomainsPlugin
 from app.modules.importers.plugin import ImportersPlugin
@@ -27,3 +28,4 @@ def load_plugins() -> None:
     registry.add(AdminPlugin())
     registry.add(ImportersPlugin())
     registry.add(WorkspacesPlugin())
+    registry.add(DatabasesPlugin())

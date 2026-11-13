@@ -1106,3 +1106,69 @@ def test_parser_has_restart_volumes_and_cancel():
     assert parser.parse_args(["apps", "restart", "blog"]).project == "blog"
     assert parser.parse_args(["apps", "volumes", "blog"]).project == "blog"
     assert parser.parse_args(["deploys", "cancel", "dep-1"]).deployment_id == "dep-1"
+
+
+_DB = {"id": "db-1", "name": "blog-db", "engine": "postgres", "engine_label": "PostgreSQL",
+       "version": "17", "status": "running(1)", "host": "blog-db", "port": 5432,
+       "supports_backup": True, "backup_cron": "0 3 * * *", "backup_keep": 7,
+       "created_at": "2026-11-13T03:00:00Z"}
+_BACKUP = {"id": "bk-12345678", "status": "ok", "trigger": "manual", "size_bytes": 2048,
+           "error": "", "restore_status": "", "restore_error": "", "restored_at": None,
+           "created_at": "2026-11-13T03:00:00Z", "finished_at": "2026-11-13T03:00:05Z"}
+
+
+def _db_handler(seen: list):
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path,
+                     json.loads(request.content) if request.content else None))
+        path = request.url.path
+        if path == "/api/v1/databases" and request.method == "GET":
+            return httpx.Response(200, json=[_DB])
+        if path == "/api/v1/databases" and request.method == "POST":
+            return httpx.Response(201, json=_DB)
+        if path.endswith("/backups") and request.method == "GET":
+            return httpx.Response(200, json=[_BACKUP])
+        if path.endswith("/backups") or path.endswith("/restore"):
+            return httpx.Response(202, json=_BACKUP)
+        if path.endswith("/connection"):
+            return httpx.Response(200, json={"url": "postgresql://u:p@blog-db:5432/blog_db"})
+        if request.method == "PATCH":
+            return httpx.Response(200, json={**_DB, "backup_cron": ""})
+        return httpx.Response(200, json={"ok": True, "message": "done"})
+
+    return handler
+
+
+def test_main_db_commands_resolve_names(monkeypatch, capsys):
+    seen: list = []
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_db_handler(seen)))
+    assert main(["db", "create", "blog-db", "--engine", "postgres"]) == 0
+    assert main(["db", "list"]) == 0
+    assert main(["db", "connection", "blog-db"]) == 0
+    assert main(["db", "link", "blog-db", "blog"]) == 0
+    assert main(["db", "restart", "blog-db"]) == 0
+    assert main(["db", "backup", "blog-db"]) == 0
+    assert main(["db", "restore", "blog-db", "bk-1234", "--yes"]) == 0
+    assert main(["db", "schedule", "blog-db", "--off"]) == 0
+    out = capsys.readouterr().out
+    assert "postgresql://u:p@blog-db:5432/blog_db" in out and "blog-db" in out
+    writes = [(m, p, b) for m, p, b in seen if m != "GET"]
+    assert writes == [
+        ("POST", "/api/v1/databases", {"name": "blog-db", "engine": "postgres"}),
+        ("POST", "/api/v1/databases/db-1/link", {"project": "blog", "key": "DATABASE_URL"}),
+        ("POST", "/api/v1/databases/db-1/restart", None),
+        ("POST", "/api/v1/databases/db-1/backups", None),
+        ("POST", "/api/v1/databases/db-1/backups/bk-12345678/restore", None),
+        ("PATCH", "/api/v1/databases/db-1", {"backup_cron": ""}),
+    ]
+
+
+def test_main_db_destructive_commands_need_yes(monkeypatch, capsys):
+    seen: list = []
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_db_handler(seen)))
+    assert main(["db", "rm", "blog-db"]) == 1
+    assert main(["db", "restore", "blog-db", "bk-1"]) == 1
+    assert seen == []
+    assert main(["db", "show", "nope"]) == 1

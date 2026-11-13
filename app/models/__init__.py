@@ -9,6 +9,7 @@ from app.models.billing import (
     ResellerCharge,
     TenantCredit,
 )
+from app.models.database import DatabaseBackup, ManagedDatabase
 from app.models.deploy_hook import DeployHook
 from app.models.deployment import Deployment
 from app.models.domain import Domain
@@ -31,12 +32,14 @@ __all__ = [
     "AppEnvVar",
     "AuditEvent",
     "CreditTransaction",
+    "DatabaseBackup",
     "DeployHook",
     "Environment",
     "Deployment",
     "Domain",
     "ImportRun",
     "JobRun",
+    "ManagedDatabase",
     "NotificationChannel",
     "Plan",
     "ScheduledJob",
