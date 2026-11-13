@@ -6,7 +6,7 @@ is tenant-scoped through ``DatabasesService``; another tenant's database answers
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -92,6 +92,13 @@ class DatabaseActionOut(BaseModel):
     message: str
 
 
+def _utc(value: datetime | None) -> datetime | None:
+    """SQLite hands back naive datetimes; they are UTC, so say so on the wire."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
 def _http(exc: DockerEngineError) -> HTTPException:
     return HTTPException(status_code=int(exc.code or status.HTTP_502_BAD_GATEWAY), detail=str(exc))
 
@@ -101,7 +108,7 @@ def _out(view: DatabaseView) -> DatabaseOut:
     return DatabaseOut(
         id=db.id, name=db.name, engine=db.engine, engine_label=spec.label, version=db.version,
         status=view.status, host=db.name, port=spec.port, supports_backup=spec.supports_backup,
-        backup_cron=db.backup_cron, backup_keep=db.backup_keep, created_at=db.created_at,
+        backup_cron=db.backup_cron, backup_keep=db.backup_keep, created_at=_utc(db.created_at),
     )
 
 
@@ -109,7 +116,8 @@ def _backup_out(b: DatabaseBackup) -> DatabaseBackupOut:
     return DatabaseBackupOut(
         id=b.id, status=b.status, trigger=b.trigger, size_bytes=b.size_bytes, error=b.error,
         restore_status=b.restore_status, restore_error=b.restore_error,
-        restored_at=b.restored_at, created_at=b.created_at, finished_at=b.finished_at,
+        restored_at=_utc(b.restored_at), created_at=_utc(b.created_at),
+        finished_at=_utc(b.finished_at),
     )
 
 

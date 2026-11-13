@@ -14,7 +14,7 @@ backend. **Coolify is an import source only** (rule `tetra-coolify-import-source
 not list, deploy or configure Coolify apps; the only Coolify code is the importer
 (`app/modules/importers/`, read-only client `coolify_source.py`). Features Coolify used to provide
 (managed databases, volume management, exec, build settings) come back as engine features; restart,
-cancel and a read-only volume listing are back already. Target tenancy is platform → reseller (hosting company) → customer → team member,
+cancel, a read-only volume listing and managed databases with backups are back already. Target tenancy is platform → reseller (hosting company) → customer → team member,
 with plugins toggled at runtime. Check the roadmap phase before starting structural work.
 
 The repo contains **two independent applications**:
@@ -52,7 +52,7 @@ Ops scripts: `scripts/deploy.sh` (roll a server forward: DB backup, pull, migrat
 `python -m tetra_cli ...` or `scripts/tetra ...`; `pip install -e .` exposes the `tetra` command.
 
 - `tetra login --url https://panel.cloud-industry.com` saves a token to `~/.config/tetra-host/config.json` (override with `TETRA_API_URL` / `TETRA_TOKEN` env).
-- `tetra deploys list|git|rollback|cancel` (git deploys stream build logs live), `tetra deploys env list|set|rm`, `tetra apps catalog|install|start|stop|restart|volumes|logs`, `tetra analytics|errors <app>`, `tetra dns zones|records|add|rm`, `tetra teams`, `tetra project …`, `tetra import list|show|coolify|stage|cutover|rollback`, `tetra dashboard`.
+- `tetra deploys list|git|rollback|cancel` (git deploys stream build logs live), `tetra db list|create|connection|link|backup|backups|restore|schedule|rm`, `tetra deploys env list|set|rm`, `tetra apps catalog|install|start|stop|restart|volumes|logs`, `tetra analytics|errors <app>`, `tetra dns zones|records|add|rm`, `tetra teams`, `tetra project …`, `tetra import list|show|coolify|stage|cutover|rollback`, `tetra dashboard`.
 - It's a thin client over [tetra_cli/client.py](tetra_cli/client.py) (injectable httpx transport → tested in-process with `httpx.MockTransport`). **When you add a dashboard feature, add the matching CLI command.**
 - `tetra mcp serve` ([tetra_cli/mcp.py](tetra_cli/mcp.py)) exposes the **third parity surface**: a hand-rolled MCP (JSON-RPC over stdio, no new deps) wrapping the same `/api/v1` contract so an AI agent sees exactly what a human does. Writes are double-gated — `--allow-writes` at startup **and** `confirm=true` per call; billable/admin ops (Hetzner, plans, tenants) and DNS writes are not exposed at all (ADR 0012).
 
@@ -67,8 +67,8 @@ existing modules.
 
 A module typically has: `routes.py` (thin handlers), `service.py` (business/provider logic), `plugin.py`,
 and sometimes `schemas.py`. Registered plugins (order matters, see `load_plugins()`): `public`, `auth`,
-`dashboard`, `mail`, `oidc`, `dns`, `domains`, `plans`, `account`, `admin`, `importers`, `workspaces`
-(the last two are API-only, with their own
+`dashboard`, `mail`, `oidc`, `dns`, `domains`, `plans`, `account`, `admin`, `importers`, `workspaces`,
+`databases` (the last three are API-only, with their own
 `/api/v1` routers). Plugins cannot yet be disabled at runtime and their boundary covers only the Jinja
 routes; all of `/api/v1` still lives in `app/api/routes.py` (roadmap phase 1 splits it per plugin, guarded
 by `tests/test_openapi_snapshot.py` — regenerate with `UPDATE_SNAPSHOTS=1` only for intended changes).

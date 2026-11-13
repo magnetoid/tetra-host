@@ -766,3 +766,52 @@ export interface AppVolumes {
   project: string
   mounts: AppMount[]
 }
+
+// ── Managed databases ──────────────────────────────────────────────────────
+
+export type DatabaseEngineKey = "postgres" | "mysql" | "mariadb" | "redis"
+
+export interface DatabaseEngine {
+  key: DatabaseEngineKey
+  label: string
+  versions: string[]
+  default_version: string
+  supports_backup: boolean
+}
+
+export interface DatabaseRecord {
+  id: string
+  name: string
+  engine: DatabaseEngineKey
+  engine_label: string
+  version: string
+  status: string
+  host: string
+  port: number
+  supports_backup: boolean
+  backup_cron: string
+  backup_keep: number
+  created_at: string
+}
+
+export interface DatabaseConnection {
+  host: string
+  port: number
+  user: string
+  database: string
+  password: string
+  url: string
+}
+
+export interface DatabaseBackupRecord {
+  id: string
+  status: "running" | "ok" | "error"
+  trigger: "manual" | "scheduled"
+  size_bytes: number
+  error: string
+  restore_status: "" | "running" | "ok" | "error"
+  restore_error: string
+  restored_at: string | null
+  created_at: string
+  finished_at: string | null
+}

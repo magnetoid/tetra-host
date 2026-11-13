@@ -39,7 +39,8 @@ describe("sidebarFor", () => {
     const hrefs = sidebarFor({ kind: "team" }, false).sections.flatMap((s) => s.items.map((i) => i.href))
     expect(hrefs).toContain("/deploys")
     expect(hrefs).not.toContain("/projects")
-    expect(hrefs).not.toContain("/databases")
+    // Databases are back as engine-managed databases (not Coolify's).
+    expect(hrefs).toContain("/databases")
   })
 })
 
