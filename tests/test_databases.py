@@ -83,6 +83,7 @@ def test_apply_tenant_network_keeps_the_default_network():
 def test_tenant_network_name_is_short_and_stable():
     assert tenant_network_name("0b8e5c9a-1234-4bcd-9abc-def012345678") == "tetra-t-0b8e5c9a1234"
     assert tenant_network_name(None) == "tetra-t-platform"
+    assert tenant_network_name(1) == "tetra-t-1"  # legacy integer tenant id
 
 
 def test_ensure_network_creates_only_when_missing():

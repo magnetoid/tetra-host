@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 NETWORK_KEY = "tetra-tenant"
 
 
-def tenant_network_name(tenant_id: str | None) -> str:
-    slug = (tenant_id or "platform").replace("-", "").lower()[:12] or "platform"
+def tenant_network_name(tenant_id: str | int | None) -> str:
+    # Legacy rows may carry an integer id (production's first tenant is 1).
+    slug = str(tenant_id or "platform").replace("-", "").lower()[:12] or "platform"
     return f"tetra-t-{slug}"
 
 
