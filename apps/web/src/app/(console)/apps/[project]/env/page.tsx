@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 import { EnvManager } from "@/components/env/env-manager"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
@@ -22,9 +20,6 @@ export default async function AppEnvPage({
 
   return (
     <div className="space-y-6">
-      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Apps
-      </Link>
       <PageHeader
         eyebrow="Environment"
         title={project}

@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 import { ErrorIssuesTable } from "@/components/apps/error-issues-table"
 import { Card, CardHeader } from "@/components/ui/card"
 import { DegradedBanner } from "@/components/ui/degraded-banner"
@@ -23,9 +21,6 @@ export default async function ErrorsPage({ params }: { params: Promise<{ project
 
   const header = (
     <>
-      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Apps
-      </Link>
       <PageHeader
         eyebrow="Errors"
         title={project}

@@ -107,13 +107,13 @@ export default async function DashboardPage() {
           <section>
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Apps</h2>
-              <Link href="/apps" className="text-sm text-primary transition-colors hover:text-primary/80">
-                Manage all →
+              <Link href="/projects" className="text-sm text-primary transition-colors hover:text-primary/80">
+                All projects →
               </Link>
             </div>
             {apps.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-                No apps yet. Deploy from a Git repo or the app catalog.
+                No apps yet. Create a project, then add a git repo, a template or a database to it.
               </div>
             ) : (
               <div className="divide-y divide-border border-t border-border">

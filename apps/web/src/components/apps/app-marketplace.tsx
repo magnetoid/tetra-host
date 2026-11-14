@@ -16,9 +16,12 @@ const MAX_CARDS = 60
 export function AppMarketplace({
   templates,
   installedProjects,
+  environmentId,
 }: {
   templates: AppTemplate[]
   installedProjects: string[]
+  /** Install into this environment (team → project → environment). */
+  environmentId?: string
 }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
@@ -51,7 +54,7 @@ export function AppMarketplace({
       const response = await fetch("/api/proxy/apps/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug }),
+        body: JSON.stringify({ slug, ...(environmentId ? { environment_id: environmentId } : {}) }),
       })
       const payload = (await response.json().catch(() => ({}))) as {
         message?: string

@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 import { AppControls } from "@/components/apps/app-controls"
 import { AppVolumes } from "@/components/apps/app-volumes"
 import { ComputePanel } from "@/components/apps/compute-panel"
@@ -32,9 +30,6 @@ export default async function AppComputePage({
 
   return (
     <div className="space-y-6">
-      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Apps
-      </Link>
       <PageHeader
         eyebrow="Compute"
         title={project}

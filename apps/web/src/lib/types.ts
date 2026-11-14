@@ -815,3 +815,41 @@ export interface DatabaseBackupRecord {
   created_at: string
   finished_at: string | null
 }
+
+// ── Workspace hierarchy: team → project → environment → service (ADR 0019) ──
+
+export type WorkspaceRef = { id: string; slug: string; name: string }
+
+export type WorkspaceProject = WorkspaceRef & {
+  team: WorkspaceRef
+  environments: number
+  apps: number
+  created_at: string
+  updated_at: string
+}
+
+export type EnvironmentKind = "production" | "staging" | "preview"
+
+export type WorkspaceEnvironment = WorkspaceRef & {
+  kind: EnvironmentKind
+  project: WorkspaceRef
+  apps: number
+}
+
+export type ServiceKind = "app" | "database"
+
+/** One service in an environment, from `/teams/{team}/apps`. */
+export type WorkspaceService = {
+  id: string
+  name: string
+  driver: string
+  kind: ServiceKind
+  /** The engine stack name; for an app it is its `/apps/{stack}` address. */
+  external_id: string
+  database_id: string | null
+  domain: string
+  team: WorkspaceRef
+  project: WorkspaceRef
+  environment: WorkspaceRef & { kind: EnvironmentKind }
+  updated_at: string
+}
