@@ -585,6 +585,10 @@ class TetraClient:
     def domains(self, project: str | None = None) -> Any:
         return self._request("GET", "/domains", params={"project": project} if project else None)
 
+    def domains_overview(self) -> Any:
+        """Account-level domains joined by apex: DNS zone, mail and routed hostnames."""
+        return self._request("GET", "/domains/overview")
+
     def domain_add(self, project: str, hostname: str) -> Any:
         return self._request(
             "POST", "/domains", json_body={"project": project, "hostname": hostname}

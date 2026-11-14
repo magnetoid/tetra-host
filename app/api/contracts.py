@@ -469,6 +469,48 @@ class DomainSummary(BaseModel):
     cname_target: str = ""
 
 
+class DomainServiceRef(BaseModel):
+    name: str
+    kind: str
+    project_slug: str
+    environment_slug: str
+
+
+class DomainHostnameSummary(BaseModel):
+    id: str
+    hostname: str
+    status: str  # pending | verified
+    stack: str
+    service: DomainServiceRef | None = None
+
+
+class DomainMailSummary(BaseModel):
+    domain_name: str
+    mailboxes: int
+    aliases: int
+    active: bool
+
+
+class DomainZoneSummary(BaseModel):
+    id: str
+    status: str
+    paused: bool
+
+
+class DomainOverviewEntry(BaseModel):
+    """One account-level domain (ADR 0019): its zone, mail and routed hostnames."""
+
+    name: str
+    zone: DomainZoneSummary | None = None
+    mail: list[DomainMailSummary] = Field(default_factory=list)
+    hostnames: list[DomainHostnameSummary] = Field(default_factory=list)
+
+
+class DomainsOverviewResponse(BaseModel):
+    providers: list[ProviderSummary]
+    domains: list[DomainOverviewEntry]
+
+
 class DeployHookRequest(BaseModel):
     project: str
     git_url: str

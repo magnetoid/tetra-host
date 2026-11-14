@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from typing import TypeVar
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
@@ -63,7 +64,9 @@ from app.api.contracts import (
     DNSResponse,
     DnssecUpdateRequest,
     DNSZoneSummary,
+    DomainOverviewEntry,
     DomainRequest,
+    DomainsOverviewResponse,
     DomainSummary,
     ErrorDiagnosis,
     GitDeployRequest,
@@ -181,6 +184,7 @@ from app.modules.billing.credits import CreditService
 from app.modules.billing.service import BillingError, BillingService, compute_resale_cents
 from app.modules.deploys.service import DeploysService
 from app.modules.dns.service import DnsService
+from app.modules.domains.overview import DomainsOverviewService
 from app.modules.domains.service import DomainsService
 from app.modules.errors.service import ErrorsService
 from app.modules.jobs.service import JobError, JobsService
@@ -2154,6 +2158,21 @@ def _domain_summary(service: DomainsService, domain) -> DomainSummary:
     return DomainSummary(
         id=domain.id, project=domain.project, hostname=domain.hostname, status=domain.status,
         txt_name=info["txt_name"], txt_value=info["txt_value"], cname_target=info["cname_target"],
+    )
+
+
+@router.get("/domains/overview", response_model=DomainsOverviewResponse)
+async def api_domains_overview(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> DomainsOverviewResponse:
+    """Every domain the account owns, joined by apex: DNS zone, mail and the
+    hostnames routed to its services. A provider that is down degrades only its part."""
+    overview = await DomainsOverviewService(request, session).load(current_admin.tenant_id)
+    return DomainsOverviewResponse(
+        providers=[ProviderSummary(**asdict(p)) for p in overview.providers],
+        domains=[DomainOverviewEntry.model_validate(asdict(d)) for d in overview.domains],
     )
 
 
