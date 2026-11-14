@@ -30,7 +30,7 @@ export default async function MarketplacePage() {
       <PageHeader
         eyebrow="Reseller"
         title="Add-ons"
-        description="Paid services & plans for your workspace — Cloudflare plans, security add-ons, and AI models. (For deployable container apps, see the App catalog.)"
+        description="Paid services & plans for your workspace — Cloudflare plans, security add-ons, and AI models. (Templates such as WordPress are added to a project with New service.)"
         action={<RefreshLink href="/marketplace" label="Refresh" />}
       />
 

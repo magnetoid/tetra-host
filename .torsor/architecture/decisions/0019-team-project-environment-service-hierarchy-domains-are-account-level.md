@@ -42,6 +42,21 @@ everything else lives inside a project.
 6. **Domains are account-level** (a domain hub with DNS / Web / Mail tabs); hostnames point at services.
 7. Env vars stay per service for now.
 
+## Naming (owner, 2026-11-14)
+
+Everything you deploy inside an environment is a **service**. "New service" only asks what it
+starts from, and the same words are used in the console, the CLI and the docs:
+
+| Type | What it is | CLI |
+|---|---|---|
+| **Git repository** (an app) | your code, built from git | `tetra deploys git` |
+| **Database** | one managed database with backups | `tetra db create` |
+| **Template** | a ready-made stack installed together (WordPress + MySQL) | `tetra templates install` |
+
+An app with its own database is two services in one environment, linked (`DATABASE_URL`).
+"Service" never means "template" (Coolify's usage). `tetra services` lists them; the older
+`apps catalog|install` and `workspace apps` commands remain as aliases.
+
 ## Not decided here / later
 Per-environment variables, environment-aware previews and domains, moving a service with runtime
 effect, image/worker services, resellers (roadmap phase 5), and the AI agent surface — which will come

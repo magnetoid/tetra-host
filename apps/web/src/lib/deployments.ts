@@ -56,8 +56,8 @@ export function capabilitiesFor(deployment: UnifiedDeployment): DeploymentCapabi
 
 /** Display metadata for the source badge shown on every card. */
 export const SOURCE_META: Record<DeploymentSource, { label: string; hint: string }> = {
-  git: { label: "Platform", hint: "Tetra engine · git build" },
-  app: { label: "Marketplace app", hint: "Tetra engine · one-click install" },
+  git: { label: "Git repository", hint: "Tetra engine · git build" },
+  app: { label: "Template", hint: "Tetra engine · template install" },
 }
 
 function nativeSource(record: DeploymentRecord): DeploymentSource {
