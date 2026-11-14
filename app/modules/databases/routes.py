@@ -53,6 +53,7 @@ class DatabaseCreateRequest(BaseModel):
     name: str = Field(min_length=3, max_length=32)
     engine: str
     version: str | None = None
+    environment_id: str | None = None
 
 
 class DatabaseUpdateRequest(BaseModel):
@@ -157,6 +158,7 @@ async def api_databases_create(
         db = await service.create_for_tenant(
             session, current_admin.tenant_id,
             name=payload.name, engine=payload.engine, version=payload.version,
+            environment_id=payload.environment_id,
         )
     except DockerEngineError as exc:
         raise _http(exc) from exc

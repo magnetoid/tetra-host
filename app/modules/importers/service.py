@@ -61,6 +61,7 @@ from app.modules.importers.host import HostOps, probe_port, probe_upstream
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.http import ProviderAPIError
 from app.services.secrets import decrypt, encrypt
+from app.services.stack_names import stack_owner
 
 logger = logging.getLogger(__name__)
 
@@ -380,14 +381,7 @@ class CoolifyImporter:
     async def _ensure_free(
         self, session: AsyncSession, tenant_id: str, app_uuid: str, project: str
     ) -> None:
-        taken = await session.scalar(
-            select(TenantResource).where(
-                TenantResource.provider == PROVIDER_DOCKER,
-                TenantResource.resource_type == RESOURCE_TYPE_APP,
-                TenantResource.external_id == project,
-            )
-        )
-        if taken is not None:
+        if await stack_owner(session, project) is not None:
             raise ImporterError(f"An engine app named '{project}' already exists.", 409)
         active = await session.scalar(
             select(ImportRun).where(

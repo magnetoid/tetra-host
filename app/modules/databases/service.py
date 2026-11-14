@@ -33,10 +33,13 @@ from app.models.database import (
     ManagedDatabase,
 )
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
+from app.models.workspace import KIND_DATABASE
+from app.modules.workspaces.service import WorkspaceService
 from app.services import db_engines
 from app.services.cron import cron_matches, is_valid_cron
 from app.services.db_engines import ENGINES, EngineSpec, InvalidDatabaseSpec
 from app.services.docker_engine import DockerEngine, DockerEngineError
+from app.services.placement import placement_environment
 from app.services.quota import QuotaService
 from app.services.secrets import decrypt, encrypt
 from app.services.tenant_network import tenant_network_name
@@ -194,8 +197,10 @@ class DatabasesService:
         name: str,
         engine: str,
         version: str | None = None,
+        environment_id: str | None = None,
     ) -> ManagedDatabase:
         self._require_actions()
+        env = await placement_environment(session, tenant_id, environment_id)
         try:
             name = db_engines.validate_name(name)
             spec, version = db_engines.resolve_engine(engine, version)
@@ -219,9 +224,12 @@ class DatabasesService:
             project=f"tdb-{database_id.replace('-', '')[:12]}",
             secret=encrypt(json.dumps(creds)),
             backup_cron="0 3 * * *" if spec.supports_backup else "",
+            environment_id=env.id if env is not None else None,
         )
         session.add(db)
         await session.flush()
+        if env is not None:
+            await WorkspaceService(session).place(env, db.project, kind=KIND_DATABASE, name=name)
 
         allocation = await QuotaService(session, tenant).plan_allocation()
         network = tenant_network_name(tenant)

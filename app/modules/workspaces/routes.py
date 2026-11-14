@@ -14,7 +14,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes import get_current_api_admin, require_platform_admin
@@ -82,7 +82,10 @@ class WorkspaceAppOut(BaseModel):
     id: str
     name: str
     driver: str
+    kind: str = "app"
     external_id: str
+    # Set for kind=database: the id its console page and /databases routes use.
+    database_id: str | None = None
     domain: str
     team: TeamRef
     project: ProjectRef
@@ -129,7 +132,9 @@ def _app_out(row: AppRow) -> WorkspaceAppOut:
         id=row.app.id,
         name=row.app.name,
         driver=row.app.driver,
+        kind=row.app.kind,
         external_id=row.app.external_id,
+        database_id=row.database_id,
         domain=row.app.domain,
         team=_team_ref(row.tenant),
         project=_project_ref(row.project),
@@ -154,6 +159,13 @@ async def _synced(session: AsyncSession) -> WorkspaceService:
     except IntegrityError:
         # A concurrent request indexed the same rows first; its result is just as good.
         logger.info("workspaces: concurrent sync, using the rows already indexed")
+    except OperationalError as exc:
+        # SQLite refuses a second writer ("database is locked") when parallel listings
+        # each index the same new stacks. The other request writes them; this one
+        # answers from the rows already indexed rather than failing.
+        if "locked" not in str(exc).lower():
+            raise
+        logger.info("workspaces: sync skipped, another request is indexing")
     return service
 
 

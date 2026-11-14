@@ -221,3 +221,21 @@ def test_imported_app_appears_as_engine_app(seeded):
             return len(rows.all())
 
     assert asyncio.run(count_rows()) == 1
+
+
+def test_a_locked_sync_answers_from_the_existing_index(seeded, monkeypatch):
+    """Parallel listings each try to index new stacks; SQLite refuses the second writer.
+    That request must still answer (from the rows already indexed), not 500."""
+    from sqlalchemy.exc import OperationalError
+
+    from app.modules.workspaces.service import WorkspaceService
+
+    alpha = _login(seeded, "alpha@x.test")
+    assert "shop" in _apps(seeded, alpha, "alpha")  # first listing indexes everything
+
+    async def locked(self):
+        raise OperationalError("INSERT INTO apps", {}, Exception("database is locked"))
+
+    monkeypatch.setattr(WorkspaceService, "sync", locked)
+    assert "shop" in _apps(seeded, alpha, "alpha")
+    assert seeded.get("/api/v1/teams/alpha/projects", headers=alpha).status_code == 200

@@ -1749,7 +1749,8 @@ async def api_apps_install(
     service = AppsService(request)
     try:
         result = await service.install_for_tenant(
-            session, current_admin.tenant_id, slug=payload.slug, name=payload.name, domain=payload.domain
+            session, current_admin.tenant_id, slug=payload.slug, name=payload.name,
+            domain=payload.domain, environment_id=payload.environment_id,
         )
     except (ProviderAPIError, DockerEngineError) as exc:
         raise _engine_exc_to_http(exc) from exc
@@ -1904,6 +1905,7 @@ async def api_deploy_git(
         deployment_id = await service.start_deploy_for_tenant(
             current_admin.tenant_id,
             git_url=payload.git_url, ref=payload.ref, name=payload.name, port=payload.port,
+            environment_id=payload.environment_id,
         )
     except (ProviderAPIError, DockerEngineError, BuildError) as exc:
         raise _engine_exc_to_http(exc) from exc

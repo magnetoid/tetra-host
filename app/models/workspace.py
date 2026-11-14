@@ -25,6 +25,11 @@ ENVIRONMENT_KINDS = (ENV_PRODUCTION, ENV_STAGING, ENV_PREVIEW)
 DRIVER_ENGINE = "engine"
 APP_DRIVERS = (DRIVER_ENGINE,)
 
+# What a service is. ``external_id`` is the engine stack name for both kinds.
+KIND_APP = "app"
+KIND_DATABASE = "database"
+SERVICE_KINDS = (KIND_APP, KIND_DATABASE)
+
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
@@ -73,6 +78,9 @@ class WorkspaceApp(Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     driver: Mapped[str] = mapped_column(String(20), nullable=False)
     external_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[str] = mapped_column(
+        String(20), default=KIND_APP, server_default=KIND_APP, nullable=False
+    )
     domain: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

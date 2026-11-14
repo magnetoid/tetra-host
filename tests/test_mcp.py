@@ -438,3 +438,17 @@ def test_create_database_requires_confirm():
     )
     assert done["result"]["isError"] is False
     assert calls == [{"name": "blog-db", "engine": "postgres"}]
+
+
+def test_create_database_passes_environment_id():
+    calls: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content))
+        return httpx.Response(201, json={"id": "db-1", "name": "blog-db"})
+
+    server = MCPServer(make_client(handler), allow_writes=True)
+    args = {"name": "blog-db", "engine": "postgres", "environment_id": "env-1", "confirm": True}
+    done = server.handle_message(_rpc("tools/call", {"name": "create_database", "arguments": args}))
+    assert done["result"]["isError"] is False
+    assert calls == [{"name": "blog-db", "engine": "postgres", "environment_id": "env-1"}]

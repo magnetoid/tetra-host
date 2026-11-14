@@ -132,8 +132,8 @@ _TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "list_team_apps",
-        "description": "A team's apps with their project, environment, driver and domain; "
-                       "optionally narrowed to a project/environment.",
+        "description": "A team's services (kind app or database) with their project, "
+                       "environment and domain; optionally narrowed to a project/environment.",
         "inputSchema": _schema(
             {
                 "team": {"type": "string", "description": "Team slug or id"},
@@ -251,13 +251,19 @@ _TOOLS: list[dict[str, Any]] = [
                 "name": {"type": "string", "description": "App name"},
                 "ref": {"type": "string", "description": "Branch (default main)"},
                 "port": {"type": "integer", "description": "App port (default 3000)"},
+                "environment_id": {
+                    "type": "string",
+                    "description": "Optional; create it in this environment "
+                                   "(id from list_environments)",
+                },
                 **_CONFIRM,
             },
             ["git_url", "name", "confirm"],
         ),
         "write": True,
         "handler": lambda c, a: c.deploy_git(
-            a["git_url"], a["name"], ref=a.get("ref", "main"), port=int(a.get("port", 3000))
+            a["git_url"], a["name"], ref=a.get("ref", "main"), port=int(a.get("port", 3000)),
+            environment_id=a.get("environment_id"),
         ),
     },
     {
@@ -298,12 +304,19 @@ _TOOLS: list[dict[str, Any]] = [
                 "name": {"type": "string", "description": "3-32 chars: a-z, 0-9, hyphens"},
                 "engine": {"type": "string", "enum": ["postgres", "mysql", "mariadb", "redis"]},
                 "version": {"type": "string", "description": "Optional; default is the newest"},
+                "environment_id": {
+                    "type": "string",
+                    "description": "Optional; create it in this environment "
+                                   "(id from list_environments)",
+                },
                 **_CONFIRM,
             },
             ["name", "engine", "confirm"],
         ),
         "write": True,
-        "handler": lambda c, a: c.db_create(a["name"], a["engine"], a.get("version")),
+        "handler": lambda c, a: c.db_create(
+            a["name"], a["engine"], a.get("version"), environment_id=a.get("environment_id")
+        ),
     },
     {
         "name": "backup_database",

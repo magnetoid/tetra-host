@@ -318,12 +318,20 @@ class TetraClient:
     def apps(self) -> Any:
         return self._request("GET", "/apps")
 
-    def apps_install(self, slug: str, name: str | None = None, domain: str | None = None) -> Any:
+    def apps_install(
+        self,
+        slug: str,
+        name: str | None = None,
+        domain: str | None = None,
+        environment_id: str | None = None,
+    ) -> Any:
         body: dict[str, str] = {"slug": slug}
         if name:
             body["name"] = name
         if domain:
             body["domain"] = domain
+        if environment_id:
+            body["environment_id"] = environment_id
         return self._request("POST", "/apps/install", json_body=body)
 
     def apps_start(self, project: str) -> Any:
@@ -351,10 +359,18 @@ class TetraClient:
     def databases(self) -> Any:
         return self._request("GET", "/databases")
 
-    def db_create(self, name: str, engine: str, version: str | None = None) -> Any:
+    def db_create(
+        self,
+        name: str,
+        engine: str,
+        version: str | None = None,
+        environment_id: str | None = None,
+    ) -> Any:
         body: dict[str, Any] = {"name": name, "engine": engine}
         if version:
             body["version"] = version
+        if environment_id:
+            body["environment_id"] = environment_id
         return self._request("POST", "/databases", json_body=body)
 
     def db_get(self, database_id: str) -> Any:
@@ -398,11 +414,18 @@ class TetraClient:
         return self._request("GET", f"/apps/{project}/compute")
 
     # ── Deploys (build & run git repos) ───────────────────────────────────
-    def deploy_git(self, git_url: str, name: str, ref: str = "main", port: int = 3000) -> Any:
-        return self._request(
-            "POST", "/deploys/git",
-            json_body={"git_url": git_url, "ref": ref, "name": name, "port": port},
-        )
+    def deploy_git(
+        self,
+        git_url: str,
+        name: str,
+        ref: str = "main",
+        port: int = 3000,
+        environment_id: str | None = None,
+    ) -> Any:
+        body: dict[str, Any] = {"git_url": git_url, "ref": ref, "name": name, "port": port}
+        if environment_id:
+            body["environment_id"] = environment_id
+        return self._request("POST", "/deploys/git", json_body=body)
 
     def native_deploys(self) -> Any:
         return self._request("GET", "/deploys")

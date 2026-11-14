@@ -1,10 +1,11 @@
 """Team → project → environment → app: queries, writes and the index sync.
 
-The hierarchy tables index engine stacks (git deploys, marketplace installs, imports and
-previews). ``sync`` keeps the index current and is idempotent; it runs before every
+The hierarchy tables index engine stacks (git deploys, marketplace installs, imports,
+previews and managed databases) as services of a ``kind`` (ADR 0019). ``sync`` keeps the index current and is idempotent; it runs before every
 listing, so nothing has to remember to call it when a deploy or an import happens.
 
-Placement is owned by the user: sync only *creates* an app row (in the environment its
+Placement is owned by the user: a creation path that names an environment records the row
+there right away (``place``); otherwise sync only *creates* an app row (in the environment its
 source suggests) and refreshes its name and domain. Once a row exists, moving it to
 another environment is never undone by a later sync.
 """
@@ -23,6 +24,7 @@ from app.models import (
     AuditEvent,
     Deployment,
     Environment,
+    ManagedDatabase,
     PreviewEnv,
     Tenant,
     TenantResource,
@@ -37,7 +39,13 @@ from app.models.workspace import (
     ENV_PREVIEW,
     ENV_PRODUCTION,
     ENVIRONMENT_KINDS,
+    KIND_APP,
+    KIND_DATABASE,
+    SERVICE_KINDS,
 )
+
+# Where sync puts a database that was not created into an environment.
+DATABASES_PROJECT = "databases"
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +83,8 @@ class AppRow:
     environment: Environment
     project: WorkspaceProject
     tenant: Tenant
+    # The managed database behind a kind=database service.
+    database_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -270,10 +280,15 @@ class WorkspaceService:
         """Apps with their placement. ``tenant_id=None`` is the platform-wide view and is
         only reachable through a platform-admin route."""
         query = (
-            select(WorkspaceApp, Environment, WorkspaceProject, Tenant)
+            select(WorkspaceApp, Environment, WorkspaceProject, Tenant, ManagedDatabase.id)
             .join(Environment, WorkspaceApp.environment_id == Environment.id)
             .join(WorkspaceProject, Environment.project_id == WorkspaceProject.id)
             .join(Tenant, WorkspaceApp.tenant_id == Tenant.id)
+            .outerjoin(
+                ManagedDatabase,
+                (ManagedDatabase.project == WorkspaceApp.external_id)
+                & (WorkspaceApp.kind == KIND_DATABASE),
+            )
             .order_by(Tenant.name, WorkspaceProject.name, Environment.name, WorkspaceApp.name)
         )
         if tenant_id is not None:
@@ -298,7 +313,56 @@ class WorkspaceService:
         if env is None:
             raise WorkspaceError("Environment not found.", 404)
         app.environment_id = env.id
+        if app.kind == KIND_DATABASE:
+            db = await self.session.scalar(
+                select(ManagedDatabase).where(
+                    ManagedDatabase.project == app.external_id,
+                    ManagedDatabase.tenant_id == tenant_id,
+                )
+            )
+            if db is not None:
+                db.environment_id = env.id
         self._audit(actor, "app.move", f"{tenant_id}/{app.name}", env.id)
+        await self.session.flush()
+        return app
+
+    # ── Placement at creation ─────────────────────────────────────
+
+    async def require_environment(self, tenant_id: str | None, environment_id: str) -> Environment:
+        """The environment a new service goes into; another team's answers 404."""
+        env = await self.session.scalar(
+            select(Environment).where(
+                Environment.id == environment_id, Environment.tenant_id == (tenant_id or "")
+            )
+        )
+        if env is None:
+            raise WorkspaceError("Environment not found.", 404)
+        return env
+
+    async def place(
+        self,
+        env: Environment,
+        external_id: str,
+        *,
+        kind: str,
+        name: str,
+        domain: str = "",
+    ) -> WorkspaceApp:
+        """Record a just-created service in ``env``. Called by the creation paths; later
+        syncs keep it there."""
+        if kind not in SERVICE_KINDS:
+            raise WorkspaceError(f"kind must be one of {', '.join(SERVICE_KINDS)}.", 422)
+        app = await self._app(env.tenant_id, DRIVER_ENGINE, external_id)
+        if app is None:
+            app = WorkspaceApp(
+                tenant_id=env.tenant_id, environment_id=env.id, driver=DRIVER_ENGINE,
+                external_id=external_id, kind=kind, name=name, domain=domain or "",
+            )
+            self.session.add(app)
+        else:
+            app.environment_id = env.id
+            app.kind = kind
+            app.name = name or app.name
         await self.session.flush()
         return app
 
@@ -347,6 +411,24 @@ class WorkspaceService:
             await self._upsert_app(
                 preview.tenant_id, DRIVER_ENGINE, preview.preview_project,
                 env=env, name=preview.preview_project, domain=preview.domain,
+            )
+
+        databases = (await self.session.scalars(select(ManagedDatabase))).all()
+        env_ids = {db.environment_id for db in databases if db.environment_id}
+        envs = {
+            e.id: e for e in (await self.session.scalars(
+                select(Environment).where(Environment.id.in_(env_ids))
+            )).all()
+        } if env_ids else {}
+        for db in databases:
+            live.add((db.tenant_id, db.project))
+            env = envs.get(db.environment_id or "")
+            if env is None or env.tenant_id != db.tenant_id:
+                project = await self._ensure_project(db.tenant_id, DATABASES_PROJECT, "Databases")
+                env = await self._ensure_env(project, ENV_PRODUCTION, "Production", ENV_PRODUCTION)
+            await self._upsert_app(
+                db.tenant_id, DRIVER_ENGINE, db.project, env=env, name=db.name, domain="",
+                kind=KIND_DATABASE,
             )
 
         # A removed app (or a rolled-back import) leaves no stack behind: drop its row.
@@ -400,19 +482,28 @@ class WorkspaceService:
         return env
 
     async def _upsert_app(
-        self, tenant_id: str, driver: str, external_id: str, *, env: Environment, name: str, domain: str
+        self,
+        tenant_id: str,
+        driver: str,
+        external_id: str,
+        *,
+        env: Environment,
+        name: str,
+        domain: str,
+        kind: str = KIND_APP,
     ) -> WorkspaceApp:
         app = await self._app(tenant_id, driver, external_id)
         if app is None:
             app = WorkspaceApp(
                 tenant_id=tenant_id, environment_id=env.id, driver=driver,
-                external_id=external_id, name=name, domain=domain or "",
+                external_id=external_id, kind=kind, name=name, domain=domain or "",
             )
             self.session.add(app)
             await self.session.flush()
         else:
             app.name = name or app.name
             app.domain = domain or app.domain
+            app.kind = kind
         return app
 
     def _audit(self, actor: str, action: str, target: str, details: str = "") -> None:
