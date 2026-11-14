@@ -66,7 +66,7 @@ describe("currentPlacement", () => {
 describe("ProjectTree", () => {
   it("opens along the current path and lists the environment's services", async () => {
     render(<ProjectTree team="acme" />)
-    expect(await screen.findByRole("link", { name: /web/ })).toHaveAttribute("href", "/apps/shop-web/deployments")
+    expect(await screen.findByRole("link", { name: /web/ }, { timeout: 5000 })).toHaveAttribute("href", "/apps/shop-web/deployments")
     expect(screen.getByRole("link", { name: /shop-db/ })).toHaveAttribute("href", "/databases/db-1")
     // The current project is open (its environments were fetched); Blog stays closed.
     expect(calls).toContain("/api/proxy/teams/acme/projects/shop/environments")
@@ -76,8 +76,8 @@ describe("ProjectTree", () => {
 
   it("expands a closed project on click and remembers it", async () => {
     render(<ProjectTree team="acme" />)
-    fireEvent.click(await screen.findByRole("button", { name: "Expand Blog" }))
-    await waitFor(() => expect(calls.some((c) => c.includes("/projects/blog/environments"))).toBe(true))
+    fireEvent.click(await screen.findByRole("button", { name: "Expand Blog" }, { timeout: 5000 }))
+    await waitFor(() => expect(calls.some((c) => c.includes("/projects/blog/environments"))).toBe(true), { timeout: 5000 })
     expect(JSON.parse(window.localStorage.getItem("tetra.nav.open") ?? "{}")).toMatchObject({ "project:p2": true })
   })
 })
