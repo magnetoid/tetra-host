@@ -8,6 +8,7 @@ import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { useAction } from "@/hooks/use-action"
 import { apiFetch } from "@/lib/client-api"
+import { domainHref } from "@/lib/domains"
 import { faCircleCheck, faEnvelope } from "@/lib/icons"
 
 /**
@@ -25,7 +26,7 @@ export function EnableMailButton({ domain, enabled }: { domain: string; enabled:
           <FontAwesomeIcon icon={faCircleCheck} className="h-3.5 w-3.5" />
           Mail enabled
         </span>
-        <Link href="/mail" className="text-muted-foreground transition-colors hover:text-foreground">
+        <Link href={domainHref(domain, "mail")} className="text-muted-foreground transition-colors hover:text-foreground">
           Manage mailboxes →
         </Link>
       </div>

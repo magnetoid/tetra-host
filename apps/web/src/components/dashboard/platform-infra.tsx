@@ -50,8 +50,8 @@ export function PlatformInfra({
                 {primaryZoneName} · Cloudflare · last 7 days
               </p>
             </div>
-            <Link href="/dns" className="text-sm text-muted-foreground transition hover:text-foreground">
-              All zones
+            <Link href="/domains" className="text-sm text-muted-foreground transition hover:text-foreground">
+              All domains
             </Link>
           </div>
           <div className="mt-4">
