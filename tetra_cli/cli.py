@@ -2191,15 +2191,32 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--days", type=int, default=7)
     sp.set_defaults(func=cmd_cf_analytics)
 
-    apps = sub.add_parser("apps", help="install & control pre-defined Docker apps").add_subparsers(
+    # Naming (ADR 0019): everything in an environment is a service, of type git repository
+    # (app), database or template. `tetra templates` is the template catalog; `apps catalog`
+    # and `apps install` stay as aliases for existing scripts.
+    templates = sub.add_parser(
+        "templates", help="ready-made stacks (e.g. WordPress + MySQL) to add as a service"
+    ).add_subparsers(dest="templates_cmd", required=True)
+    sp = templates.add_parser("list", help="browse the template catalog")
+    sp.add_argument("--search")
+    sp.add_argument("--category")
+    sp.set_defaults(func=cmd_apps_catalog)
+    sp = templates.add_parser("install", help="add a template as a service (e.g. wordpress-with-mariadb)")
+    sp.add_argument("slug")
+    sp.add_argument("--name")
+    sp.add_argument("--domain")
+    _add_placement_args(sp)
+    sp.set_defaults(func=cmd_apps_install)
+
+    apps = sub.add_parser("apps", help="control running app services (start, stop, logs, …)").add_subparsers(
         dest="apps_cmd", required=True
     )
-    sp = apps.add_parser("catalog", help="browse the app marketplace")
+    sp = apps.add_parser("catalog", help="browse the template catalog (same as `tetra templates list`)")
     sp.add_argument("--search")
     sp.add_argument("--category")
     sp.set_defaults(func=cmd_apps_catalog)
     apps.add_parser("list", help="list installed apps").set_defaults(func=cmd_apps_list)
-    sp = apps.add_parser("install", help="install an app (e.g. wordpress-with-mariadb)")
+    sp = apps.add_parser("install", help="add a template as a service (same as `tetra templates install`)")
     sp.add_argument("slug")
     sp.add_argument("--name")
     sp.add_argument("--domain")
@@ -2667,16 +2684,25 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--yes", action="store_true")
     sp.set_defaults(func=cmd_envs_delete)
 
+    sp = sub.add_parser(
+        "services", help="every service (app, database, template) with its project and environment"
+    )
+    sp.add_argument("--team")
+    sp.add_argument("--project")
+    sp.add_argument("--environment")
+    sp.add_argument("--all", action="store_true", help="every team's services (platform-admin)")
+    sp.set_defaults(func=cmd_workspace_apps)
+
     workspace = sub.add_parser(
-        "workspace", help="apps placed in the team → project → environment hierarchy"
+        "workspace", help="services placed in the team → project → environment hierarchy"
     ).add_subparsers(dest="workspace_cmd", required=True)
-    sp = workspace.add_parser("apps", help="list apps with their project and environment")
+    sp = workspace.add_parser("apps", help="list services (same as `tetra services`)")
     sp.add_argument("--team")
     sp.add_argument("--project")
     sp.add_argument("--environment")
     sp.add_argument("--all", action="store_true", help="every team's apps (platform-admin)")
     sp.set_defaults(func=cmd_workspace_apps)
-    sp = workspace.add_parser("move", help="move an app to another environment")
+    sp = workspace.add_parser("move", help="move a service to another environment")
     sp.add_argument("app_id")
     sp.add_argument("environment_id")
     sp.add_argument("--team")

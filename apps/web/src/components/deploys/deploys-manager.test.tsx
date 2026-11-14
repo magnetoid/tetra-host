@@ -24,13 +24,13 @@ describe("DeploysManager", () => {
     expect(screen.getByRole("button", { name: /rollback to this/i })).toBeInTheDocument()
   })
 
-  it("marks a marketplace app install and hides git rollback for it", () => {
+  it("marks a template install and hides git rollback for it", () => {
     render(
       <DeploysManager
         deployments={[{ ...READY, id: "dep-app", builder: "app", git_url: "", ref: "", commit: "" }]}
       />,
     )
-    expect(screen.getByText(/marketplace app/i)).toBeInTheDocument()
+    expect(screen.getByText("Template")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /rollback/i })).not.toBeInTheDocument()
   })
 

@@ -1249,3 +1249,20 @@ def test_main_domains_overview_renders(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Mailcow: down" in out
     assert "acme.test" in out and "3 mailboxes" in out and "www.acme.test" in out
+
+
+def test_main_services_lists_like_workspace_apps(monkeypatch, capsys):
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_workspace_handler))
+    assert main(["services"]) == 0
+    assert "shop/production" in capsys.readouterr().out
+
+
+def test_templates_commands_parse_like_their_apps_aliases():
+    from tetra_cli.cli import build_parser, cmd_apps_catalog, cmd_apps_install
+
+    parser = build_parser()
+    listed = parser.parse_args(["templates", "list", "--search", "wp"])
+    assert listed.func is cmd_apps_catalog and listed.search == "wp"
+    installed = parser.parse_args(["templates", "install", "ghost", "--project", "site"])
+    assert installed.func is cmd_apps_install and installed.project == "site"

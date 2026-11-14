@@ -9,7 +9,7 @@ import type { AppTemplate, InstalledApp } from "@/lib/types"
 export default async function AppsPage() {
   const session = await requireConsoleSession()
   const [catalogRes, installedRes] = await Promise.all([
-    fetchDegraded<AppTemplate[]>("/apps/catalog", "Apps catalog", [], { token: session.token }),
+    fetchDegraded<AppTemplate[]>("/apps/catalog", "Templates", [], { token: session.token }),
     fetchDegraded<InstalledApp[]>("/apps", "Installed apps", [], { token: session.token }),
   ])
   const catalog = catalogRes.data
@@ -18,9 +18,9 @@ export default async function AppsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Managed containers"
-        title="App catalog"
-        description="One-click container apps — small Docker services Tetra provisions and runs on managed infrastructure (Cloudflare, Hetzner) and bills as a managed service."
+        eyebrow="Catalog"
+        title="Templates"
+        description="Ready-made stacks such as WordPress + MySQL, installed together as one service. To place one in a project, use New service in its environment."
         action={<RefreshLink href="/apps" label="Refresh" />}
       />
 
@@ -33,8 +33,8 @@ export default async function AppsPage() {
 
       <section className="space-y-4">
         <div className="flex items-end justify-between">
-          <h2 className="text-lg font-semibold">Marketplace</h2>
-          <span className="text-sm text-muted-foreground">{catalog.length} apps available</span>
+          <h2 className="text-lg font-semibold">All templates</h2>
+          <span className="text-sm text-muted-foreground">{catalog.length} templates</span>
         </div>
         <AppMarketplace
           templates={catalog}

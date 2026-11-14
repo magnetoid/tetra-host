@@ -119,5 +119,11 @@ export async function proxyBackendRequest(
   if (disposition) {
     passthrough["Content-Disposition"] = disposition
   }
-  return new Response(responseBody, { status: response.status, headers: passthrough })
+  // 204/205/304 must not carry a body: `new Response("", {status: 204})` throws, which
+  // turned every successful 204 DELETE into a 500 for the console.
+  const bodyless = response.status === 204 || response.status === 205 || response.status === 304
+  return new Response(bodyless ? null : responseBody, {
+    status: response.status,
+    headers: passthrough,
+  })
 }

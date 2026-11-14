@@ -17,13 +17,13 @@ const CHOICES: { key: ServiceChoice; label: string; description: string; icon: t
   {
     key: "git",
     label: "Git repository",
-    description: "Build and run a repo: its Dockerfile, or zero-config Nixpacks.",
+    description: "Your app: build and run a repo from its Dockerfile, or zero-config Nixpacks.",
     icon: faGithub,
   },
   {
     key: "template",
     label: "Template",
-    description: "One-click apps such as WordPress, Ghost or n8n.",
+    description: "A ready-made stack installed together, such as WordPress + MySQL, Ghost or n8n.",
     icon: faStore,
   },
   {
