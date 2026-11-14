@@ -252,6 +252,18 @@ body {
   }
 }
 
+/* ── Sidebar collapsibles ────────────────────────────────────────────────
+   Open/closed state comes from localStorage after hydration; animating that
+   first change would slide restored sections shut on every page load. So they
+   only move once the viewer has toggled one (setNavOpen sets that flag). */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-nav-animate] .nav-collapsible {
+    transition:
+      grid-template-rows 200ms ease-out,
+      opacity 200ms ease-out;
+  }
+}
+
 /* ── View Transitions (console route + tab crossfade) ─────────────────────
    React's <ViewTransition> around the console content produces a default
    crossfade on navigation. Keep it quick and gentle so it reads as "same

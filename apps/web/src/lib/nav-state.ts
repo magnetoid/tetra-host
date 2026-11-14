@@ -51,6 +51,8 @@ function snapshot(): Record<string, boolean> {
 const EMPTY: Record<string, boolean> = {}
 
 export function setNavOpen(key: string, open: boolean): void {
+  // From the first toggle on, collapsibles animate (see globals.css).
+  document.documentElement.dataset.navAnimate = ""
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...read(), [key]: open }))
   } catch {
