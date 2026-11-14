@@ -13,6 +13,7 @@ import { UserMenu } from "@/components/ui/user-menu"
 import { faBars } from "@/lib/icons"
 import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme"
 import type { AdminRecord } from "@/lib/types"
+import { teamRef } from "@/lib/workspace"
 
 /**
  * Console chrome: scope sidebar on the left (drawer on small screens), a thin top
@@ -31,6 +32,7 @@ export function ConsoleFrame({
   children: React.ReactNode
 }) {
   const isPlatformAdmin = admin.role === "platform_admin"
+  const team = teamRef(admin)
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -49,12 +51,12 @@ export function ConsoleFrame({
         Skip to content
       </a>
 
-      <Sidebar isPlatformAdmin={isPlatformAdmin} collapsed={collapsed} onToggle={toggleCollapsed} />
+      <Sidebar isPlatformAdmin={isPlatformAdmin} team={team} collapsed={collapsed} onToggle={toggleCollapsed} />
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="left" className="w-72 gap-0 bg-sidebar p-3 pt-14">
           <SheetTitle className="sr-only">Menu</SheetTitle>
-          <SidebarNav isPlatformAdmin={isPlatformAdmin} onNavigate={() => setDrawerOpen(false)} />
+          <SidebarNav isPlatformAdmin={isPlatformAdmin} team={team} onNavigate={() => setDrawerOpen(false)} />
         </SheetContent>
       </Sheet>
 
