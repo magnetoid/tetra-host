@@ -82,7 +82,10 @@ class WorkspaceAppOut(BaseModel):
     id: str
     name: str
     driver: str
+    kind: str = "app"
     external_id: str
+    # Set for kind=database: the id its console page and /databases routes use.
+    database_id: str | None = None
     domain: str
     team: TeamRef
     project: ProjectRef
@@ -129,7 +132,9 @@ def _app_out(row: AppRow) -> WorkspaceAppOut:
         id=row.app.id,
         name=row.app.name,
         driver=row.app.driver,
+        kind=row.app.kind,
         external_id=row.app.external_id,
+        database_id=row.database_id,
         domain=row.app.domain,
         team=_team_ref(row.tenant),
         project=_project_ref(row.project),

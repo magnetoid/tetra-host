@@ -1172,3 +1172,61 @@ def test_main_db_destructive_commands_need_yes(monkeypatch, capsys):
     assert main(["db", "restore", "blog-db", "bk-1"]) == 1
     assert seen == []
     assert main(["db", "show", "nope"]) == 1
+
+
+def _placement_handler(seen: list[dict]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/api/v1/teams":
+            return httpx.Response(200, json=[{"slug": "alpha", "name": "Alpha", "id": "t1"}])
+        if path == "/api/v1/teams/alpha/projects/shop/environments":
+            return httpx.Response(200, json=[
+                {"id": "env-prod", "slug": "production", "name": "Production", "kind": "production", "apps": 0},
+                {"id": "env-stg", "slug": "staging", "name": "Staging", "kind": "staging", "apps": 0},
+            ])
+        if path == "/api/v1/databases" and request.method == "POST":
+            seen.append(json.loads(request.content))
+            return httpx.Response(201, json={
+                "id": "db-1", "name": "shop-db", "engine_label": "PostgreSQL", "version": "17",
+                "host": "shop-db", "port": 5432,
+            })
+        raise AssertionError(f"unexpected {request.method} {path}")
+
+    return handler
+
+
+def test_main_db_create_resolves_project_and_env(monkeypatch, capsys):
+    seen: list[dict] = []
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_placement_handler(seen)))
+    assert main(["db", "create", "shop-db", "--project", "shop", "--env", "staging"]) == 0
+    assert seen[-1]["environment_id"] == "env-stg"
+    # --project alone means its production environment.
+    assert main(["db", "create", "shop-db", "--project", "shop"]) == 0
+    assert seen[-1]["environment_id"] == "env-prod"
+    # No placement flags: the body carries no environment.
+    assert main(["db", "create", "shop-db"]) == 0
+    assert "environment_id" not in seen[-1]
+
+
+def test_main_placement_flag_errors(monkeypatch, capsys):
+    seen: list[dict] = []
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(_placement_handler(seen)))
+    assert main(["db", "create", "shop-db", "--env", "staging"]) != 0
+    assert main(["db", "create", "shop-db", "--project", "shop", "--env", "qa"]) != 0
+    assert seen == []
+    assert "no environment 'qa'" in capsys.readouterr().err
+
+
+def test_client_install_and_deploy_send_environment_id():
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"ok": True, "deployment_id": "d1", "message": "ok"})
+
+    client = make_client(handler)
+    client.apps_install("ghost", name="blog", environment_id="env-1")
+    client.deploy_git("https://github.com/x/y", name="api", environment_id="env-1")
+    assert [b["environment_id"] for b in bodies] == ["env-1", "env-1"]

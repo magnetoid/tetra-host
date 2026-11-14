@@ -16,6 +16,8 @@ from app.config import get_settings
 from app.models import Deployment, TenantResource
 from app.models.deployment import STATUS_READY
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
+from app.models.workspace import KIND_APP
+from app.modules.workspaces.service import WorkspaceService
 from app.services.app_catalog import (
     AppCatalog,
     AppTemplate,
@@ -26,6 +28,7 @@ from app.services.compute import ComputeSample, parse_compute_samples
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.limits import apply_resource_limits
+from app.services.placement import ensure_stack_name_free, placement_environment
 from app.services.quota import QuotaService
 from app.services.tenant_resources import TenantResourceFilter
 
@@ -128,8 +131,10 @@ class AppsService:
         slug: str,
         name: str | None = None,
         domain: str | None = None,
+        environment_id: str | None = None,
     ) -> dict:
         self._require_actions()
+        placement = await placement_environment(session, tenant_id, environment_id)
         template = await self.catalog.get_template(slug)
         if template is None:
             raise DockerEngineError(message=f"Unknown app template '{slug}'.", code=404)
@@ -138,16 +143,7 @@ class AppsService:
             raise DockerEngineError(message="Template has no compose definition.", code=422)
 
         project = sanitize_project_name(name or slug)
-        existing = await session.scalar(
-            select(TenantResource).where(
-                TenantResource.tenant_id == (tenant_id or ""),
-                TenantResource.provider == PROVIDER_DOCKER,
-                TenantResource.resource_type == RESOURCE_TYPE_APP,
-                TenantResource.external_id == project,
-            )
-        )
-        if existing is not None:
-            raise DockerEngineError(message=f"App '{project}' is already installed.", code=409)
+        await ensure_stack_name_free(session, tenant_id, project, verb="installed")
 
         resolved_domain = domain or (f"{project}.{self.base_domain}" if self.base_domain else "")
         # Attach Caddy routing labels + edge network (no-op unless the edge is configured).
@@ -195,6 +191,10 @@ class AppsService:
             )
         )
         await session.flush()
+        if placement is not None:
+            await WorkspaceService(session).place(
+                placement, project, kind=KIND_APP, name=project, domain=resolved_domain
+            )
 
         logger.info("app '%s' installed (domain %s)", project, resolved_domain or "none")
         return {"ok": True, "project": project, "domain": resolved_domain}

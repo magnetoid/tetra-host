@@ -700,7 +700,10 @@ def cmd_apps_list(args: argparse.Namespace) -> int:
 
 
 def cmd_apps_install(args: argparse.Namespace) -> int:
-    result = client_from_config().apps_install(args.slug, name=args.name, domain=args.domain)
+    client = client_from_config()
+    result = client.apps_install(
+        args.slug, name=args.name, domain=args.domain, environment_id=_placement(client, args)
+    )
     project = result.get("project", "") if isinstance(result, dict) else ""
     print(c("✓", "32") + f" {result.get('message', 'installed') if isinstance(result, dict) else 'installed'}"
           + (f"  project={project}" if project else ""))
@@ -788,7 +791,10 @@ def cmd_db_list(args: argparse.Namespace) -> int:
 
 
 def cmd_db_create(args: argparse.Namespace) -> int:
-    d = client_from_config().db_create(args.name, args.engine, args.version)
+    client = client_from_config()
+    d = client.db_create(
+        args.name, args.engine, args.version, environment_id=_placement(client, args)
+    )
     print(c("✓", "32") + f" created {d['name']} ({d['engine_label']} {d['version']})")
     print(c(f"  reachable from your apps at {d['host']}:{d['port']}", "90"))
     print(c(f"  tetra db link {d['name']} <app>   puts DATABASE_URL on an app", "90"))
@@ -1123,7 +1129,7 @@ def cmd_import_rollback(args: argparse.Namespace) -> int:
 def _app_rows(apps: list[dict], with_team: bool = False) -> list[list[str]]:
     rows = []
     for a in apps:
-        row = [a.get("id", "")[:8], a.get("name", ""), a.get("driver", ""),
+        row = [a.get("id", "")[:8], a.get("name", ""), a.get("kind") or a.get("driver", ""),
                f"{a['project']['slug']}/{a['environment']['slug']}", a.get("domain", "") or "—"]
         rows.append(([a["team"]["slug"]] if with_team else []) + row)
     return rows
@@ -1149,6 +1155,28 @@ def _default_team(client: TetraClient, team: str | None) -> str:
     if len(teams) != 1:
         raise TetraError("You can see several teams; pass --team <slug>.")
     return teams[0]["slug"]
+
+
+def _placement(client: TetraClient, args: argparse.Namespace) -> str | None:
+    """The environment id for ``--project P [--env E]`` (E defaults to production)."""
+    project = getattr(args, "project", None)
+    env = getattr(args, "env", None)
+    if not project:
+        if env:
+            raise TetraError("--env needs --project.")
+        return None
+    team = _default_team(client, getattr(args, "team", None))
+    wanted = env or "production"
+    for e in client.environments(team, project):
+        if wanted in (e["slug"], e["id"]):
+            return e["id"]
+    raise TetraError(f"Project {project} has no environment '{wanted}'.")
+
+
+def _add_placement_args(sp: argparse.ArgumentParser) -> None:
+    sp.add_argument("--project", help="create it in this project (slug)")
+    sp.add_argument("--env", help="environment slug in --project (default: production)")
+    sp.add_argument("--team", help="team slug, when you can see several")
 
 
 def cmd_projects_list(args: argparse.Namespace) -> int:
@@ -1213,7 +1241,7 @@ def cmd_envs_delete(args: argparse.Namespace) -> int:
 
 def cmd_workspace_apps(args: argparse.Namespace) -> int:
     client = client_from_config()
-    headers = ["ID", "NAME", "DRIVER", "PROJECT/ENV", "DOMAIN"]
+    headers = ["ID", "NAME", "KIND", "PROJECT/ENV", "DOMAIN"]
     if args.all:
         print_table(["TEAM", *headers], _app_rows(client.platform_apps(), with_team=True))
         return 0
@@ -1288,7 +1316,10 @@ def cmd_usage(args: argparse.Namespace) -> int:
 
 def cmd_deploys_git(args: argparse.Namespace) -> int:
     client = client_from_config()
-    start = client.deploy_git(args.git_url, name=args.name, ref=args.ref, port=args.port)
+    start = client.deploy_git(
+        args.git_url, name=args.name, ref=args.ref, port=args.port,
+        environment_id=_placement(client, args),
+    )
     deployment_id = start.get("deployment_id", "") if isinstance(start, dict) else ""
     if not deployment_id:
         return die("deploy did not start")
@@ -2145,6 +2176,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("slug")
     sp.add_argument("--name")
     sp.add_argument("--domain")
+    _add_placement_args(sp)
     sp.set_defaults(func=cmd_apps_install)
     sp = apps.add_parser("start", help="start an installed app")
     sp.add_argument("project")
@@ -2179,6 +2211,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("name")
     sp.add_argument("--engine", default="postgres")
     sp.add_argument("--version")
+    _add_placement_args(sp)
     sp.set_defaults(func=cmd_db_create)
     sp = db.add_parser("show", help="show a database")
     sp.add_argument("database", help="name or id")
@@ -2231,6 +2264,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--name", required=True)
     sp.add_argument("--ref", default="main")
     sp.add_argument("--port", type=int, default=3000)
+    _add_placement_args(sp)
     sp.set_defaults(func=cmd_deploys_git)
 
     sp = deploys.add_parser("rollback", help="redeploy a prior deployment's image (no rebuild)")

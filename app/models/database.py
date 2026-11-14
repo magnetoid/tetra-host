@@ -35,6 +35,8 @@ class ManagedDatabase(Base):
     engine: Mapped[str] = mapped_column(String(20), nullable=False)
     version: Mapped[str] = mapped_column(String(20), default="", nullable=False)
     project: Mapped[str] = mapped_column(String(63), unique=True, nullable=False)
+    # The environment it was created into; ``None`` lets the workspace sync place it.
+    environment_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     secret: Mapped[str] = mapped_column(Text, default="", nullable=False)
     # Cron (UTC) for scheduled backups; empty turns them off.
     backup_cron: Mapped[str] = mapped_column(String(120), default="0 3 * * *", nullable=False)

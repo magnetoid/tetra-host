@@ -32,11 +32,14 @@ from app.models.deployment import (
     Deployment,
 )
 from app.models.tenant_resource import PROVIDER_DOCKER, RESOURCE_TYPE_APP
+from app.models.workspace import KIND_APP
+from app.modules.workspaces.service import WorkspaceService
 from app.services.builder import Builder, BuildError
 from app.services.docker_engine import DockerEngine, DockerEngineError, sanitize_project_name
 from app.services.edge import apply_edge
 from app.services.limits import apply_resource_limits
 from app.services.notifications import DEPLOY_FAILED, DEPLOY_SUCCEEDED, NotificationService
+from app.services.placement import ensure_stack_name_free, placement_environment
 from app.services.quota import QuotaService
 from app.services.registry import ImageRegistry, is_registry_qualified
 from app.services.secrets import decrypt, encrypt
@@ -195,27 +198,26 @@ class DeploysService:
             )
 
     async def start_deploy_for_tenant(
-        self, tenant_id: str | None, *, git_url: str, ref: str, name: str, port: int
+        self,
+        tenant_id: str | None,
+        *,
+        git_url: str,
+        ref: str,
+        name: str,
+        port: int,
+        environment_id: str | None = None,
     ) -> str:
         """Create + commit a queued Deployment, kick off the background build, return its id.
 
         Atomically reserves a quota slot BEFORE the background task is scheduled.
         QuotaExceeded propagates to the caller (→ 402 handler); no task is created.
+        With ``environment_id`` the new service is recorded in that environment (ADR 0019).
         """
         self._require_actions()
         project = sanitize_project_name(name)
         async with session_scope() as session:
-            # Reject if a TenantResource with this project name already exists for the tenant.
-            existing = await session.scalar(
-                select(TenantResource).where(
-                    TenantResource.tenant_id == (tenant_id or ""),
-                    TenantResource.provider == PROVIDER_DOCKER,
-                    TenantResource.resource_type == RESOURCE_TYPE_APP,
-                    TenantResource.external_id == project,
-                )
-            )
-            if existing is not None:
-                raise DockerEngineError(message=f"App '{project}' is already deployed.", code=409)
+            placement = await placement_environment(session, tenant_id, environment_id)
+            await ensure_stack_name_free(session, tenant_id, project, verb="deployed")
 
             # Atomically check quota and reserve BEFORE the build is scheduled.
             # QuotaExceeded is not caught here — it rolls back and propagates.
@@ -232,6 +234,10 @@ class DeploysService:
             session.add(deployment)
             await session.flush()
             deployment_id = deployment.id
+            if placement is not None:
+                await WorkspaceService(session).place(
+                    placement, project, kind=KIND_APP, name=project
+                )
         logger.info(
             "deployment %s queued for project '%s' (tenant %s)", deployment_id, project, tenant_id
         )

@@ -342,6 +342,8 @@ class AppInstallRequest(BaseModel):
     slug: str
     name: str | None = None
     domain: str | None = None
+    # Record the new service in this environment (team → project → environment, ADR 0019).
+    environment_id: str | None = None
 
 
 class AppActionResponse(BaseModel):
@@ -356,6 +358,7 @@ class GitDeployRequest(BaseModel):
     ref: str = "main"
     name: str
     port: int = 3000
+    environment_id: str | None = None
 
 
 class DeployStartResponse(BaseModel):

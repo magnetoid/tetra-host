@@ -114,8 +114,11 @@ to async drivers (`sqlite+aiosqlite` / `postgresql+asyncpg`); production refuses
 `app/models/` (tenancy: `AdminUser`, `Tenant`, `TenantResource`, `TenantInvite`, `ApiToken`, `Plan`; engine:
 `Deployment`, `Domain`, `AppEnvVar`, `DeployHook`, `PreviewEnv`; plus billing, jobs, uptime, notifications,
 SSO and `AuditEvent`; hierarchy: `WorkspaceProject`, `Environment`, `WorkspaceApp` — team → project →
-environment → app, where `apps` indexes engine stacks (deploys, installs, imports, previews) and is kept current by
-`app/modules/workspaces/service.py` `sync()`), re-exported from `app/models/__init__.py`. Schema today is a hybrid: `init_db()`
+environment → service (ADR 0019), where `apps` indexes engine stacks as services of a `kind` (`app`: deploys,
+installs, imports, previews; `database`: managed databases) and is kept current by
+`app/modules/workspaces/service.py` `sync()`; git deploy, template install and database create take an optional
+`environment_id` and record the service there at once via `app/services/placement.py`, and stack names are
+unique across tenants (`app/services/stack_names.py`)), re-exported from `app/models/__init__.py`. Schema today is a hybrid: `init_db()`
 runs `create_all` plus startup ALTERs/backfills in `app/db/session.py`, and Alembic (`alembic/versions/`)
 holds a no-op baseline plus later revisions. **New columns go in an Alembic migration, not the startup
 ALTERs** (see `docs/OPERATIONS.md`); roadmap phase 2 moves production to Postgres with migrations only.
