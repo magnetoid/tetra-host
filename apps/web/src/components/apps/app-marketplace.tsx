@@ -10,7 +10,8 @@ import { faCircleCheck, faPlus, faTag } from "@/lib/icons"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import type { AppTemplate } from "@/lib/types"
 
-const LOGO_BASE = "https://cdn.jsdelivr.net/gh/coollabsio/coolify@main/public/"
+// Catalog logos ship with the console (public/catalog/logos); nothing is fetched elsewhere.
+const LOGO_BASE = "/catalog/logos/"
 const MAX_CARDS = 60
 
 export function AppMarketplace({

@@ -1,7 +1,7 @@
 """Apps — install & control pre-defined Docker containers via the Tetra Engine (tenant-scoped).
 
 Sits on top of the independent Docker engine (``app/services/docker_engine.py``) and the compose
-catalog (``app/services/app_catalog.py``). No Coolify in the data path. Installed apps are recorded as
+catalog (``app/services/app_catalog.py``), which ships with the panel. Installed apps are recorded as
 ``TenantResource`` rows (provider=docker, resource_type=app) so visibility/control is tenant-isolated.
 """
 

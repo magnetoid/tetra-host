@@ -61,8 +61,8 @@ def _networks_with(networks: Any, name: str) -> list[str] | dict[str, Any]:
 
 
 def _public_service(services: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
-    """Pick the web-facing service: the one whose env references SERVICE_FQDN_* (Coolify's
-    convention for the public service), else the first service."""
+    """Pick the web-facing service: the one whose env references SERVICE_FQDN_* (the
+    catalog's marker for the public service), else the first service."""
     for name, svc in services.items():
         if not isinstance(svc, dict):
             continue

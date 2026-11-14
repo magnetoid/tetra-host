@@ -23,10 +23,11 @@ data path:
   (gated by an `ask` endpoint hitting our tenant DB) — the canonical "customer brings any domain, HTTPS just
   works" pattern Traefik can't do natively. Wildcard for our own `*.<tenant>.cloud-industry.com` via
   **Cloudflare DNS-01** (we already integrate Cloudflare).
-- **Pre-defined containers** — the Coolify service-templates catalog is **Apache-2.0 base64 `docker-compose`
-  files** (≈328 live / 600+ claimed, with category/tags/logo). They are just compose — **runnable directly
-  via `docker compose`, no Coolify required.** We re-implement Coolify's `SERVICE_*` "magic variable"
-  resolver (random passwords/users/base64, FQDN/URL) ourselves.
+- **Pre-defined containers** — our app catalog (`app/catalog/templates.json`, 354 templates with
+  category/tags/logo) ships in the repo: base64 `docker-compose` files **run directly via `docker compose`**,
+  with nothing fetched at runtime. Derived from Apache-2.0 upstream templates (see
+  `app/catalog/NOTICE.md`); we fill their `SERVICE_*` placeholders (random passwords/users/base64,
+  FQDN/URL) ourselves.
 - **Vercel-quality features Coolify structurally can't give us** become possible once independent:
   live + failed build-log streaming, **true instant rollback** (immutable image tag + alias swap, not a
   rebuild), preview environments, per-tenant isolation & quotas.
@@ -42,8 +43,8 @@ isolation boundary (`coolify#1820`), and it has had critical CVEs (Jan 2026). We
 2. **Tetra Engine** *(new — `app/services/docker_engine.py`)* — talks to the Docker Engine directly via the
    `docker` / `docker compose` CLIs over an **injectable async command runner** (testable in-process without
    a daemon, mirroring `tetra_cli`'s injectable httpx transport). Stack/container lifecycle, logs, stats.
-3. **App catalog** *(new — `app/services/app_catalog.py`)* — fetches the compose template catalog
-   (Coolify `service-templates.json`, cached), decodes base64 compose, and **renders** it independently:
+3. **App catalog** *(`app/services/app_catalog.py`)* — reads the shipped catalog
+   (`app/catalog/templates.json`, logos in `apps/web/public/catalog/logos/`), decodes base64 compose, and **renders** it:
    our own `SERVICE_PASSWORD_*` / `SERVICE_USER_*` / `SERVICE_BASE64_*` / `SERVICE_FQDN_*` / `SERVICE_URL_*`
    generator → concrete env map. One-click apps (WordPress first).
 4. **Builder** *(later — `app/services/builder.py`)* — shell out to Railpack/Nixpacks: git repo → OCI image

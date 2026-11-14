@@ -31,13 +31,13 @@ services:
 def test_normalize_and_decode_compose():
     raw = base64.b64encode(b"services:\n  web: {}\n").decode()
     template = normalize_template(
-        "wordpress-with-mysql",
         {
+            "slug": "wordpress-with-mysql",
             "compose": raw,
-            "slogan": "The famous blogging platform.",
+            "description": "The famous blogging platform.",
             "category": "cms",
             "tags": ["cms", "blog"],
-            "logo": "svgs/wordpress.svg",
+            "logo": "wordpress.svg",
             "port": "80",
         },
     )
@@ -71,3 +71,15 @@ def test_render_service_vars_long_password_and_dedup():
     )
     assert len(env) == 1  # same token -> one value
     assert len(env["SERVICE_PASSWORD_64_DB"]) == 64  # _64_ variant is long
+
+
+def test_shipped_catalog_loads_without_network():
+    from app.services.app_catalog import CATALOG_PATH, load_catalog
+
+    templates = load_catalog(CATALOG_PATH)
+    assert len(templates) > 100
+    slugs = {t.slug for t in templates}
+    assert len(slugs) == len(templates)
+    assert all(t.compose_b64 for t in templates)
+    # Logos are plain file names the console serves itself, never remote URLs.
+    assert all("/" not in t.logo for t in templates)
