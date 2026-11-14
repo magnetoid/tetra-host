@@ -7,7 +7,7 @@ import { AppMarketplace } from "@/components/apps/app-marketplace"
 import type { AppTemplate } from "@/lib/types"
 
 const templates: AppTemplate[] = [
-  { slug: "wordpress-with-mysql", name: "WordPress", description: "Blog engine", category: "cms", tags: ["blog", "php"], logo: "svgs/wordpress.svg", port: "80" },
+  { slug: "wordpress-with-mysql", name: "WordPress", description: "Blog engine", category: "cms", tags: ["blog", "php"], logo: "wordpress.svg", port: "80" },
   { slug: "ghost", name: "Ghost", description: "Publishing", category: "cms", tags: ["blog"], logo: "", port: "2368" },
   { slug: "redis", name: "Redis", description: "Cache", category: "database", tags: ["cache"], logo: "", port: "6379" },
 ]

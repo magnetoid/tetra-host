@@ -1,34 +1,29 @@
-"""Pre-defined Docker app catalog — compose templates used directly (no Coolify in the data path).
+"""One-click app catalog — compose templates that ship with the panel.
 
-Source: the Coolify ``service-templates.json`` catalog (Apache-2.0). Each entry is metadata plus a
-base64 ``docker-compose`` file. We fetch + cache it, then **render it ourselves**: Coolify's compose
-files reference "magic" ``SERVICE_*`` variables that Coolify generates at deploy time; since we run the
-compose directly, we re-implement that generator (random passwords/users/base64 secrets, FQDN/URL) and
-return a concrete env map that ``docker compose`` interpolates.
+The catalog lives in the repo (``app/catalog/templates.json``; provenance in
+``app/catalog/NOTICE.md``) and is read from disk: nothing is fetched at runtime. Each
+entry is metadata plus a base64 ``docker-compose`` file whose ``SERVICE_*`` placeholders
+(random users/passwords/secrets, the app's FQDN/URL) are filled in here at install time,
+giving a concrete env map that ``docker compose`` interpolates.
 """
 
 import base64
 import binascii
+import json
 import re
 import secrets
 import string
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
-import httpx
 import yaml
 from pydantic import BaseModel
 
-from app.cache import TTLCache
-from app.config import get_settings
-from app.services.http import request_json
+CATALOG_PATH = Path(__file__).resolve().parents[1] / "catalog" / "templates.json"
 
-# jsDelivr CDN mirror of coollabsio/coolify templates/service-templates.json (Apache-2.0).
-DEFAULT_CATALOG_URL = (
-    "https://cdn.jsdelivr.net/gh/coollabsio/coolify@main/templates/service-templates.json"
-)
-
-# SERVICE_<KIND>[_64]_<NAME>[_<PORT>] — Coolify's magic-variable convention.
+# SERVICE_<KIND>[_64]_<NAME>[_<PORT>] — the catalog's placeholder convention.
 _SERVICE_TOKEN = re.compile(r"SERVICE_(FQDN|URL|USER|PASSWORD|BASE64|REALBASE64)(_64)?_[A-Z0-9]+(?:_\d+)?")
 
 
@@ -38,8 +33,10 @@ class AppTemplate(BaseModel):
     description: str = ""
     category: str = ""
     tags: list[str] = []
+    # A file name under the console's /catalog/logos/, or "".
     logo: str = ""
     port: str = ""
+    documentation: str = ""
     compose_b64: str = ""
 
     def decoded_compose(self) -> str:
@@ -53,20 +50,33 @@ def _titleize(slug: str) -> str:
     return " ".join(part.capitalize() for part in re.split(r"[-_]+", slug) if part)
 
 
-def normalize_template(slug: str, raw: dict[str, Any]) -> AppTemplate:
+def normalize_template(raw: dict[str, Any]) -> AppTemplate:
+    slug = str(raw.get("slug") or "")
     tags = raw.get("tags") or []
     if not isinstance(tags, list):
         tags = []
     return AppTemplate(
         slug=slug,
         name=str(raw.get("name") or _titleize(slug)),
-        description=str(raw.get("slogan") or raw.get("description") or ""),
+        description=str(raw.get("description") or ""),
         category=str(raw.get("category") or "other"),
         tags=[str(tag) for tag in tags],
         logo=str(raw.get("logo") or ""),
         port=str(raw.get("port") or ""),
+        documentation=str(raw.get("documentation") or ""),
         compose_b64=str(raw.get("compose") or ""),
     )
+
+
+@lru_cache(maxsize=1)
+def load_catalog(path: Path = CATALOG_PATH) -> tuple[AppTemplate, ...]:
+    """The shipped catalog, parsed once per process."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    entries = payload.get("templates") if isinstance(payload, dict) else None
+    templates = [normalize_template(raw) for raw in entries or [] if isinstance(raw, dict)]
+    templates = [t for t in templates if t.slug and t.compose_b64]
+    templates.sort(key=lambda template: template.name.lower())
+    return tuple(templates)
 
 
 def _rand(alphabet: str, length: int) -> str:
@@ -102,9 +112,9 @@ def _referenced_volume_name(entry: Any) -> str | None:
 
 
 def normalize_compose_for_engine(compose_yaml: str) -> str:
-    """Make a Coolify template runnable by plain `docker compose`.
+    """Make a catalog template runnable by plain `docker compose`.
 
-    Coolify auto-declares named volumes that services reference; plain compose requires
+    Templates may reference named volumes they never declare; plain compose requires
     them in the top-level `volumes:` map or it rejects the project. Declare any missing ones.
     """
     try:
@@ -152,37 +162,18 @@ def _value_for_token(token: str, *, domain: str) -> str:
 
 @dataclass(slots=True)
 class AppCatalog:
-    http_client: httpx.AsyncClient
-    cache: TTLCache
-    catalog_url: str = DEFAULT_CATALOG_URL
+    """Read access to the shipped catalog (async to keep the service API unchanged)."""
+
+    path: Path = CATALOG_PATH
 
     @classmethod
-    def from_request(cls, request: Any) -> "AppCatalog":
-        url = getattr(get_settings(), "app_catalog_url", "") or DEFAULT_CATALOG_URL
-        return cls(
-            http_client=request.app.state.http_client,
-            cache=request.app.state.cache,
-            catalog_url=url,
-        )
+    def from_request(cls, request: Any = None) -> "AppCatalog":
+        return cls()
 
     async def list_templates(self, refresh: bool = False) -> list[AppTemplate]:
-        cache_key = "catalog:templates"
-
-        async def fetch() -> list[AppTemplate]:
-            payload = await request_json(
-                self.http_client, service="Catalog", method="GET", url=self.catalog_url
-            )
-            if not isinstance(payload, dict):
-                return []
-            templates = [normalize_template(slug, raw) for slug, raw in payload.items() if isinstance(raw, dict)]
-            templates.sort(key=lambda template: template.name.lower())
-            return templates
-
         if refresh:
-            await self.cache.delete(cache_key)
-        # Catalog is large and rarely changes — cache for an hour minimum.
-        ttl = max(3600, get_settings().provider_cache_ttl_seconds)
-        return await self.cache.get_or_set(cache_key, ttl, fetch)
+            load_catalog.cache_clear()
+        return list(load_catalog(self.path))
 
     async def get_template(self, slug: str) -> AppTemplate | None:
         for template in await self.list_templates():

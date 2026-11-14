@@ -124,7 +124,6 @@ class Settings(BaseSettings):
     # clone (private ones fail with "could not read Username"). A PAT (classic or fine-grained)
     # with repo:read; injected as x-access-token into the clone URL and scrubbed from all logs.
     github_token: str = ""
-    app_catalog_url: str = ""
     apps_base_domain: str = ""
     # Shared external Docker network the Caddy edge is attached to. Empty = edge disabled
     # (apps still deploy, just not routed). See app/services/edge.py.
