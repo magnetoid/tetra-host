@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { activeItem, breadcrumbsFor, resolveScope, sidebarFor } from "./navigation"
+import { activeItem, breadcrumbsFor, resolveScope, sidebarFor, teamSections } from "./navigation"
 
 describe("resolveScope", () => {
   it("maps super-admin paths to platform scope for platform admins only", () => {
@@ -55,6 +55,22 @@ describe("sidebarFor", () => {
 })
 
 describe("breadcrumbsFor", () => {
+  it("names the domain on a domain's page", () => {
+    const crumbs = breadcrumbsFor(resolveScope("/domains/acme.test/dns", false), "/domains/acme.test/dns", false, { team: "Acme" })
+    expect(crumbs).toEqual([
+      { label: "Acme", href: "/dashboard" },
+      { label: "Domains", href: "/domains" },
+      { label: "acme.test" },
+    ])
+  })
+
+  it("keeps DNS and Mail out of the team menu (they live in Domains)", () => {
+    const labels = teamSections.flatMap((s) => s.items.map((i) => i.label))
+    expect(labels).not.toContain("DNS")
+    expect(labels).not.toContain("Mail")
+    expect(labels).toContain("Domains")
+  })
+
   it("builds platform / team / app / page with no href on the last crumb", () => {
     const scope = resolveScope("/apps/mtio/env", true)
     const crumbs = breadcrumbsFor(scope, "/apps/mtio/env", true, { team: "Cloud Industry" })

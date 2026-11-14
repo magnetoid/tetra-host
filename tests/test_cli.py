@@ -1230,3 +1230,22 @@ def test_client_install_and_deploy_send_environment_id():
     client.apps_install("ghost", name="blog", environment_id="env-1")
     client.deploy_git("https://github.com/x/y", name="api", environment_id="env-1")
     assert [b["environment_id"] for b in bodies] == ["env-1", "env-1"]
+
+
+def test_main_domains_overview_renders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/domains/overview"
+        return httpx.Response(200, json={
+            "providers": [{"name": "Cloudflare", "status": "connected", "detail": ""},
+                          {"name": "Mailcow", "status": "degraded", "detail": "down"}],
+            "domains": [{"name": "acme.test", "zone": {"id": "z", "status": "active", "paused": False},
+                         "mail": [{"domain_name": "acme.test", "mailboxes": 3, "aliases": 0, "active": True}],
+                         "hostnames": [{"id": "d1", "hostname": "www.acme.test", "status": "verified",
+                                        "stack": "web", "service": None}]}],
+        })
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    assert main(["domains", "overview"]) == 0
+    out = capsys.readouterr().out
+    assert "Mailcow: down" in out
+    assert "acme.test" in out and "3 mailboxes" in out and "www.acme.test" in out

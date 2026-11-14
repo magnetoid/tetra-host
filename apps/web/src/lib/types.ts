@@ -853,3 +853,40 @@ export type WorkspaceService = {
   environment: WorkspaceRef & { kind: EnvironmentKind }
   updated_at: string
 }
+
+// ── Domains hub (ADR 0019): account-level domains joined by apex ─────────
+
+export interface DomainServiceRef {
+  name: string
+  kind: ServiceKind
+  project_slug: string
+  environment_slug: string
+}
+
+export interface DomainHostname {
+  id: string
+  hostname: string
+  status: string
+  /** The engine stack the hostname routes to. */
+  stack: string
+  service: DomainServiceRef | null
+}
+
+export interface DomainMail {
+  domain_name: string
+  mailboxes: number
+  aliases: number
+  active: boolean
+}
+
+export interface DomainOverviewEntry {
+  name: string
+  zone: { id: string; status: string; paused: boolean } | null
+  mail: DomainMail[]
+  hostnames: DomainHostname[]
+}
+
+export interface DomainsOverview {
+  providers: ProviderSummary[]
+  domains: DomainOverviewEntry[]
+}

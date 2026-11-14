@@ -452,3 +452,15 @@ def test_create_database_passes_environment_id():
     done = server.handle_message(_rpc("tools/call", {"name": "create_database", "arguments": args}))
     assert done["result"]["isError"] is False
     assert calls == [{"name": "blog-db", "engine": "postgres", "environment_id": "env-1"}]
+
+
+def test_domains_overview_is_a_read_tool():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET" and request.url.path == "/api/v1/domains/overview"
+        return httpx.Response(200, json={"providers": [], "domains": []})
+
+    server = MCPServer(make_client(handler))  # read-only is enough
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "domains_overview", "arguments": {}})
+    )
+    assert response["result"].get("isError") is not True

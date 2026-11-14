@@ -9,10 +9,8 @@ import {
   faCloud,
   faCoins,
   faEarthAmericas,
-  faEnvelope,
   faFolder,
   faGaugeHigh,
-  faGlobe,
   faHeartPulse,
   faKey,
   faLayerGroup,
@@ -128,8 +126,6 @@ export const teamSections: NavSection[] = [
     title: "Network",
     items: [
       { href: "/domains", label: "Domains", icon: faEarthAmericas },
-      { href: "/dns", label: "DNS", icon: faGlobe },
-      { href: "/mail", label: "Mail", icon: faEnvelope },
     ],
   },
   {
@@ -314,6 +310,9 @@ export function breadcrumbsFor(
     const isScopeRoot = !page || page.exact
     if (page && !isScopeRoot) crumbs.push({ label: page.label, href: page.href })
   }
+  // A domain's own page: Team / Domains / example.com.
+  const domain = scope.kind === "team" ? pathname.match(/^\/domains\/([^/]+)/) : null
+  if (domain) crumbs.push({ label: decodeURIComponent(domain[1]), href: `/domains/${domain[1]}` })
   const last = crumbs[crumbs.length - 1]
   if (last) delete last.href
   return crumbs

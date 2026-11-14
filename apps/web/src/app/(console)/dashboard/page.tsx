@@ -165,7 +165,7 @@ export default async function DashboardPage() {
             )}
           </RailSection>
 
-          <RailSection title="Mail" href="/mail">
+          <RailSection title="Mail" href="/domains">
             {mail.domains.length === 0 ? (
               <p className="text-sm text-muted-foreground">No mail domains yet.</p>
             ) : (
@@ -180,7 +180,7 @@ export default async function DashboardPage() {
             )}
           </RailSection>
 
-          <RailSection title="DNS" href="/dns">
+          <RailSection title="DNS" href="/domains">
             {dns.zones.length === 0 ? (
               <p className="text-sm text-muted-foreground">No DNS zones yet.</p>
             ) : (

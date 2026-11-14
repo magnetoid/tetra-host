@@ -2,6 +2,7 @@
 
 import argparse
 import getpass
+import json
 import os
 import sys
 from typing import Any
@@ -1643,6 +1644,32 @@ def cmd_domains_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_domains_overview(args: argparse.Namespace) -> int:
+    data = client_from_config().domains_overview()
+    for p in data.get("providers", []):
+        if p.get("status") != "connected":
+            print(c(f"! {p.get('name', '')}: {p.get('detail', '') or p.get('status', '')}", "33"))
+    domains = data.get("domains", [])
+    if getattr(args, "json", False):
+        print(json.dumps(domains, indent=2))
+        return 0
+    if not domains:
+        print(c("no domains", "90"))
+        return 0
+    rows = []
+    for d in domains:
+        mail = d.get("mail") or []
+        hosts = d.get("hostnames") or []
+        rows.append([
+            d.get("name", ""),
+            "yes" if d.get("zone") else "-",
+            f"{sum(m.get('mailboxes', 0) for m in mail)} mailboxes" if mail else "-",
+            ", ".join(h.get("hostname", "") for h in hosts) or "-",
+        ])
+    print_table(["DOMAIN", "DNS", "MAIL", "HOSTNAMES"], rows)
+    return 0
+
+
 def cmd_domains_add(args: argparse.Namespace) -> int:
     d = client_from_config().domain_add(args.project, args.hostname)
     print(c("✓ domain claimed", "1;32") + f"  {d.get('hostname', '')}")
@@ -2317,6 +2344,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = domains.add_parser("list", help="list custom domains")
     sp.add_argument("--project")
     sp.set_defaults(func=cmd_domains_list)
+    sp = domains.add_parser("overview", help="every domain with its DNS, mail and hostnames")
+    sp.add_argument("--json", action="store_true", help="print the raw JSON")
+    sp.set_defaults(func=cmd_domains_overview)
     sp = domains.add_parser("add", help="claim a domain for an app (prints DNS instructions)")
     sp.add_argument("project")
     sp.add_argument("hostname")

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 
 import { AlertBanner } from "@/components/ui/alert-banner"
@@ -21,6 +22,22 @@ export function DomainsManager({
   domains: DomainRecord[]
   apps: InstalledApp[]
 }) {
+  return (
+    <div className="space-y-6">
+      <AttachDomainForm apps={apps} />
+      <HostnameList domains={domains} />
+    </div>
+  )
+}
+
+/** Claim a hostname for an app; the list below shows the TXT/CNAME to publish. */
+export function AttachDomainForm({
+  apps,
+  placeholder = "www.example.com",
+}: {
+  apps: InstalledApp[]
+  placeholder?: string
+}) {
   const { run, pending, error } = useAction()
   const [hostname, setHostname] = useState("")
   const [project, setProject] = useState(apps[0]?.project ?? "")
@@ -31,7 +48,7 @@ export function DomainsManager({
       () =>
         apiFetch("/api/proxy/domains", {
           method: "POST",
-          body: { project, hostname },
+          body: { project, hostname: hostname.trim() },
           errorMessage: "Request failed.",
         }),
       { key: "add", successMessage: "Domain added" },
@@ -40,7 +57,7 @@ export function DomainsManager({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
       <form
@@ -70,7 +87,7 @@ export function DomainsManager({
             aria-label="Domain"
             value={hostname}
             onChange={(event) => setHostname(event.target.value)}
-            placeholder="www.example.com"
+            placeholder={placeholder}
             className={`${INPUT_CLASS} w-full`}
             required
           />
@@ -79,7 +96,23 @@ export function DomainsManager({
           {pending === "add" ? "…" : "Add domain"}
         </Button>
       </form>
+    </div>
+  )
+}
 
+/** Claimed hostnames with verify/remove; `placement` labels the service each routes to. */
+export function HostnameList({
+  domains,
+  placement = {},
+}: {
+  domains: DomainRecord[]
+  placement?: Record<string, { label: string; href: string }>
+}) {
+  const { run, pending, error } = useAction()
+
+  return (
+    <div className="space-y-3">
+      {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
       {domains.length === 0 ? (
         <EmptyState
           title="No custom domains yet"
@@ -96,7 +129,14 @@ export function DomainsManager({
                     <StatusBadge value={domain.status} />
                   </div>
                   <div className="mt-1 text-sm text-muted-foreground">
-                    → {domain.project}
+                    →{" "}
+                    {placement[domain.project] ? (
+                      <Link href={placement[domain.project].href} className="hover:underline">
+                        {placement[domain.project].label}
+                      </Link>
+                    ) : (
+                      domain.project
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

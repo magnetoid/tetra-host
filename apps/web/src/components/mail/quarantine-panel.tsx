@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { useAction } from "@/hooks/use-action"
 import { apiFetch } from "@/lib/client-api"
+import { isUnder } from "@/lib/domains"
 import { faArrowsRotate, faCircleCheck, faTrash } from "@/lib/icons"
 import type { MailQuarantineItem } from "@/lib/types"
 
@@ -15,10 +16,14 @@ import type { MailQuarantineItem } from "@/lib/types"
  * Spam quarantine: held/rejected mail scoped to the tenant's recipients. Release
  * delivers to the inbox (and learns as ham); delete drops the held copy. Data is
  * fetched client-side so it stays fresh without reloading the whole mail page.
+ * With `domain`, only messages addressed to that domain (or under it) are shown.
  */
-export function QuarantinePanel() {
+export function QuarantinePanel({ domain }: { domain?: string } = {}) {
   const { run, pending } = useAction()
-  const [items, setItems] = useState<MailQuarantineItem[]>([])
+  const [allItems, setItems] = useState<MailQuarantineItem[]>([])
+  const items = domain
+    ? allItems.filter((item) => isUnder(item.rcpt.split("@").pop() ?? "", domain))
+    : allItems
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

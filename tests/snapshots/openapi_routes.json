@@ -686,6 +686,14 @@
     "request": null,
     "response": "list[DomainSummary]"
   },
+  "GET /api/v1/domains/overview": {
+    "operationId": "api_domains_overview_api_v1_domains_overview_get",
+    "parameters": [
+      "header:authorization"
+    ],
+    "request": null,
+    "response": "DomainsOverviewResponse"
+  },
   "GET /api/v1/edge/ask": {
     "operationId": "api_edge_ask_api_v1_edge_ask_get",
     "parameters": [

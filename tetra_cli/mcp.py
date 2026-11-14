@@ -235,6 +235,16 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.domains(project=a.get("project")),
     },
     {
+        "name": "domains_overview",
+        "description": (
+            "Every domain the account owns, joined by apex: its DNS zone, mail domains and "
+            "the hostnames routed to services (with project/environment)."
+        ),
+        "inputSchema": _schema(),
+        "write": False,
+        "handler": lambda c, a: c.domains_overview(),
+    },
+    {
         "name": "usage",
         "description": "The tenant's plan usage/quota summary (apps, cpu, memory, disk).",
         "inputSchema": _schema(),
