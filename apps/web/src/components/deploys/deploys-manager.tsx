@@ -18,31 +18,19 @@ import { cn, formatRelativeLabel } from "@/lib/utils"
 const INPUT_CLASS =
   "rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
 
-export function DeploysManager({ deployments }: { deployments: DeploymentRecord[] }) {
+export function DeploysManager({
+  deployments,
+  showForm = true,
+  emptyDescription = "Deploy any git repository — Dockerfile if present, zero-config Nixpacks otherwise.",
+}: {
+  deployments: DeploymentRecord[]
+  /** The service pages list one app's history without a new-deploy form. */
+  showForm?: boolean
+  emptyDescription?: string
+}) {
   const { run, pending, error } = useAction()
-  const [gitUrl, setGitUrl] = useState("")
-  const [name, setName] = useState("")
-  const [ref, setRef] = useState("main")
   // Which deployment card is expanded (accordion). Its info + live logs render inline.
   const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  async function deploy(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    await run(
-      async () => {
-        const payload = await apiFetch<{ deployment_id?: string }>("/api/proxy/deploys/git", {
-          method: "POST",
-          body: { git_url: gitUrl, name, ref },
-          errorMessage: "Deploy failed to start.",
-        })
-        setGitUrl("")
-        setName("")
-        // Open the new deployment's card so its build log streams inline once it lands.
-        if (payload.deployment_id) setExpandedId(payload.deployment_id)
-      },
-      { key: "deploy", successMessage: "Deploy started" },
-    )
-  }
 
   function rollback(deploymentId: string) {
     return run(
@@ -76,50 +64,12 @@ export function DeploysManager({ deployments }: { deployments: DeploymentRecord[
     <div className="space-y-6">
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
 
-      <form
-        onSubmit={deploy}
-        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
-      >
-        <label className="block flex-1 text-sm">
-          <span className="mb-2 block text-muted-foreground">Git repository</span>
-          <input
-            aria-label="Git repository"
-            value={gitUrl}
-            onChange={(event) => setGitUrl(event.target.value)}
-            placeholder="https://github.com/you/app"
-            className={`${INPUT_CLASS} w-full`}
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-2 block text-muted-foreground">Name</span>
-          <input
-            aria-label="Name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="my-app"
-            className={INPUT_CLASS}
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-2 block text-muted-foreground">Branch</span>
-          <input
-            aria-label="Branch"
-            value={ref}
-            onChange={(event) => setRef(event.target.value)}
-            className={`${INPUT_CLASS} w-28`}
-          />
-        </label>
-        <Button type="submit" icon={faRocket} disabled={pending !== null}>
-          {pending === "deploy" ? "…" : "Deploy"}
-        </Button>
-      </form>
+      {showForm ? <GitDeployForm onStarted={setExpandedId} /> : null}
 
       {deployments.length === 0 ? (
         <EmptyState
           title="No deployments yet"
-          description="Deploy any git repository — Dockerfile if present, zero-config Nixpacks otherwise."
+          description={emptyDescription}
         />
       ) : (
         <div className="space-y-3">
@@ -194,6 +144,83 @@ function Detail({ label, value, mono = false }: { label: string; value: string; 
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={cn("mt-0.5 truncate", mono && "font-mono text-xs")}>{value}</dd>
+    </div>
+  )
+}
+
+/** Build and deploy a git repository; with `environmentId` the app is created there. */
+export function GitDeployForm({
+  environmentId,
+  onStarted,
+}: {
+  environmentId?: string
+  onStarted?: (deploymentId: string) => void
+}) {
+  const { run, pending, error } = useAction()
+  const [gitUrl, setGitUrl] = useState("")
+  const [name, setName] = useState("")
+  const [ref, setRef] = useState("main")
+
+  async function deploy(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await run(
+      async () => {
+        const payload = await apiFetch<{ deployment_id?: string }>("/api/proxy/deploys/git", {
+          method: "POST",
+          body: { git_url: gitUrl, name, ref, ...(environmentId ? { environment_id: environmentId } : {}) },
+          errorMessage: "Deploy failed to start.",
+        })
+        setGitUrl("")
+        setName("")
+        // Open the new deployment's card so its build log streams inline once it lands.
+        if (payload.deployment_id) onStarted?.(payload.deployment_id)
+      },
+      { key: "deploy", successMessage: "Deploy started" },
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
+      <form
+        onSubmit={deploy}
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
+      >
+        <label className="block flex-1 text-sm">
+          <span className="mb-2 block text-muted-foreground">Git repository</span>
+          <input
+            aria-label="Git repository"
+            value={gitUrl}
+            onChange={(event) => setGitUrl(event.target.value)}
+            placeholder="https://github.com/you/app"
+            className={`${INPUT_CLASS} w-full`}
+            required
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-2 block text-muted-foreground">Name</span>
+          <input
+            aria-label="Name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="my-app"
+            className={INPUT_CLASS}
+            required
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-2 block text-muted-foreground">Branch</span>
+          <input
+            aria-label="Branch"
+            value={ref}
+            onChange={(event) => setRef(event.target.value)}
+            className={`${INPUT_CLASS} w-28`}
+          />
+        </label>
+        <Button type="submit" icon={faRocket} disabled={pending !== null}>
+          {pending === "deploy" ? "…" : "Deploy"}
+        </Button>
+      </form>
     </div>
   )
 }

@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 import { AreaChart } from "@/components/tremor/area-chart"
 import { BarChart } from "@/components/tremor/bar-chart"
 import { BarList } from "@/components/tremor/bar-list"
@@ -53,9 +51,6 @@ export default async function MetricsPage({ params }: { params: Promise<{ projec
 
   return (
     <div className="space-y-8">
-      <Link href="/apps" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Apps
-      </Link>
       <PageHeader
         eyebrow="Metrics"
         title={project}

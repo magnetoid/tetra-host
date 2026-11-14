@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { useScopeLabels } from "@/components/shell/scope-labels"
 import { AlertBanner } from "@/components/ui/alert-banner"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { useAction } from "@/hooks/use-action"
 import { apiFetch } from "@/lib/client-api"
 import { faArrowsRotate, faCirclePlay, faCircleStop, faTrash } from "@/lib/icons"
+import { projectHref } from "@/lib/navigation"
 import type { DatabaseRecord } from "@/lib/types"
 
 const ACTIONS = [
@@ -20,6 +22,7 @@ const ACTIONS = [
 /** Start/stop/restart a database, and delete it behind a type-the-name confirmation. */
 export function DatabaseControls({ database }: { database: DatabaseRecord }) {
   const router = useRouter()
+  const labels = useScopeLabels()
   const { run, pending, error } = useAction()
   const [confirming, setConfirming] = useState(false)
   const [typed, setTyped] = useState("")
@@ -30,7 +33,14 @@ export function DatabaseControls({ database }: { database: DatabaseRecord }) {
       () => apiFetch(base, { method: "DELETE", errorMessage: "Could not delete the database." }),
       { key: "delete", successMessage: `${database.name} deleted`, refresh: false },
     )
-    if (ok) router.push("/databases")
+    // Back to the environment it lived in, when the page knows it.
+    if (ok) {
+      router.push(
+        labels.projectSlug && labels.environmentSlug
+          ? projectHref(labels.projectSlug, labels.environmentSlug)
+          : "/projects",
+      )
+    }
   }
 
   return (

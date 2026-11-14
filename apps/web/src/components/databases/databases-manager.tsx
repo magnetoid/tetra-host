@@ -29,6 +29,65 @@ export function DatabasesManager({
   databases: DatabaseRecord[]
   engines: DatabaseEngine[]
 }) {
+  return (
+    <div className="space-y-6">
+      <DatabaseCreateForm engines={engines} />
+
+      {databases.length === 0 ? (
+        <EmptyState
+          title="No databases yet"
+          description="Create one above, then link it to an app: the app gets DATABASE_URL and reaches the database by its name."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Engine</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="hidden px-4 py-3 font-medium md:table-cell">Host</th>
+                <th className="hidden px-4 py-3 font-medium md:table-cell">Backups</th>
+              </tr>
+            </thead>
+            <tbody>
+              {databases.map((db) => (
+                <tr key={db.id} className="border-t border-border">
+                  <td className="px-4 py-3">
+                    <Link href={`/databases/${db.id}`} className="font-medium hover:underline">
+                      {db.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {db.engine_label} {db.version}
+                  </td>
+                  <td className="px-4 py-3">
+                    <AppStatus value={db.status} />
+                  </td>
+                  <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">
+                    {db.host}:{db.port}
+                  </td>
+                  <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
+                    {db.supports_backup ? describeSchedule(db.backup_cron) : "Not offered"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Name + engine + version; with `environmentId` the database is created there. */
+export function DatabaseCreateForm({
+  engines,
+  environmentId,
+}: {
+  engines: DatabaseEngine[]
+  environmentId?: string
+}) {
   const { run, pending, error } = useAction()
   const [name, setName] = useState("")
   const [engine, setEngine] = useState<DatabaseEngineKey>(engines[0]?.key ?? "postgres")
@@ -41,7 +100,12 @@ export function DatabasesManager({
       () =>
         apiFetch("/api/proxy/databases", {
           method: "POST",
-          body: { name: name.trim(), engine, version: version || undefined },
+          body: {
+            name: name.trim(),
+            engine,
+            version: version || undefined,
+            ...(environmentId ? { environment_id: environmentId } : {}),
+          },
           errorMessage: "Could not create the database.",
         }),
       { key: "create", successMessage: `Database ${name.trim()} is starting` },
@@ -50,9 +114,8 @@ export function DatabasesManager({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {error ? <AlertBanner tone="error">{error}</AlertBanner> : null}
-
       <form
         onSubmit={create}
         className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted p-4"
@@ -113,50 +176,6 @@ export function DatabasesManager({
           </p>
         ) : null}
       </form>
-
-      {databases.length === 0 ? (
-        <EmptyState
-          title="No databases yet"
-          description="Create one above, then link it to an app: the app gets DATABASE_URL and reaches the database by its name."
-        />
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Engine</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="hidden px-4 py-3 font-medium md:table-cell">Host</th>
-                <th className="hidden px-4 py-3 font-medium md:table-cell">Backups</th>
-              </tr>
-            </thead>
-            <tbody>
-              {databases.map((db) => (
-                <tr key={db.id} className="border-t border-border">
-                  <td className="px-4 py-3">
-                    <Link href={`/databases/${db.id}`} className="font-medium hover:underline">
-                      {db.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {db.engine_label} {db.version}
-                  </td>
-                  <td className="px-4 py-3">
-                    <AppStatus value={db.status} />
-                  </td>
-                  <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">
-                    {db.host}:{db.port}
-                  </td>
-                  <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                    {db.supports_backup ? describeSchedule(db.backup_cron) : "Not offered"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   )
 }

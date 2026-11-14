@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 import { DatabaseBackups } from "@/components/databases/database-backups"
 import { DatabaseControls } from "@/components/databases/database-controls"
 import { DatabaseConnect } from "@/components/databases/database-connect"
@@ -25,9 +23,6 @@ export default async function DatabasePage({ params }: { params: Promise<{ id: s
   if (!db) {
     return (
       <div className="space-y-6">
-        <Link href="/databases" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Databases
-        </Link>
         <DegradedBanner sources={degradedSources([dbRes])} />
         <p className="text-sm text-muted-foreground">This database doesn&apos;t exist or isn&apos;t yours.</p>
       </div>
@@ -36,9 +31,6 @@ export default async function DatabasePage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-6">
-      <Link href="/databases" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Databases
-      </Link>
       <PageHeader
         eyebrow={`${db.engine_label} ${db.version}`}
         title={db.name}

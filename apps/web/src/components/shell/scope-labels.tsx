@@ -26,11 +26,18 @@ export function useScopeLabels(): ScopeLabels {
   return useContext(ScopeLabelsContext).labels
 }
 
-export function SetScopeLabels({ app }: { app?: string }) {
+/** Publish the names of the entity a page shows (service, project, environment). */
+export function SetScopeLabels({
+  app,
+  project,
+  projectSlug,
+  environment,
+  environmentSlug,
+}: Omit<ScopeLabels, "team">) {
   const { setLabels } = useContext(ScopeLabelsContext)
   useEffect(() => {
-    setLabels({ app })
+    setLabels({ app, project, projectSlug, environment, environmentSlug })
     return () => setLabels({})
-  }, [app, setLabels])
+  }, [app, project, projectSlug, environment, environmentSlug, setLabels])
   return null
 }

@@ -10,7 +10,13 @@ import { faChevronLeft, faTableColumns } from "@/lib/icons"
 import { isActive, resolveScope, sidebarFor } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 
-const SCOPE_CAPTION = { platform: "Super admin", team: "Team", app: "App" } as const
+const SCOPE_CAPTION = {
+  platform: "Super admin",
+  team: "Team",
+  project: "Team",
+  app: "App",
+  database: "Database",
+} as const
 
 /** The menu of the current scope. Shared by the desktop sidebar and the mobile drawer. */
 export function SidebarNav({
@@ -25,13 +31,15 @@ export function SidebarNav({
   const pathname = usePathname()
   const labels = useScopeLabels()
   const scope = resolveScope(pathname, isPlatformAdmin)
-  const model = sidebarFor(scope, isPlatformAdmin)
+  const model = sidebarFor(scope, isPlatformAdmin, labels)
   const title =
     scope.kind === "platform"
       ? "Platform"
-      : scope.kind === "team"
+      : scope.kind === "team" || scope.kind === "project"
         ? labels.team || "Team"
-        : labels.app || scope.app
+        : scope.kind === "app"
+          ? labels.app || scope.app
+          : labels.app || "Database"
 
   return (
     <div className="flex flex-col gap-0.5">
