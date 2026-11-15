@@ -339,8 +339,9 @@ _TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "link_database",
-        "description": "Store a database's connection URL as a secret env var on an app "
-        "(DATABASE_URL by default; applied on the app's next deploy).",
+        "description": "Point an app's env var (DATABASE_URL by default) at a database with "
+        "the reference ${{name.url}}, filled in on each deploy. The app and the database must "
+        "be in the same environment.",
         "inputSchema": _schema(
             {
                 "database_id": {"type": "string"},
@@ -367,8 +368,18 @@ _TOOLS: list[dict[str, Any]] = [
         "handler": lambda c, a: c.delete_preview(a["preview_id"]),
     },
     {
+        "name": "list_env_references",
+        "description": "Services in an app's environment that its variables can reference as "
+        "${{service.field}} (e.g. ${{shop-db.url}}), with each one's fields.",
+        "inputSchema": _schema(_project_arg("App/project name"), ["project"]),
+        "write": False,
+        "handler": lambda c, a: c.deploy_references(a["project"]),
+    },
+    {
         "name": "set_env_var",
-        "description": "Set an app environment variable (encrypted at rest; applied on next deploy).",
+        "description": "Set an app environment variable (encrypted at rest; applied on next "
+        "deploy). A value may reference a service in the app's environment as "
+        "${{service.field}} (see list_env_references); it is filled in at deploy time.",
         "inputSchema": _schema(
             {
                 **_project_arg("App/project name"),

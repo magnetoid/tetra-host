@@ -290,8 +290,11 @@ class DatabasesService:
         project: str,
         key: str = "DATABASE_URL",
     ) -> None:
-        """Store the connection URL as a secret env var on one of the tenant's apps."""
+        """Point an env var of one of the tenant's apps at this database with a service
+        reference (``${{name.url}}``), filled in at each deploy. The app and the database
+        must share an environment."""
         from app.modules.deploys.service import DeploysService
+        from app.modules.workspaces.references import ServiceReferenceError, ServiceReferences
 
         db = await self.get_for_tenant(session, tenant_id, database_id)
         key = (key or "").strip()
@@ -307,9 +310,17 @@ class DatabasesService:
         )
         if owned is None:
             raise DockerEngineError(message="App is not assigned to this tenant.", code=403)
-        url = str(self.connection(db)["url"])
+        reference = f"${{{{{db.name}.url}}}}"
+        try:
+            await ServiceReferences(session).check(tenant_id, project, reference)
+        except ServiceReferenceError as exc:
+            raise DockerEngineError(
+                message=f"'{db.name}' and '{project}' are in different environments. Move one "
+                "of them so they share an environment, then link again.",
+                code=409,
+            ) from exc
         await DeploysService(None).set_env_for_tenant(
-            session, tenant_id, project, key=key, value=url, is_secret=True
+            session, tenant_id, project, key=key, value=reference
         )
 
     async def update_backup_schedule(

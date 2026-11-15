@@ -1266,3 +1266,41 @@ def test_templates_commands_parse_like_their_apps_aliases():
     assert listed.func is cmd_apps_catalog and listed.search == "wp"
     installed = parser.parse_args(["templates", "install", "ghost", "--project", "site"])
     assert installed.func is cmd_apps_install and installed.project == "site"
+
+
+def test_client_deploy_references_gets_targets():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/deploys/blog/references"
+        return httpx.Response(200, json=[{"service": "blog-db", "fields": ["url"]}])
+
+    assert make_client(handler).deploy_references("blog")[0]["service"] == "blog-db"
+
+
+def test_main_env_refs_prints_placeholders(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[{"service": "blog-db", "kind": "database", "engine": "postgres",
+                   "fields": ["url", "host"]}],
+        )
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(handler))
+    assert main(["deploys", "env", "refs", "blog"]) == 0
+    out = capsys.readouterr().out
+    assert "${{blog-db.url}}" in out and "${{blog-db.host}}" in out
+
+
+def test_main_env_list_shows_references(monkeypatch, capsys):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[{"key": "DATABASE_URL", "value": "${{blog-db.url}}", "is_secret": False,
+                   "references": ["blog-db.url"]}],
+        )
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config",
+                        lambda require_auth=True: make_client(handler))
+    assert main(["deploys", "env", "list", "blog"]) == 0
+    assert "→ blog-db.url" in capsys.readouterr().out

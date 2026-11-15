@@ -126,6 +126,7 @@ from app.api.contracts import (
     RoleChangeRequest,
     ScheduledJobSummary,
     ServiceActivateResponse,
+    ServiceReferenceTarget,
     SignupRequest,
     SSOAuthorizeResponse,
     SSOCallbackRequest,
@@ -195,6 +196,7 @@ from app.modules.reseller.service import ResellerError, ResellerService
 from app.modules.reseller.storage_service import StorageService
 from app.modules.sso.service import SSOError, SSOService
 from app.modules.team.service import TeamError, TeamService
+from app.modules.workspaces.references import ServiceReferences, find_references
 from app.routes.deps import get_auth_service
 from app.services.api_tokens import ApiTokenService, looks_like_personal_token
 from app.services.builder import BuildError
@@ -2251,12 +2253,15 @@ async def api_edge_ask(
 
 
 def _env_summary(row) -> AppEnvVarSummary:
-    """Mask secret values on read; non-secret values are returned decrypted."""
+    """Mask secret values on read; non-secret values are returned decrypted. The
+    references a value makes are listed either way (they name services, not secrets)."""
+    value = decrypt(row.value)
     return AppEnvVarSummary(
         key=row.key,
-        value="••••••" if row.is_secret else decrypt(row.value),
+        value="••••••" if row.is_secret else value,
         is_secret=row.is_secret,
         is_build_time=row.is_build_time,
+        references=[str(ref) for ref in find_references(value)],
     )
 
 
@@ -2287,12 +2292,33 @@ async def api_set_deploy_env(
     if not key:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Env var key is required.")
     service = DeploysService(request)
-    await service.set_env_for_tenant(
-        session, current_admin.tenant_id, project,
-        key=key, value=payload.value, is_secret=payload.is_secret, is_build_time=payload.is_build_time,
-    )
+    try:
+        await service.set_env_for_tenant(
+            session, current_admin.tenant_id, project,
+            key=key, value=payload.value, is_secret=payload.is_secret,
+            is_build_time=payload.is_build_time,
+        )
+    except DockerEngineError as exc:
+        raise _engine_exc_to_http(exc) from exc
     rows = await service.list_env_for_tenant(session, current_admin.tenant_id, project)
     return [_env_summary(row) for row in rows]
+
+
+@router.get("/deploys/{project}/references", response_model=list[ServiceReferenceTarget])
+async def api_deploy_references(
+    project: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_admin: AdminUser = Depends(get_current_api_admin),
+) -> list[ServiceReferenceTarget]:
+    """Services in the app's environment that its variables can reference as
+    ``${{service.field}}`` (filled in at deploy time)."""
+    targets = await ServiceReferences(session).available(current_admin.tenant_id, project)
+    return [
+        ServiceReferenceTarget(
+            service=t.service, kind=t.kind, engine=t.engine, fields=list(t.fields)
+        )
+        for t in targets
+    ]
 
 
 @router.delete("/deploys/{project}/env/{key}")

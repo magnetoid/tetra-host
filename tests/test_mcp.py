@@ -464,3 +464,16 @@ def test_domains_overview_is_a_read_tool():
         _rpc("tools/call", {"name": "domains_overview", "arguments": {}})
     )
     assert response["result"].get("isError") is not True
+
+
+def test_list_env_references_is_a_read_tool():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET" and request.url.path == "/api/v1/deploys/blog/references"
+        return httpx.Response(200, json=[{"service": "blog-db", "fields": ["url"]}])
+
+    server = MCPServer(make_client(handler))  # read-only is enough
+    response = server.handle_message(
+        _rpc("tools/call", {"name": "list_env_references", "arguments": {"project": "blog"}})
+    )
+    assert response["result"].get("isError") is not True
+    assert "blog-db" in response["result"]["content"][0]["text"]

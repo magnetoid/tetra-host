@@ -640,6 +640,15 @@
     "request": null,
     "response": "list[AppEnvVarSummary]"
   },
+  "GET /api/v1/deploys/{project}/references": {
+    "operationId": "api_deploy_references_api_v1_deploys__project__references_get",
+    "parameters": [
+      "header:authorization",
+      "path:project!"
+    ],
+    "request": null,
+    "response": "list[ServiceReferenceTarget]"
+  },
   "GET /api/v1/dns": {
     "operationId": "api_dns_api_v1_dns_get",
     "parameters": [

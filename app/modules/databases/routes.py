@@ -242,7 +242,8 @@ async def api_databases_link(
     except DockerEngineError as exc:
         raise _http(exc) from exc
     return DatabaseActionOut(
-        message=f"{payload.key} set on {payload.project}. Redeploy the app to use it."
+        message=f"{payload.key} on {payload.project} now points at this database. "
+        "Redeploy the app to use it."
     )
 
 

@@ -478,6 +478,16 @@ export interface AppEnvVar {
   value: string // masked ("••••••") when is_secret
   is_secret: boolean
   is_build_time: boolean
+  /** Service references in the value ("shop-db.url"), filled in at deploy time. */
+  references?: string[]
+}
+
+/** A service in the app's environment that a variable can reference as `${{service.field}}`. */
+export interface ServiceReferenceTarget {
+  service: string
+  kind: string
+  engine: string
+  fields: string[]
 }
 
 export interface BuildDiagnosis {
