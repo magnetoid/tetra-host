@@ -211,6 +211,21 @@ def test_create_connect_and_link(client, engine_fakes):
     dup = client.post("/api/v1/databases", json={"name": "blog-db", "engine": "mysql"}, headers=h)
     assert dup.status_code == 409
 
+    # The database (created outside any environment) and the app don't share one yet.
+    apart = client.post(
+        f"/api/v1/databases/{db['id']}/link", json={"project": "blog"}, headers=h
+    )
+    assert apart.status_code == 409, apart.text
+    assert "different environments" in apart.json()["detail"]
+
+    services = {a["name"]: a for a in client.get("/api/v1/teams/acme/apps", headers=h).json()}
+    moved = client.post(
+        f"/api/v1/teams/acme/apps/{services['blog-db']['id']}/move",
+        json={"environment_id": services["blog"]["environment"]["id"]},
+        headers=h,
+    )
+    assert moved.status_code == 200, moved.text
+
     linked = client.post(
         f"/api/v1/databases/{db['id']}/link", json={"project": "blog"}, headers=h
     )
@@ -221,7 +236,8 @@ def test_create_connect_and_link(client, engine_fakes):
             row = await session.scalar(select(AppEnvVar).where(AppEnvVar.project == "blog"))
             return row.key, decrypt(row.value), row.is_secret
 
-    assert asyncio.run(env_value()) == ("DATABASE_URL", conn["url"], True)
+    # A reference, not a copy: the deploy fills in the current URL.
+    assert asyncio.run(env_value()) == ("DATABASE_URL", "${{blog-db.url}}", False)
 
     foreign = client.post(
         f"/api/v1/databases/{db['id']}/link", json={"project": "not-mine"}, headers=h

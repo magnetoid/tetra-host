@@ -537,6 +537,10 @@ class TetraClient:
     def deploy_env_rm(self, project: str, key: str) -> Any:
         return self._request("DELETE", f"/deploys/{project}/env/{key}")
 
+    def deploy_references(self, project: str) -> Any:
+        """Services an app's variables can reference as ``${{service.field}}``."""
+        return self._request("GET", f"/deploys/{project}/references")
+
     def create_deploy_hook(
         self, project: str, git_url: str, ref: str = "main", port: int = 3000,
         previews: bool = True,

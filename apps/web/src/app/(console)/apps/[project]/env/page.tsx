@@ -3,7 +3,7 @@ import { DegradedBanner } from "@/components/ui/degraded-banner"
 import { PageHeader } from "@/components/ui/page-header"
 import { requireConsoleSession } from "@/lib/auth"
 import { degradedSources, fetchDegraded } from "@/lib/fetch-degraded"
-import type { AppEnvVar } from "@/lib/types"
+import type { AppEnvVar, ServiceReferenceTarget } from "@/lib/types"
 
 export default async function AppEnvPage({
   params,
@@ -13,9 +13,17 @@ export default async function AppEnvPage({
   const session = await requireConsoleSession()
   const { project } = await params
 
-  const varsRes = await fetchDegraded<AppEnvVar[]>(`/deploys/${project}/env`, "Env vars", [], {
-    token: session.token,
-  })
+  const [varsRes, refsRes] = await Promise.all([
+    fetchDegraded<AppEnvVar[]>(`/deploys/${project}/env`, "Env vars", [], {
+      token: session.token,
+    }),
+    fetchDegraded<ServiceReferenceTarget[]>(
+      `/deploys/${project}/references`,
+      "Service references",
+      [],
+      { token: session.token },
+    ),
+  ])
   const vars = varsRes.data
 
   return (
@@ -25,8 +33,8 @@ export default async function AppEnvPage({
         title={project}
         description="Variables injected into this app's containers — secrets are encrypted at rest."
       />
-      <DegradedBanner sources={degradedSources([varsRes])} />
-      <EnvManager project={project} vars={vars} />
+      <DegradedBanner sources={degradedSources([varsRes, refsRes])} />
+      <EnvManager project={project} vars={vars} references={refsRes.data} />
     </div>
   )
 }

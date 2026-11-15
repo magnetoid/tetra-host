@@ -13,7 +13,7 @@ import type { DatabaseConnection, DatabaseRecord, InstalledApp } from "@/lib/typ
 const INPUT =
   "rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
 
-/** Reveal/copy the connection URL, and put it on one of the team's apps as an env var. */
+/** Reveal/copy the connection URL, and point one of the team's apps at it by reference. */
 export function DatabaseConnect({
   database,
   apps,
@@ -55,7 +55,10 @@ export function DatabaseConnect({
           body: { project, key },
           errorMessage: "Could not link the database.",
         }),
-      { key: "link", successMessage: `${key} set on ${project}. Redeploy it to apply.` },
+      {
+        key: "link",
+        successMessage: `${key} on ${project} now points at ${database.name}. Redeploy it to apply.`,
+      },
     )
   }
 
@@ -120,8 +123,9 @@ export function DatabaseConnect({
           {pending === "link" ? "…" : "Link to app"}
         </Button>
         <p className="w-full text-xs text-muted-foreground">
-          Stores the URL as a secret variable on the app. It takes effect on the app&apos;s next
-          deploy, which also joins it to the private network.
+          Sets the variable to <span className="font-mono">{`\${{${database.name}.url}}`}</span>,
+          a reference the app&apos;s next deploy fills in with the current URL (and joins it to the
+          private network). The app has to be in the same environment as this database.
         </p>
       </form>
     </section>

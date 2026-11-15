@@ -40,7 +40,7 @@ everything else lives inside a project.
    when given, the service row is recorded there immediately. Without it `sync()` places it as before
    (databases fall back to a "databases" project).
 6. **Domains are account-level** (a domain hub with DNS / Web / Mail tabs); hostnames point at services.
-7. Env vars stay per service for now.
+7. Env vars stay per service for now; services connect through references (below).
 
 ## Naming (owner, 2026-11-14)
 
@@ -56,6 +56,26 @@ starts from, and the same words are used in the console, the CLI and the docs:
 An app with its own database is two services in one environment, linked (`DATABASE_URL`).
 "Service" never means "template" (Coolify's usage). `tetra services` lists them; the older
 `apps catalog|install` and `workspace apps` commands remain as aliases.
+
+## Service references (2026-11-15)
+
+Services in an environment connect by **reference**, not by copying values. An env var's value
+can hold `${{service.field}}` (e.g. `DATABASE_URL=${{shop-db.url}}`); it is stored as written and
+filled in at every deploy from the referenced service's current details
+(`app/modules/workspaces/references.py`).
+
+- **Scope:** only services in the app's own environment resolve, so staging cannot reach
+  production's database by naming it. Another team's services are never visible. Previews resolve
+  in their parent app's environment (they inherit its variables).
+- **Fields:** databases offer `url host port user password database` (Redis: `url host port
+  password`).
+- **Failure:** a reference that doesn't resolve is rejected when saved (422) and fails a deploy
+  *before* the build, with the reason in the log, rather than starting the app with a literal
+  `${{…}}`.
+- **Link:** "Link to app" on a database writes `${{name.url}}` (not a secret copy); the app and the
+  database must share an environment.
+- **Parity:** `GET /deploys/{app}/references`, `tetra deploys env refs <app>`, MCP
+  `list_env_references`; the console's variable editor has a reference picker.
 
 ## Not decided here / later
 Per-environment variables, environment-aware previews and domains, moving a service with runtime

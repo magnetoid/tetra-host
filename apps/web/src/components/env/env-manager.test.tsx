@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {} }) }))
@@ -26,5 +26,35 @@ describe("EnvManager", () => {
   it("shows the empty state without vars", () => {
     render(<EnvManager project="blog" vars={[]} />)
     expect(screen.getByText(/no environment variables/i)).toBeInTheDocument()
+  })
+
+  it("shows the references a variable makes", () => {
+    render(
+      <EnvManager
+        project="blog"
+        vars={[{ key: "DATABASE_URL", value: "${{blog-db.url}}", references: ["blog-db.url"] }]}
+      />,
+    )
+    expect(screen.getByText("blog-db.url")).toBeInTheDocument()
+  })
+
+  it("inserts a reference from the picker and suggests a key", () => {
+    render(
+      <EnvManager
+        project="blog"
+        vars={[]}
+        references={[{ service: "blog-db", kind: "database", engine: "postgres", fields: ["url", "host"] }]}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText("Reference a service"), {
+      target: { value: "blog-db|url" },
+    })
+    expect(screen.getByLabelText("Variable value")).toHaveValue("${{blog-db.url}}")
+    expect(screen.getByLabelText("Variable key")).toHaveValue("DATABASE_URL")
+  })
+
+  it("explains how to get something to reference", () => {
+    render(<EnvManager project="blog" vars={[]} references={[]} />)
+    expect(screen.getByText(/create it in this app.s environment/i)).toBeInTheDocument()
   })
 })

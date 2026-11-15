@@ -1429,7 +1429,25 @@ def cmd_deploys_env_list(args: argparse.Namespace) -> int:
         return 0
     for row in rows:
         lock = c(" 🔒", "33") if row.get("is_secret") else ""
-        print(f"{c(row.get('key', ''), '1;36')}={row.get('value', '')}{lock}")
+        refs = row.get("references") or []
+        arrow = c("  → " + ", ".join(refs), "90") if refs else ""
+        print(f"{c(row.get('key', ''), '1;36')}={row.get('value', '')}{lock}{arrow}")
+    return 0
+
+
+def cmd_deploys_env_refs(args: argparse.Namespace) -> int:
+    targets = client_from_config().deploy_references(args.project)
+    if args.json:
+        print(json.dumps(targets, indent=2))
+        return 0
+    if not isinstance(targets, list) or not targets:
+        print(c("nothing to reference: no services in this app's environment", "90"))
+        return 0
+    for t in targets:
+        print(f"{c(t.get('service', ''), '1;36')}  {c(t.get('engine', ''), '90')}")
+        for field in t.get("fields", []):
+            print(f"  ${{{{{t.get('service')}.{field}}}}}")
+    print(c("use one as a value: tetra deploys env set APP KEY '${{service.field}}'", "90"))
     return 0
 
 
@@ -2263,7 +2281,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = db.add_parser("connection", help="print the connection URL (contains the password)")
     sp.add_argument("database")
     sp.set_defaults(func=cmd_db_connection)
-    sp = db.add_parser("link", help="store the connection URL as an env var on an app")
+    sp = db.add_parser(
+        "link", help="point an app env var at this database (${{name.url}}, same environment)"
+    )
     sp.add_argument("database")
     sp.add_argument("app", help="app project")
     sp.add_argument("--key", default="DATABASE_URL")
@@ -2324,7 +2344,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = env.add_parser("list", help="list env vars (secrets masked)")
     sp.add_argument("project")
     sp.set_defaults(func=cmd_deploys_env_list)
-    sp = env.add_parser("set", help="set an env var (redeploy to apply)")
+    sp = env.add_parser(
+        "set", help="set an env var (redeploy to apply); a value may hold ${{service.field}}"
+    )
     sp.add_argument("project")
     sp.add_argument("key")
     sp.add_argument("value")
@@ -2335,6 +2357,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("project")
     sp.add_argument("key")
     sp.set_defaults(func=cmd_deploys_env_rm)
+    sp = env.add_parser(
+        "refs", help="services this app can reference as ${{service.field}} (same environment)"
+    )
+    sp.add_argument("project")
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_deploys_env_refs)
 
     infra = sub.add_parser("infra", help="own infrastructure (Hetzner, platform-admin)").add_subparsers(
         dest="infra_cmd", required=True

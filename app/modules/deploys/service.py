@@ -290,8 +290,12 @@ class DeploysService:
         a still-running app from the panel."""
         log: list[str] = []
         try:
-            log.append(f"→ cloning {git_url} @ {ref}")
             await self._set(deployment_id, log, status=STATUS_BUILDING)
+            # Resolve variables (and their service references) first, so a broken
+            # reference fails the deploy before a build is spent on it.
+            env = await self.env_map_for_deploy(tenant_id, env_project or project)
+            log.append(f"→ cloning {git_url} @ {ref}")
+            await self._set(deployment_id, log)
 
             # Stream real build output into the log as it is produced, throttling DB
             # writes to ~1/sec so a chatty build doesn't hammer the row. Without this
@@ -331,7 +335,6 @@ class DeploysService:
             # failed-deploy cleanup both need to see which image this build owns.
             await self._set(deployment_id, log, image=image_ref)
 
-            env = await self.env_map_for_deploy(tenant_id, env_project or project)
             if env:
                 log.append(f"→ injecting {len(env)} environment variable(s)")
                 await self._set(deployment_id, log)
@@ -598,6 +601,12 @@ class DeploysService:
                 AppEnvVar.key == key,
             )
         )
+        from app.modules.workspaces.references import ServiceReferenceError, ServiceReferences
+
+        try:
+            await ServiceReferences(session).check(tenant_id, project, value)
+        except ServiceReferenceError as exc:
+            raise DockerEngineError(message=exc.message, code=422) from exc
         ciphertext = encrypt(value)
         if existing is not None:
             existing.value = ciphertext
@@ -679,14 +688,22 @@ class DeploysService:
             )
 
     async def env_map_for_deploy(self, tenant_id: str | None, project: str) -> dict[str, str]:
-        """Decrypted {key: value} for injection at deploy time (own session — runs post-request)."""
+        """Decrypted {key: value} for injection at deploy time, with service references
+        (``${{shop-db.url}}``) filled in from the referenced service's current details (own
+        session — runs post-request). A reference that doesn't resolve fails the deploy."""
+        from app.modules.workspaces.references import ServiceReferenceError, ServiceReferences
+
         async with session_scope() as session:
             rows = await session.scalars(
                 select(AppEnvVar).where(
                     AppEnvVar.tenant_id == (tenant_id or ""), AppEnvVar.project == project
                 )
             )
-            return {row.key: decrypt(row.value) for row in rows.all()}
+            env = {row.key: decrypt(row.value) for row in rows.all()}
+            try:
+                return await ServiceReferences(session).resolve(tenant_id, project, env)
+            except ServiceReferenceError as exc:
+                raise DockerEngineError(message=exc.message, code=422) from exc
 
     async def redeploy_for_tenant(
         self, tenant_id: str | None, *, git_url: str, ref: str, project: str, port: int

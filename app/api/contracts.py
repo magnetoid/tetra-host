@@ -396,6 +396,18 @@ class AppEnvVarSummary(BaseModel):
     value: str  # masked ("••••••") when is_secret
     is_secret: bool = False
     is_build_time: bool = False
+    # Service references in the value ("shop-db.url"), filled in at deploy time.
+    references: list[str] = Field(default_factory=list)
+
+
+class ServiceReferenceTarget(BaseModel):
+    """A service in the app's environment whose details a variable can reference as
+    ``${{service.field}}``."""
+
+    service: str
+    kind: str
+    engine: str
+    fields: list[str]
 
 
 class AppComputeSample(BaseModel):
