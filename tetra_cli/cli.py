@@ -1025,7 +1025,7 @@ def cmd_tenants_reactivate(args: argparse.Namespace) -> int:
     return _cmd_tenant_action("reactivate", args)
 
 
-IMPORT_BUSY = {"staging", "cutting_over", "rolling_back"}
+IMPORT_BUSY = {"staging", "cutting_over", "rolling_back", "finalizing"}
 
 
 def _print_import_run(run: dict) -> None:
@@ -1112,6 +1112,9 @@ def _cmd_import_action(action: str, args: argparse.Namespace) -> int:
         run = _follow_import(client, args.run_id)
         print()
         _print_import_run(run)
+        # A failed finalize returns the run to "live" (not "failed"), so judge it by its goal.
+        if action == "finalize":
+            return 0 if run.get("state") == "finalized" else 1
         return 0 if run.get("state") != "failed" else 1
     return 0
 
