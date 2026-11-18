@@ -118,7 +118,7 @@ async def api_plan_coolify_import(
 @router.post("/runs/{run_id}/{action}", response_model=ImportRunDetail)
 async def api_import_action(
     run_id: str,
-    action: Literal["stage", "cutover", "rollback"],
+    action: Literal["stage", "cutover", "rollback", "finalize"],
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     current_admin: AdminUser = Depends(require_platform_admin),

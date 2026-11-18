@@ -1101,6 +1101,7 @@ def _cmd_import_action(action: str, args: argparse.Namespace) -> int:
         what = {
             "cutover": "stops the Coolify app and moves live traffic to the engine copy",
             "rollback": "stops the engine copy and restarts the Coolify app",
+            "finalize": "removes the stopped Coolify containers; rollback is no longer possible",
         }[action]
         print(f"Refusing to {action} without --yes ({what}).")
         return 1
@@ -1125,6 +1126,10 @@ def cmd_import_cutover(args: argparse.Namespace) -> int:
 
 def cmd_import_rollback(args: argparse.Namespace) -> int:
     return _cmd_import_action("rollback", args)
+
+
+def cmd_import_finalize(args: argparse.Namespace) -> int:
+    return _cmd_import_action("finalize", args)
 
 
 def _app_rows(apps: list[dict], with_team: bool = False) -> list[list[str]]:
@@ -2756,6 +2761,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("stage", "start a trial copy on shifted ports; the Coolify app keeps serving"),
         ("cutover", "stop the Coolify app and serve from the engine on the same ports"),
         ("rollback", "stop the engine stack and restart the Coolify app"),
+        ("finalize", "end a live import: remove the stopped Coolify containers (volumes kept)"),
     ):
         _sp = imports.add_parser(_action, help=_help)
         _sp.add_argument("run_id")

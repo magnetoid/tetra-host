@@ -47,6 +47,8 @@ from app.models.import_run import (
     IMPORT_BUSY_STATES,
     IMPORT_CUTTING_OVER,
     IMPORT_FAILED,
+    IMPORT_FINALIZED,
+    IMPORT_FINALIZING,
     IMPORT_LIVE,
     IMPORT_PLANNED,
     IMPORT_ROLLED_BACK,
@@ -74,15 +76,18 @@ _UUID_RE = re.compile(r"^[a-z0-9]{6,64}$")
 ACTION_STAGE = "stage"
 ACTION_CUTOVER = "cutover"
 ACTION_ROLLBACK = "rollback"
+ACTION_FINALIZE = "finalize"
 _ALLOWED_FROM = {
     ACTION_STAGE: {IMPORT_PLANNED, IMPORT_STAGED, IMPORT_FAILED, IMPORT_ROLLED_BACK},
     ACTION_CUTOVER: {IMPORT_STAGED, IMPORT_FAILED, IMPORT_ROLLED_BACK},
     ACTION_ROLLBACK: {IMPORT_LIVE},
+    ACTION_FINALIZE: {IMPORT_LIVE},
 }
 _BUSY_STATE = {
     ACTION_STAGE: IMPORT_STAGING,
     ACTION_CUTOVER: IMPORT_CUTTING_OVER,
     ACTION_ROLLBACK: IMPORT_ROLLING_BACK,
+    ACTION_FINALIZE: IMPORT_FINALIZING,
 }
 
 Probe = Callable[..., Awaitable[str]]  # (port, *, vhost=None) -> answer
@@ -443,13 +448,16 @@ class CoolifyImporter:
                 ACTION_STAGE: self._stage,
                 ACTION_CUTOVER: self._cutover,
                 ACTION_ROLLBACK: self._rollback,
+                ACTION_FINALIZE: self._finalize,
             }[action]
             try:
                 await step(session, run)
             except Exception as exc:  # noqa: BLE001 — every failure must land on the run
                 message = getattr(exc, "message", None) or str(exc) or type(exc).__name__
                 logger.exception("import %s %s failed", action, run_id)
-                run.state = IMPORT_FAILED
+                # A failed finalize leaves the app live on the engine exactly as before; marking
+                # it "failed" would re-open stage/cutover against a live app.
+                run.state = IMPORT_LIVE if action == ACTION_FINALIZE else IMPORT_FAILED
                 run.error = message[:1000]
                 await self._log(session, run, f"FAILED: {message}")
 
@@ -657,6 +665,32 @@ class CoolifyImporter:
         )
         run.state = IMPORT_ROLLED_BACK
         await self._log(session, run, f"rolled back; {run.project} is stopped, Coolify serves")
+
+    async def _finalize(self, session: AsyncSession, run: ImportRun) -> None:
+        """End the migration: remove the stopped Coolify containers, keep their volumes.
+
+        Only once the engine copy answers like it did at cutover. Afterwards rollback is no
+        longer offered (there is nothing to start again); the kept volumes are listed so an
+        operator can still recover data by hand, and removed separately when no longer needed.
+        """
+        summary = dict(run.summary)
+        source = summary["source_project"]
+        expected = summary.get("cutover_probe") or {}
+        if not expected:
+            raise ImporterError("This run has no cutover record to check the live app against.", 409)
+        await self._log(session, run, "checking the engine copy still answers like at cutover")
+        current = await self._wait_for(lambda: self._snapshot(run), expected)
+        await self._log(session, run, f"live answers: {current}")
+
+        await self._log(session, run, f"removing the stopped Coolify containers ({source})")
+        await self.engine.remove_stack(source, volumes=False)
+        kept = [vol["source"] for vol in summary.get("volumes") or []]
+        if kept:
+            await self._log(session, run, f"kept the Coolify volumes: {', '.join(kept)}")
+        summary["finalized_at"] = _now()
+        run.summary = summary
+        run.state = IMPORT_FINALIZED
+        await self._log(session, run, "FINALIZED: served by the engine; rollback is no longer possible")
 
     async def _register(self, session: AsyncSession, run: ImportRun) -> None:
         exists = await session.scalar(
