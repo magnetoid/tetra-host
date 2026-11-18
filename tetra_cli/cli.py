@@ -1025,7 +1025,7 @@ def cmd_tenants_reactivate(args: argparse.Namespace) -> int:
     return _cmd_tenant_action("reactivate", args)
 
 
-IMPORT_BUSY = {"staging", "cutting_over", "rolling_back"}
+IMPORT_BUSY = {"staging", "cutting_over", "rolling_back", "finalizing"}
 
 
 def _print_import_run(run: dict) -> None:
@@ -1101,6 +1101,7 @@ def _cmd_import_action(action: str, args: argparse.Namespace) -> int:
         what = {
             "cutover": "stops the Coolify app and moves live traffic to the engine copy",
             "rollback": "stops the engine copy and restarts the Coolify app",
+            "finalize": "removes the stopped Coolify containers; rollback is no longer possible",
         }[action]
         print(f"Refusing to {action} without --yes ({what}).")
         return 1
@@ -1111,6 +1112,9 @@ def _cmd_import_action(action: str, args: argparse.Namespace) -> int:
         run = _follow_import(client, args.run_id)
         print()
         _print_import_run(run)
+        # A failed finalize returns the run to "live" (not "failed"), so judge it by its goal.
+        if action == "finalize":
+            return 0 if run.get("state") == "finalized" else 1
         return 0 if run.get("state") != "failed" else 1
     return 0
 
@@ -1125,6 +1129,10 @@ def cmd_import_cutover(args: argparse.Namespace) -> int:
 
 def cmd_import_rollback(args: argparse.Namespace) -> int:
     return _cmd_import_action("rollback", args)
+
+
+def cmd_import_finalize(args: argparse.Namespace) -> int:
+    return _cmd_import_action("finalize", args)
 
 
 def _app_rows(apps: list[dict], with_team: bool = False) -> list[list[str]]:
@@ -2756,6 +2764,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("stage", "start a trial copy on shifted ports; the Coolify app keeps serving"),
         ("cutover", "stop the Coolify app and serve from the engine on the same ports"),
         ("rollback", "stop the engine stack and restart the Coolify app"),
+        ("finalize", "end a live import: remove the stopped Coolify containers (volumes kept)"),
     ):
         _sp = imports.add_parser(_action, help=_help)
         _sp.add_argument("run_id")

@@ -1304,3 +1304,33 @@ def test_main_env_list_shows_references(monkeypatch, capsys):
                         lambda require_auth=True: make_client(handler))
     assert main(["deploys", "env", "list", "blog"]) == 0
     assert "→ blog-db.url" in capsys.readouterr().out
+
+
+def test_main_import_finalize_needs_yes(monkeypatch, capsys):
+    called = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        called.append(request.url.path)
+        return httpx.Response(200, json={"id": "run-1"})
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    assert main(["import", "finalize", "run-1"]) == 1
+    assert "rollback is no longer possible" in capsys.readouterr().out
+    assert called == []
+    assert main(["import", "finalize", "run-1", "--yes"]) == 0
+    assert called == ["/api/v1/importers/runs/run-1/finalize"]
+
+
+def test_main_import_finalize_follow_waits_and_reports_failure(monkeypatch, capsys):
+    states = iter(["finalizing", "finalizing", "live"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "run-1", "state": "finalizing"})
+        return httpx.Response(200, json={"id": "run-1", "state": next(states), "log": ""})
+
+    monkeypatch.setattr("tetra_cli.cli.client_from_config", lambda require_auth=True: make_client(handler))
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    # It keeps polling through "finalizing"; ending back on "live" means finalize failed.
+    assert main(["import", "finalize", "run-1", "--yes", "--follow"]) == 1
+    assert next(states, "drained") == "drained"

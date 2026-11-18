@@ -21,8 +21,11 @@ IMPORT_LIVE = "live"
 IMPORT_ROLLING_BACK = "rolling_back"
 IMPORT_ROLLED_BACK = "rolled_back"
 IMPORT_FAILED = "failed"
+IMPORT_FINALIZING = "finalizing"
+# The Coolify source was removed (volumes kept): the import can no longer be rolled back.
+IMPORT_FINALIZED = "finalized"
 
-IMPORT_BUSY_STATES = {IMPORT_STAGING, IMPORT_CUTTING_OVER, IMPORT_ROLLING_BACK}
+IMPORT_BUSY_STATES = {IMPORT_STAGING, IMPORT_CUTTING_OVER, IMPORT_ROLLING_BACK, IMPORT_FINALIZING}
 
 
 def utc_now() -> datetime:

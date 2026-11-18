@@ -14,6 +14,7 @@ from app.db.session import close_db, init_db, session_scope
 from app.models import AuditEvent, Deployment, ImportRun, Tenant, TenantResource
 from app.models.import_run import (
     IMPORT_FAILED,
+    IMPORT_FINALIZED,
     IMPORT_LIVE,
     IMPORT_PLANNED,
     IMPORT_ROLLED_BACK,
@@ -350,3 +351,54 @@ def test_never_built_worker_is_left_out_of_both_stacks(actions_on):
     assert any("never built" in w for w in planned.summary["warnings"])
     assert live.state == IMPORT_LIVE, live.log
     assert "mtio-mailer" not in yaml.safe_load(fake.stacks["mtio"])["services"]
+
+
+def test_finalize_removes_the_source_and_ends_rollback(actions_on):
+    fake = FakeHost()
+    importer = _importer(fake)
+
+    async def main():
+        tenant_id = await _tenant_id()
+        run_id = await _plan(importer, tenant_id)
+        await _act(importer, tenant_id, run_id, "stage")
+        await _act(importer, tenant_id, run_id, "cutover")
+        await _act(importer, tenant_id, run_id, "finalize")
+        done = await _run(run_id)
+        refused = []
+        for action in ("rollback", "cutover", "stage", "finalize"):
+            try:
+                await _act(importer, tenant_id, run_id, action)
+            except ImporterError as exc:
+                refused.append(exc.status_code)
+        await close_db()
+        return done, refused
+
+    done, refused = asyncio.run(main())
+    assert done.state == IMPORT_FINALIZED, done.log
+    # The Coolify stack is taken down without --volumes; the engine copy keeps running.
+    assert ["compose", "-p", UUID, "down", "--remove-orphans"] in fake.calls
+    assert "mtio" in fake.running
+    assert "kept the Coolify volumes" in done.log
+    assert refused == [409, 409, 409, 409]
+
+
+def test_failed_finalize_leaves_the_import_live(actions_on):
+    fake = FakeHost()
+    importer = _importer(fake)
+
+    async def main():
+        tenant_id = await _tenant_id()
+        run_id = await _plan(importer, tenant_id)
+        await _act(importer, tenant_id, run_id, "stage")
+        await _act(importer, tenant_id, run_id, "cutover")
+        fake.running.discard("mtio")  # the engine copy stopped answering
+        await _act(importer, tenant_id, run_id, "finalize")
+        after = await _run(run_id)
+        await close_db()
+        return after
+
+    after = asyncio.run(main())
+    assert after.state == IMPORT_LIVE, after.log
+    assert "did not come up" in after.error
+    assert not any(c[:4] == ["compose", "-p", UUID, "down"] for c in fake.calls)
+
